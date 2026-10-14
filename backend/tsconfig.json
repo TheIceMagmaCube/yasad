@@ -7,8 +7,19 @@
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types", "node"],
+    "types": [
+      "@cloudflare/workers-types",
+      "node",
+      "@cloudflare/vitest-plugin/types"
+    ],
     "noEmit": true
   },
-  "include": ["src", "test", "drizzle.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "scripts",
+    "drizzle.config.ts",
+    "vitest.config.ts",
+    "vitest.workers.config.ts"
+  ]
 }

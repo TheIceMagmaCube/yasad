@@ -1,6 +1,6 @@
 {
   "name": "yasad",
-  "version": "0.0.0",
+  "version": "0.0.0-development",
   "private": true,
   "description": "Self-hosted portal: one clean screen with the links each person is allowed to see.",
   "license": "AGPL-3.0-only",
@@ -21,8 +21,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@semantic-release/changelog": "^7.0.0",
-    "@semantic-release/git": "^11.0.1",
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
