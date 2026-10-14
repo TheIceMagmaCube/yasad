@@ -2,7 +2,9 @@
 
 Self-hosted portal (Yet Another Simple Accessible Dashboard): each person sees one screen with the links their groups allow. Local accounts, OIDC, or both. AGPL-3.0.
 
-Product decisions, analysis and roadmap live in Outline (collection IT, page "YASAD", child "Vision, analyse et etat"). Read them before changing behaviour; propose an update there when a decision changes.
+Product decisions live in Outline, page "Décisions en vigueur" (https://outline.fabiengilles.tf/doc/decisions-en-vigueur-ypSeFfhluJ), child of "YASAD" in the IT collection. It is the only up-to-date reference: read it before changing behaviour, and propose an update there when a decision changes. The sibling page "Journal et analyse (historique)" is history only (it still mentions Django, which was dropped); never take a decision from it.
+
+GitHub issues describe the need and the acceptance criteria, not the solution. Technical choices come from the decisions page and from this file.
 
 ## Layout
 
