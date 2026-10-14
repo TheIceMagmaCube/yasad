@@ -1,0 +1,13 @@
+# Local run of the production image: docker compose up --build
+services:
+  yasad:
+    build: .
+    image: ghcr.io/theicemagmacube/yasad:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - yasad-data:/data
+    restart: unless-stopped
+
+volumes:
+  yasad-data:

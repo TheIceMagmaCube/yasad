@@ -1,0 +1,183 @@
+name: CI/CD
+
+# Same chain as NextMES and SIGALES: test, then release (semantic-release), then build.
+on:
+  push:
+    branches: [main, beta]
+  pull_request:
+    branches: [main, beta]
+    types: [opened, edited, synchronize, reopened]
+  workflow_dispatch:
+
+# Read-only token by default; release and build widen their own permissions.
+permissions:
+  contents: read
+
+jobs:
+  pr-title:
+    name: PR title (Conventional Commits)
+    # Squash merges use the PR title as the commit message, which semantic-release reads.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Lint, typecheck, tests, builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check that migrations match the schema
+        run: |
+          npm run db:generate --workspace backend
+          git diff --exit-code -- backend/drizzle || { echo "Run 'npm run db:generate --workspace backend' and commit the migration."; exit 1; }
+          test -z "$(git status --porcelain -- backend/drizzle)" || { git status --short -- backend/drizzle; exit 1; }
+
+      - name: Tests
+        run: npm test
+
+      - name: Build (frontend and Docker target)
+        run: npm run build
+
+      - name: Build Cloudflare Worker (dry run)
+        run: npm run build:worker --workspace backend
+
+  release:
+    name: Release (semantic-release)
+    runs-on: ubuntu-latest
+    needs: [test]
+    # workflow_dispatch: manual rerun when the last pushed commit carries [skip ci].
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta')
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    # `released` tells a push that publishes a version from one without a releasable
+    # commit (docs:, chore:): the immutable version tag is then not pushed again,
+    # while latest/beta/sha still follow the branch.
+    outputs:
+      version: ${{ steps.sr.outputs.version }}
+      released: ${{ steps.sr.outputs.released }}
+      sha: ${{ steps.sr.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run semantic-release
+        id: sr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          read_version() { node -p "require('./package.json').version"; }
+          before="$(read_version)"
+          npx semantic-release
+          after="$(read_version)"
+          echo "version=$after" >> "$GITHUB_OUTPUT"
+          # Exact commit to build: the release commit when a version is published,
+          # github.sha otherwise. Never the branch tip, which a later push may have moved.
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "$before" != "$after" ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "Released: $before -> $after"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "No releasable commit, version unchanged ($after)"
+          fi
+
+  build:
+    name: Docker image
+    runs-on: ubuntu-latest
+    # After `release`, not in parallel: semantic-release pushes a [skip ci] version commit,
+    # so building in parallel would ship images carrying the previous version. Does not
+    # rely on a tag push either: a tag created with GITHUB_TOKEN triggers no workflow.
+    needs: [test, release]
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    if: >
+      !cancelled()
+      && needs.test.result == 'success'
+      && (needs.release.result == 'success' || needs.release.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUSH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.sha || github.sha }}
+
+      - name: Lowercase owner
+        id: owner
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: env.PUSH == 'true'
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: env.PUSH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ steps.owner.outputs.owner }}/yasad
+          tags: |
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.released == 'true' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=beta,enable=${{ github.ref == 'refs/heads/beta' }}
+            type=sha,format=short
+
+      - name: Build (and push on main/beta)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          # Pull requests only check that the image builds; arm64 under QEMU is slow.
+          platforms: ${{ env.PUSH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # No provenance attestation: it publishes an OCI index whose children show up as
+          # untagged versions in GHCR; deleting one breaks pulling the tag (MANIFEST_UNKNOWN).
+          provenance: false

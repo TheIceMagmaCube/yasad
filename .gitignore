@@ -18,6 +18,9 @@ htmlcov/
 # Node
 node_modules/
 dist/
+dist-worker/
+.wrangler/
+/backend/data/
 *.tsbuildinfo
 .vite/
 

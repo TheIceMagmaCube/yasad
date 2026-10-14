@@ -23,7 +23,7 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 * **Customizable without code.** Pages, categories, shortcuts, icons, theme and logo are edited in the interface.
 * **Modular.** The core is small. Favorites, service status and widgets are modules you can switch off.
 * **Provider agnostic.** Any OIDC provider works (Okta, Authentik, Keycloak, and others), configured with environment variables. OIDC users are created on first sign-in and can be managed in the app.
-* **Simple to host.** One Docker image that serves everything, simple.
+* **Simple to host.** One Docker image that serves everything, simple. The same code also runs on Cloudflare Workers with D1.
 
 ## Non-goals (for now)
 
@@ -38,7 +38,7 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 * Setup screen that creates the first admin account (a local account, also the emergency access if the OIDC provider is down)
 * Local accounts created by an admin with a temporary password, changed by the user at first sign-in
 * Optional OIDC sign-in, sign-out for both account types, current user and groups shown in the header
-* Link catalog with categories, users and groups managed through the Django admin until milestone 2
+* Link catalog with categories, loaded from a YAML file (import and export) until the admin screens of milestone 2
 * Server-side filtering by group
 * Instant search
 
@@ -54,10 +54,11 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 
 ## Tech stack
 
-* **Backend:** Django with an OpenAPI REST API (DRF or django-ninja). Authentication (local and OIDC) is handled by the backend, which sets an HttpOnly session cookie: tokens never reach the browser.
-* **Frontend:** React, TypeScript, Vite, Tailwind CSS, shadcn/ui (Radix) for keyboard and screen reader accessibility.
-* **Storage:** SQLite by default, PostgreSQL optional.
-* **Packaging:** a single Docker image. A multi-stage build compiles the frontend and Django serves everything (API and static files). No reverse proxy is bundled: bring your own for TLS.
+* **One language:** TypeScript on the server and in the browser.
+* **Backend:** Hono with a REST API. Authentication (local accounts and OIDC) is handled by the backend with Better Auth, which sets an HttpOnly session cookie: tokens never reach the browser.
+* **Frontend:** React, Vite, Tailwind CSS, shadcn/ui (Radix) for keyboard and screen reader accessibility.
+* **Storage:** SQLite through Drizzle ORM: a SQLite file in Docker, D1 on Cloudflare Workers.
+* **Packaging:** a single Docker image that serves the API and the frontend, or a Cloudflare Worker built from the same code. No reverse proxy is bundled: bring your own for TLS.
 
 ## Quick start
 
