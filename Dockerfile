@@ -8,7 +8,9 @@ COPY backend/package.json backend/
 COPY frontend/package.json frontend/
 RUN npm ci --ignore-scripts
 COPY . .
-RUN npm run build
+# Version from the git tag, set by the CI ("dev" for local builds).
+ARG APP_VERSION=dev
+RUN APP_VERSION="$APP_VERSION" npm run build
 
 # --- Runtime dependencies: only the native SQLite driver stays outside the bundle
 FROM node:24-alpine AS runtime-deps
@@ -21,6 +23,8 @@ RUN version=$(node -p "require('./package-lock.json').packages['node_modules/@li
 # --- Runtime ------------------------------------------------------------------
 FROM node:24-alpine
 WORKDIR /app
+ARG APP_VERSION=dev
+LABEL org.opencontainers.image.version=$APP_VERSION
 ENV NODE_ENV=production \
     PORT=3000 \
     DATABASE_URL=file:/data/yasad.db \

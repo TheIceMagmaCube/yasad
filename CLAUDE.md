@@ -18,7 +18,8 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 ## Commands
 
 - `npm run dev`: backend (:3000) and frontend (Vite) together.
-- `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+- `npm run lint`, `npm run typecheck`, `npm run build`.
+- `npm test`: the API tests in `backend/test/api/` run twice, on libSQL (`test:node`) and inside workerd on D1 (`test:workers`). Write API tests against `request()` from `#harness`, never against a specific driver.
 - `npm run db:generate --workspace backend` after any change to `backend/src/schema.ts`; commit the migration (CI fails otherwise).
 - `npm run build:worker --workspace backend`: Worker bundle dry run.
 - `docker compose up --build`: production image on :3000.
@@ -27,7 +28,7 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 
 - Two targets, one code: no Node-only API (`fs`, `child_process`, timers for background jobs) outside `server.ts`; no filesystem writes; scheduled work goes through a function both entries can trigger.
 - Atomic writes use `db.batch([...])` (works on D1 and libSQL). Never `db.transaction()`: D1 does not support it.
-- Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (and page). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
+- Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (pages, when they come, will join the intersection). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
 - Filtering happens on the server; forbidden links never reach the browser, including through the API. Every access rule needs a test that calls the API directly.
 - OIDC groups are written server-side from the verified ID token (Better Auth hook), never from user-editable fields.
 - No automatic linking between a local account and an OIDC account sharing an e-mail.
@@ -37,5 +38,5 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 
 - Code, comments, commits and the README in English. Outline docs in French.
 - Branches `type/issue-topic` (e.g. `feat/12-oidc-login`), PR to `beta` or `main`, squash merge.
-- PR titles follow Conventional Commits (`feat:`, `fix:`, `chore:`...): semantic-release derives the version and `CHANGELOG.md` from them. Do not edit the version by hand.
+- PR titles follow Conventional Commits (`feat:`, `fix:`, `chore:`...): semantic-release derives the version from them and publishes a git tag and a GitHub release (the release notes are the changelog). No version commit, no `CHANGELOG.md`: `package.json` stays at `0.0.0-development`, and the version is injected at build time (`APP_VERSION`).
 - Node 24 (`.nvmrc`). TypeScript stays on 6.0.x until typescript-eslint supports 7.
