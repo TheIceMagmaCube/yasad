@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- Build: frontend (Vite) and backend (single esbuild bundle) ---------------
-FROM node:24-slim AS build
+FROM node:25-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/
@@ -13,7 +13,7 @@ ARG APP_VERSION=dev
 RUN APP_VERSION="$APP_VERSION" npm run build
 
 # --- Runtime dependencies: only the native SQLite driver stays outside the bundle
-FROM node:24-alpine AS runtime-deps
+FROM node:25-alpine AS runtime-deps
 WORKDIR /deps
 COPY package-lock.json ./
 RUN version=$(node -p "require('./package-lock.json').packages['node_modules/@libsql/client'].version") \
@@ -21,7 +21,7 @@ RUN version=$(node -p "require('./package-lock.json').packages['node_modules/@li
  && npm install --omit=dev --no-audit --no-fund "@libsql/client@${version}"
 
 # --- Runtime ------------------------------------------------------------------
-FROM node:24-alpine
+FROM node:25-alpine
 WORKDIR /app
 ARG APP_VERSION=dev
 LABEL org.opencontainers.image.version=$APP_VERSION
