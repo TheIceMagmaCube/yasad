@@ -26,7 +26,7 @@ Product decisions, analysis and roadmap live in Outline (collection IT, page "YA
 
 - Two targets, one code: no Node-only API (`fs`, `child_process`, timers for background jobs) outside `server.ts`; no filesystem writes; scheduled work goes through a function both entries can trigger.
 - Atomic writes use `db.batch([...])` (works on D1 and libSQL). Never `db.transaction()`: D1 does not support it.
-- Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (and page). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
+- Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (pages, when they come, will join the intersection). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
 - Filtering happens on the server; forbidden links never reach the browser, including through the API. Every access rule needs a test that calls the API directly.
 - OIDC groups are written server-side from the verified ID token (Better Auth hook), never from user-editable fields.
 - No automatic linking between a local account and an OIDC account sharing an e-mail.
