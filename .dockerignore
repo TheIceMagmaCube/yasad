@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/dist-worker
+**/.wrangler
+**/data
+.git
+.github
+*.md
+!README.md

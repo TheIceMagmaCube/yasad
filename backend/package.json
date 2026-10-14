@@ -1,0 +1,29 @@
+{
+  "name": "@yasad/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "dev:worker": "wrangler dev",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node24 --external:@libsql/client --outfile=dist/server.js",
+    "build:worker": "wrangler deploy --dry-run --outdir dist-worker",
+    "db:generate": "drizzle-kit generate",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@libsql/client": "^0.18.0",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261014.1",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "vitest": "^5.0.4",
+    "wrangler": "^4.151.0"
+  }
+}
