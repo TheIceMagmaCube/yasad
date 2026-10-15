@@ -7,8 +7,8 @@ import { apiError } from "../errors";
 import { clearAttempts, type Limit, releaseAttempt, reserveAttempt, SIGN_IN_ACCOUNT_LIMIT, SIGN_IN_IP_LIMIT } from "../rate-limit";
 import { account, user } from "../schema";
 
-/** Body Better Auth sends for a wrong e-mail or password; reused so a refusal never stands out. */
-export const INVALID_CREDENTIALS = { code: "INVALID_EMAIL_OR_PASSWORD", message: "Invalid email or password" };
+/** Address that never matches an account (".invalid" is reserved), used to refuse a sign-in the way Better Auth does. */
+const NO_ACCOUNT = "password-sign-in-disabled@yasad.invalid";
 
 /** Return whether the e-mail belongs to an admin with a local password account. */
 async function isLocalAdmin(c: Context<AppEnv>, email: string): Promise<boolean> {
@@ -25,9 +25,9 @@ async function isLocalAdmin(c: Context<AppEnv>, email: string): Promise<boolean>
  * Sign in with e-mail and password, limited per IP and e-mail and per IP.
  *
  * Each attempt is counted before the password is checked (a right password is refused too while
- * blocked) and given back unless it failed.
- * With PASSWORD_SIGN_IN=false only local admins may sign in; every other refusal gets the same
- * answer as a wrong password, after hashing the password so the timing matches too.
+ * blocked) and given back only when it succeeds or the server fails. With PASSWORD_SIGN_IN=false only
+ * local admins may sign in: any other request goes to Better Auth with an address that matches no
+ * account, so its validation errors, its timing and its 401 are exactly those of a wrong password.
  */
 async function signIn(c: Context<AppEnv>): Promise<Response> {
   const { db, config, clientIp } = c.var;
@@ -36,9 +36,9 @@ async function signIn(c: Context<AppEnv>): Promise<Response> {
     .json()
     .catch(() => null);
   const fields = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const email = typeof fields.email === "string" ? fields.email.trim().toLowerCase() : "";
+  const rawEmail = typeof fields.email === "string" ? fields.email : "";
   const keys: [string, Limit][] = [
-    [`signin:${clientIp}:${email}`, SIGN_IN_ACCOUNT_LIMIT],
+    [`signin:${clientIp}:${rawEmail.trim().toLowerCase()}`, SIGN_IN_ACCOUNT_LIMIT],
     [`signin:${clientIp}`, SIGN_IN_IP_LIMIT],
   ];
 
@@ -49,18 +49,18 @@ async function signIn(c: Context<AppEnv>): Promise<Response> {
     return apiError(c, 429, "rate_limited", "Too many attempts. Try again later.");
   }
 
-  const auth = authFor(c);
-  let res: Response;
-  if (!config.passwordSignIn && !(await isLocalAdmin(c, email))) {
-    await (await auth.$context).password.hash(typeof fields.password === "string" ? fields.password : "");
-    res = c.json(INVALID_CREDENTIALS, 401);
-  } else {
-    res = await auth.handler(c.req.raw);
+  // Same lookup as Better Auth (lower-cased, not trimmed), so both agree on who is an admin.
+  let request = c.req.raw;
+  if (!config.passwordSignIn && !(await isLocalAdmin(c, rawEmail.toLowerCase()))) {
+    const headers = new Headers(request.headers);
+    headers.delete("content-length");
+    request = new Request(request.url, { method: "POST", headers, body: JSON.stringify({ ...fields, email: NO_ACCOUNT }) });
   }
+  const res = await authFor(c).handler(request);
 
   if (res.ok) {
     await Promise.all([clearAttempts(db, keys[0]![0]), releaseAttempt(db, keys[1]![0])]);
-  } else if (res.status !== 401 && res.status !== 403) {
+  } else if (res.status >= 500) {
     await Promise.all(keys.map(([key]) => releaseAttempt(db, key)));
   }
   return res;

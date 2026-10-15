@@ -88,6 +88,33 @@ describe("PASSWORD_SIGN_IN=false", () => {
     expect(answers[2]).toEqual(answers[0]);
   });
 
+  it("answers malformed requests the same way for an admin, a user and an unknown e-mail", async () => {
+    const a = await app();
+    const bodies = (email: string) => [
+      { email, password: 123 },
+      { email },
+      { email, password: "x".repeat(200) },
+      { email: ` ${email}`, password: PASSWORD },
+      { email, password: PASSWORD, rememberMe: "yes" },
+    ];
+    for (const [i, adminBody] of bodies("ada@example.org").entries()) {
+      const answers = await Promise.all(
+        [adminBody, bodies("bob@example.org")[i], bodies("eve@example.org")[i]].map(async (body) => {
+          const res = await post(a, "/api/auth/sign-in/email", body, `198.51.100.${10 + i}`);
+          return { status: res.status, body: await res.json() };
+        }),
+      );
+      expect(answers[1], JSON.stringify(adminBody)).toEqual(answers[0]);
+      expect(answers[2], JSON.stringify(adminBody)).toEqual(answers[0]);
+    }
+  });
+
+  it("counts malformed requests as failures", async () => {
+    const a = await app();
+    for (let i = 0; i < 5; i++) expect((await post(a, "/api/auth/sign-in/email", { email: "ada@example.org" })).status).toBe(400);
+    expect((await signIn(a, "ada@example.org")).status).toBe(429);
+  });
+
   it("counts refused users as failures", async () => {
     const a = await app();
     for (let i = 0; i < 5; i++) await signIn(a, "bob@example.org");
