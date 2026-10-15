@@ -34,3 +34,9 @@ dist-worker/
 .vscode/
 .DS_Store
 .dev.vars
+frontend/e2e/.data/
+frontend/test-results/
+frontend/playwright-report/
+
+# Design specs live in Outline, never in the repo.
+docs/superpowers/

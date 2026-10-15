@@ -46,19 +46,19 @@ async function refuseCode(c: Context<AppEnv>, code: unknown): Promise<Response |
   return null;
 }
 
-/** Validate the admin fields; return the normalized values or a message per invalid field. */
+/** Validate the admin fields; return the normalized values or an error code per invalid field. */
 function parseAdmin(body: Record<string, unknown>): { value: AdminInput } | { fields: Record<string, string> } {
   const text = (v: unknown) => (typeof v === "string" ? v : "");
   const name = text(body.name).trim();
   const email = text(body.email).trim().toLowerCase();
   const password = text(body.password);
   const fields: Record<string, string> = {};
-  if (name.length === 0 || name.length > 100) fields.name = "Enter a name of 1 to 100 characters.";
-  if (!EMAIL.test(email)) fields.email = "Enter a valid e-mail address.";
+  if (name.length === 0 || name.length > 100) fields.name = "invalid_name";
+  if (!EMAIL.test(email)) fields.email = "invalid_email";
   if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
-    fields.password = `Use ${MIN_PASSWORD} to ${MAX_PASSWORD} characters.`;
+    fields.password = "invalid_password";
   }
-  if (text(body.passwordConfirm) !== password) fields.passwordConfirm = "The passwords do not match.";
+  if (text(body.passwordConfirm) !== password) fields.passwordConfirm = "password_mismatch";
   return Object.keys(fields).length > 0 ? { fields } : { value: { name, email, password } };
 }
 
@@ -88,7 +88,7 @@ setup.post("/", async (c) => {
   const { db } = c.var;
   if (await db.select({ id: user.id }).from(user).where(eq(user.email, email)).get()) {
     return apiError(c, 422, "invalid_input", "Some fields are not valid.", {
-      fields: { email: "This e-mail address is already used by another account." },
+      fields: { email: "email_taken" },
     });
   }
 

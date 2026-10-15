@@ -1,8 +1,8 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mockApi, sentBody } from "../test-utils";
+import { mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { Setup } from "./Setup";
 
 const CODE = "setup-code-for-the-tests-0123456789";
@@ -27,7 +27,7 @@ describe("Setup", () => {
     });
     const onDone = vi.fn();
     const user = userEvent.setup();
-    render(<Setup onDone={onDone} onClosed={vi.fn()} />);
+    renderWithProviders(<Setup onDone={onDone} onClosed={vi.fn()} />);
 
     await user.type(screen.getByLabelText("Setup code"), CODE);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -57,7 +57,7 @@ describe("Setup", () => {
       ],
     });
     const user = userEvent.setup();
-    render(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
 
     await user.type(screen.getByLabelText("Setup code"), "wrong");
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -72,7 +72,7 @@ describe("Setup", () => {
   it("reports too many attempts", async () => {
     mockApi({ "POST /api/setup/verify-code": { status: 429, body: { error: { code: "rate_limited", message: "" } } } });
     const user = userEvent.setup();
-    render(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
     await user.type(screen.getByLabelText("Setup code"), "wrong");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Too many attempts");
@@ -81,7 +81,7 @@ describe("Setup", () => {
   it("checks the passwords before calling the API", async () => {
     const fetchMock = mockApi({ "POST /api/setup/verify-code": { status: 204 } });
     const user = userEvent.setup();
-    render(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
     await user.type(screen.getByLabelText("Setup code"), CODE);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -96,7 +96,7 @@ describe("Setup", () => {
   it("lists each problem in the error summary, with a link to its field", async () => {
     mockApi({ "POST /api/setup/verify-code": { status: 204 } });
     const user = userEvent.setup();
-    render(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
     await user.type(screen.getByLabelText("Setup code"), CODE);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -113,11 +113,11 @@ describe("Setup", () => {
       "POST /api/setup/verify-code": { status: 204 },
       "POST /api/setup": {
         status: 422,
-        body: { error: { code: "invalid_input", message: "", fields: { email: "This e-mail address is already used by another account." } } },
+        body: { error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } },
       },
     });
     const user = userEvent.setup();
-    render(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
     await user.type(screen.getByLabelText("Setup code"), CODE);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await fillAdmin(user);
@@ -129,7 +129,7 @@ describe("Setup", () => {
     mockApi({ "POST /api/setup/verify-code": { status: 404, body: { error: { code: "setup_closed", message: "" } } } });
     const onClosed = vi.fn();
     const user = userEvent.setup();
-    render(<Setup onDone={vi.fn()} onClosed={onClosed} />);
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={onClosed} />);
     await user.type(screen.getByLabelText("Setup code"), CODE);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(onClosed).toHaveBeenCalledOnce();

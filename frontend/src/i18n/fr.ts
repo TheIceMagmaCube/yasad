@@ -1,0 +1,71 @@
+import type { Messages } from "./en";
+
+export const fr = {
+  tagline: "Un seul écran, avec les liens que chaque personne a le droit de voir.",
+  loading: "Chargement…",
+  back: "Retour",
+  skipToContent: "Aller au contenu",
+  errors: {
+    generic: "Une erreur est survenue. Réessayez.",
+    unreachable: "YASAD n'arrive pas à joindre son serveur. Réessayez dans un instant.",
+    rateLimited: "Trop de tentatives. Réessayez plus tard.",
+  },
+  fieldErrors: {
+    invalid_name: "Saisissez un nom de 1 à 100 caractères.",
+    invalid_email: "Saisissez une adresse e-mail valide.",
+    invalid_password: "Utilisez de 12 à 128 caractères.",
+    password_mismatch: "Les mots de passe ne correspondent pas.",
+    email_taken: "Cette adresse e-mail est déjà utilisée par un autre compte.",
+  },
+  preferences: {
+    language: "Langue",
+    appearance: "Apparence",
+    modes: { system: "Système", light: "Clair", dark: "Sombre" },
+    theme: "Thème (dev uniquement)",
+  },
+  languages: { en: "English", fr: "Français" },
+  roles: { admin: "Administrateur", user: "Utilisateur" },
+  userMenu: {
+    open: (name: string) => `Menu du compte de ${name}`,
+    signOut: "Se déconnecter",
+  },
+  setup: {
+    title: "Installer YASAD",
+    steps: { code: "Code d'installation", admin: "Administrateur" },
+    stepLabel: (n: number, total: number) => `Étape ${n} sur ${total}`,
+    codeHint: "Saisissez le code défini dans SETUP_CODE sur le serveur.",
+    codeLabel: "Code d'installation",
+    invalidCode: (left: number) =>
+      left > 0
+        ? `Ce code n'est pas valide. Encore ${left} tentative${left === 1 ? "" : "s"}.`
+        : "Ce code n'est pas valide.",
+    continue: "Continuer",
+    name: "Nom",
+    email: "E-mail",
+    password: "Mot de passe",
+    passwordHint: "Au moins 12 caractères.",
+    passwordConfirm: "Confirmer le mot de passe",
+    passwordTooShort: "Utilisez au moins 12 caractères.",
+    passwordMismatch: "Les mots de passe ne correspondent pas.",
+    create: "Créer l'administrateur",
+    checkFields: "Vérifiez les champs signalés.",
+    closed: "L'installation est déjà faite. Connectez-vous.",
+    doneTitle: "YASAD est prêt",
+    doneSignedIn: (name: string) => `${name} a le rôle d'administrateur, sa session est ouverte.`,
+    doneNoticeTitle: "Dernière étape :",
+    doneNotice: "retirez SETUP_CODE de la configuration du serveur, puis redémarrez YASAD.",
+    goToApp: "Aller sur YASAD",
+  },
+  signIn: {
+    title: "Connexion",
+    email: "E-mail",
+    password: "Mot de passe",
+    submit: "Se connecter",
+    invalid: "E-mail ou mot de passe incorrect.",
+  },
+  home: {
+    title: "Bienvenue",
+    signedInAs: (name: string) => `Session ouverte : ${name}.`,
+    placeholder: "Vos liens apparaîtront ici.",
+  },
+} satisfies Messages;

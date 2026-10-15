@@ -6,6 +6,8 @@ Product decisions live in Outline, page "Décisions en vigueur" (https://outline
 
 GitHub issues describe the need and the acceptance criteria, not the solution. Technical choices come from the decisions page and from this file.
 
+Design specs (conception pages) are written in Outline, as children of "YASAD", never committed to the repo. Link them from the PR.
+
 ## Layout
 
 - `backend/`: Hono API, Drizzle (SQLite), Better Auth.
@@ -16,7 +18,11 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
   - `src/server.ts`: Docker/Node entry (libSQL file, runs migrations at startup, serves `frontend/dist`).
   - `src/worker.ts`: Cloudflare Workers entry (D1 binding, static assets from `frontend/dist`).
   - `drizzle/`: generated SQL migrations, one set for both targets.
-- `frontend/`: React, Vite, Tailwind. In dev, Vite proxies `/api` to the backend on :3000.
+- `frontend/`: React, Vite, Tailwind, shadcn/ui. In dev, Vite proxies `/api` to the backend on :3000.
+  - `src/theme/themes/<id>.css`: one file per preset theme, defining the tokens (shadcn variables plus `--header*`) in light and dark. Its id must also be in `backend/src/themes.ts`, `src/preferences.ts` and `public/theme-init.js` (tests check all four).
+  - `src/i18n/`: `en.ts` defines the messages, `fr.ts` must satisfy the same type. `useStrings()` in components; no hard-coded interface text.
+  - `src/components/ui/`: shadcn components, copied (`components.json`). `public/theme-init.js` sets theme, mode and language before the first paint.
+  - `e2e/`: Playwright and axe against the built Docker entry, every theme in light and dark, at 320 px and 1280 px.
 
 ## Commands
 
@@ -25,6 +31,7 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 - `npm test`: the API tests in `backend/test/api/` run twice, on libSQL (`test:node`) and inside workerd on D1 (`test:workers`). Write API tests against `testApp(env)` from `#harness` (fresh database, cookie jar, config overrides), never against a specific driver. Node-only tests live in `backend/test/server/` (real `server.ts` process) and `backend/test/unit/`; frontend tests (Vitest, Testing Library) next to the components.
 - `npm run db:generate --workspace backend` after any change to `backend/src/schema.ts`; commit the migration (CI fails otherwise).
 - `npm run build:worker --workspace backend`: Worker bundle dry run.
+- `npm run test:e2e --workspace frontend`: builds the frontend, starts `server.ts` on :3199 with a fresh database and runs the browser tests (`npx playwright install chromium` once).
 - `AUTH_SECRET=... SETUP_CODE=... docker compose up --build`: production image on :3000.
 
 ## Rules that must hold
@@ -37,6 +44,9 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 - No automatic linking between a local account and an OIDC account sharing an e-mail.
 - State-changing requests (POST, PUT, PATCH, DELETE), Better Auth routes included, must send a JSON body and come from PUBLIC_URL's origin. The CSP allows no inline script or style and no third-party origin: widen it in `security.ts` only, with the reason in the PR.
 - WCAG 2.2 AA; keyboard navigation must work everywhere.
+- Components use theme tokens only (`bg-background`, `text-primary`, `border-input`...), never raw Tailwind colors, so a theme can be swapped without touching them. A new theme must pass the E2E axe run in both modes.
+- The API returns error codes, never sentences meant for display; the frontend translates them.
+- Radix components that inject `<style>` (modal menus, Select, Dialog scroll lock) break the CSP: use non-modal variants or native elements. The E2E fails on any CSP violation.
 
 ## Conventions
 

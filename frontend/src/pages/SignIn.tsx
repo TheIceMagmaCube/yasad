@@ -3,11 +3,12 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import { AuthLayout } from "../components/AuthLayout";
 import { Field, SubmitButton } from "../components/Field";
-import { strings } from "../strings";
-
-const s = strings.signIn;
+import { errorMessage } from "../i18n/errors";
+import { useStrings } from "../i18n/LocaleProvider";
 
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+  const m = useStrings();
+  const s = m.signIn;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,10 +27,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       await api.signIn(email, password);
       onSignedIn();
     } catch (err) {
-      if (!(err instanceof ApiError)) setError(strings.errors.unreachable);
-      else if (err.status === 401) setError(s.invalid);
-      else if (err.status === 429) setError(strings.errors.rateLimited);
-      else setError(strings.errors.generic);
+      setError(err instanceof ApiError && err.status === 401 ? s.invalid : errorMessage(err, m));
     } finally {
       setBusy(false);
     }
@@ -39,7 +37,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     <AuthLayout>
       <h1 className="text-2xl font-bold">{s.title}</h1>
       {error && (
-        <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-800 outline-none">
+        <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-destructive p-3 text-sm text-destructive outline-none">
           {error}
         </div>
       )}

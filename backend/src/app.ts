@@ -7,6 +7,7 @@ import { type Config, loadConfig, type RawConfig } from "./config";
 import type { AppEnv } from "./context";
 import type { DB } from "./db";
 import { apiError } from "./errors";
+import { instance } from "./routes/instance";
 import { setup } from "./routes/setup";
 import { sameOriginOnly, withSecurityHeaders } from "./security";
 import { version } from "./version";
@@ -66,6 +67,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     return apiError(c, 500, "internal_error", "Something went wrong on the server. See the server logs.");
   });
 
+  app.route("/instance", instance);
   app.route("/setup", setup);
   app.on(["GET", "POST"], "/auth/*", (c) => authFor(c).handler(c.req.raw));
 

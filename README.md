@@ -82,6 +82,7 @@ Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then
 | `PUBLIC_URL` | yes | The URL people open, e.g. `https://portal.example.org`. Cookies are `Secure` when it is https. |
 | `SETUP_CODE` | for setup | One-time code for the first-run setup, at least 24 characters. Remove it once setup is done. |
 | `SESSION_MAX_AGE` | no | Session duration in seconds. Default `604800` (7 days). |
+| `DEFAULT_LANGUAGE` | no | Interface language when the browser asks for neither English nor French: `en` (default) or `fr`. |
 | `TRUST_PROXY` | no | Number of proxies in front of YASAD (`true` means 1). The client IP is then read from `X-Forwarded-For`. Leave it unset when YASAD is reached directly, otherwise anyone can forge the header. |
 | `DATABASE_URL` | no | libSQL URL. Default `file:/data/yasad.db` in the image. |
 

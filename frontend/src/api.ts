@@ -1,3 +1,5 @@
+import type { Instance } from "./instance";
+
 export type ApiErrorBody = {
   code: string;
   message: string;
@@ -39,6 +41,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
 
 export const api = {
+  instance: () => call<Instance>("/api/instance"),
   setupState: () => call<SetupState>("/api/setup"),
   verifyCode: (code: string) => call<void>("/api/setup/verify-code", post({ code })),
   completeSetup: (code: string, admin: AdminInput) => call<{ user: User }>("/api/setup", post({ code, ...admin })),
