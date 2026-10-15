@@ -8,6 +8,13 @@
       "when": 1792007885958,
       "tag": "0000_rare_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792049160360,
+      "tag": "0001_solid_the_anarchist",
+      "breakpoints": true
     }
   ]
 }
