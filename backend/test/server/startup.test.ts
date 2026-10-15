@@ -143,7 +143,7 @@ describe("server startup", () => {
     tmpDirs.push(dir);
     const file = join(dir, "catalog.yaml");
     const db = `file:${await tmpDb()}`;
-    await writeFile(file, "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n      - id: mail\n        title: Mail\n        url: https://mail.example.org\n        groups: ['@everyone']\n");
+    await writeFile(file, "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n      - id: mail\n        title: Mail\n        url: https://mail.example.org\n        groups: ['@everyone', '@everyone']\n");
     const first = await start({ ...BASE_ENV, DATABASE_URL: db, CATALOG_FILE: file });
     await waitForHealth(first);
     expect(first.output()).toContain("2 added, 0 updated, 0 removed");

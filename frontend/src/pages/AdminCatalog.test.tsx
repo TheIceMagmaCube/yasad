@@ -27,14 +27,14 @@ describe("AdminCatalog", () => {
   it("previews the file, highlights deletions, then imports it", async () => {
     const fetchMock = mockApi({
       "POST /api/admin/catalog": [
-        preview({ added: { categories: ["tools"], links: ["mail"] }, removed: { categories: [], links: ["jira"] }, warnings: ['Link "x" has no group: nobody can see it.'] }),
+        preview({ added: { categories: ["tools"], links: ["mail"] }, removed: { categories: [], links: ["jira"] }, warnings: [{ code: "no_group", kind: "link", id: "x" }] }),
         { status: 200, body: { applied: true, baseVersion: "v1", diff: {} } },
       ],
     });
     renderWithProviders(<AdminCatalog />);
     const user = await choose();
     expect(await screen.findByText("1 item will be deleted.")).toBeInTheDocument();
-    expect(screen.getByText(/nobody can see it/)).toBeInTheDocument();
+    expect(screen.getByText('Link "x" has no group: nobody can see it.')).toBeInTheDocument();
     expect(sentBody(fetchMock, 0)).toEqual({ yaml: YAML, dryRun: true });
 
     await user.click(screen.getByRole("button", { name: "Import" }));
@@ -54,12 +54,50 @@ describe("AdminCatalog", () => {
     mockApi({
       "POST /api/admin/catalog": {
         status: 422,
-        body: { error: { code: "invalid_catalog", message: "", errors: [{ path: "categories[0].id", message: "Use lower-case letters." }] } },
+        body: {
+          error: {
+            code: "invalid_catalog",
+            message: "",
+            errors: [
+              { path: "categories[0].id", code: "invalid_id", params: {} },
+              { path: "categories[1]", code: "duplicate_key", params: { key: "title" } },
+              { path: "", code: "code_from_a_newer_server", params: {} },
+            ],
+          },
+        },
       },
     });
     renderWithProviders(<AdminCatalog />);
     await choose();
-    expect(await screen.findByRole("alert")).toHaveTextContent("categories[0].id: Use lower-case letters.");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("categories[0].id: Use lower-case letters, digits and dashes.");
+    expect(alert).toHaveTextContent('categories[1]: The key "title" is written twice.');
+    expect(alert).toHaveTextContent("Invalid value.");
+  });
+
+  it("previews the same file again once it is fixed", async () => {
+    const fetchMock = mockApi({
+      "POST /api/admin/catalog": [
+        { status: 422, body: { error: { code: "invalid_catalog", message: "", errors: [{ path: "", code: "yaml_syntax", params: { line: 2 } }] } } },
+        preview({}),
+      ],
+    });
+    renderWithProviders(<AdminCatalog />);
+    await choose();
+    expect(await screen.findByRole("alert")).toHaveTextContent("YAML syntax error on line 2.");
+    // A browser fires no change event for the file the field already holds.
+    expect(screen.getByLabelText<HTMLInputElement>("Catalog file").value).toBe("");
+    await choose();
+    expect(await screen.findByText(/Nothing to import/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the focus back to the file field on cancel", async () => {
+    mockApi({ "POST /api/admin/catalog": preview({ added: { categories: ["tools"], links: [] } }) });
+    renderWithProviders(<AdminCatalog />);
+    const user = await choose();
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Catalog file")).toHaveFocus();
   });
 
   it("previews again when the catalog changed in the meantime", async () => {

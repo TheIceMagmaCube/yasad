@@ -3,7 +3,7 @@ import type { Instance } from "./instance";
 export type ApiErrorBody = {
   code: string;
   message: string;
-  errors?: { path: string; message: string }[];
+  errors?: CatalogError[];
   attemptsLeft?: number;
   fields?: Record<string, string>;
 };
@@ -17,12 +17,16 @@ export class ApiError extends Error {
   }
 }
 
+export type CatalogWarning = { code: "no_group"; kind: "category" | "link"; id: string } | { code: "groups_differ_by_case"; groups: string[] };
+export type CatalogErrorParams = { id?: string; key?: string; fields?: string[]; max?: number; line?: number };
+export type CatalogError = { path: string; code: string; params: CatalogErrorParams };
+
 export type CatalogDiff = {
   added: { categories: string[]; links: string[] };
   updated: { categories: string[]; links: string[] };
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
-  warnings: string[];
+  warnings: CatalogWarning[];
 };
 export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
 

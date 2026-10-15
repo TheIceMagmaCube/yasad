@@ -38,9 +38,14 @@ type Diff = {
   updated: { categories: string[]; links: string[] };
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
-  warnings: string[];
+  warnings: Record<string, unknown>[];
 };
-type ImportBody = { applied: boolean; diff: Diff; baseVersion: string; error?: { code: string; errors?: { path: string }[] } };
+type ImportBody = {
+  applied: boolean;
+  diff: Diff;
+  baseVersion: string;
+  error?: { code: string; errors?: { path: string; code: string; params: Record<string, unknown> }[] };
+};
 
 async function adminApp(env = {}): Promise<TestApp> {
   const app = await testApp(env);
@@ -138,9 +143,56 @@ describe("catalog import and export", () => {
   it("refuses duplicate ids, anchors and aliases", async () => {
     const app = await adminApp();
     const duplicate = CATALOG.replace("id: grafana", "id: jira");
-    expect((await send(app, duplicate, true)).body.error!.errors).toEqual([{ path: "categories[0].links[1].id", message: 'The link id "jira" is used twice.' }]);
+    expect((await send(app, duplicate, true)).body.error!.errors).toEqual([{ path: "categories[0].links[1].id", code: "duplicate_id", params: { id: "jira" } }]);
     const bomb = `version: 1\ncategories:\n  - &a {id: x, title: X, groups: [], links: []}\n  - *a\n`;
-    expect((await send(app, bomb, true)).body.error!.code).toBe("invalid_catalog");
+    expect((await send(app, bomb, true)).body.error!.errors).toEqual([{ path: "", code: "anchors_not_allowed", params: {} }]);
+  });
+
+  it("reports each problem as a code the interface translates", async () => {
+    const app = await adminApp();
+    const broken = CATALOG.replace("id: dev-tools", "id: Dev Tools")
+      .replace('"local:Contractors"', '"Contractors"')
+      .replace("icon: si:jira", "icon: jira")
+      .replace("title: Grafana", "title: ''\n        colour: red");
+    const codes = (await send(app, broken, true)).body.error!.errors!.map(({ path, code }) => ({ path, code }));
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        { path: "categories[0].id", code: "invalid_id" },
+        { path: "categories[0].links[0].groups[1]", code: "invalid_group_ref" },
+        { path: "categories[0].links[0].icon", code: "invalid_icon" },
+        { path: "categories[0].links[1].title", code: "required" },
+        { path: "categories[0].links[1]", code: "unknown_field" },
+      ]),
+    );
+    const syntax = (await send(app, "version: 1\ncategories: [", true)).body.error!.errors!;
+    expect(syntax[0]).toMatchObject({ path: "", code: "yaml_syntax" });
+  });
+
+  it("refuses a key written twice in the same table", async () => {
+    const app = await adminApp();
+    const twice = CATALOG.replace("title: Grafana", "title: Grafana\n        title: Grafana 2");
+    expect((await send(app, twice, true)).body.error!.errors).toEqual([{ path: "categories[0].links[1]", code: "duplicate_key", params: { key: "title" } }]);
+  });
+
+  it("answers quickly for a file with a huge table", async () => {
+    const app = await adminApp();
+    const keys = Array.from({ length: 90_000 }, (_, i) => `${i.toString(36)}: 1`).join(", ");
+    const file = `version: 1\ncategories:\n  - id: x\n    title: X\n    groups: []\n    extra: {${keys}}\n`;
+    expect(file.length).toBeLessThan(1024 * 1024);
+    const started = Date.now();
+    const res = await send(app, file, true);
+    expect(res.status).toBe(422);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  }, 15_000);
+
+  it("accepts a group listed twice", async () => {
+    const app = await adminApp();
+    const twice = CATALOG.replace('groups: ["@authenticated"]', 'groups: ["@authenticated", "@authenticated"]').replace(
+      'groups: ["oidc:Developers"]\n',
+      'groups: ["oidc:Developers", "oidc:Developers"]\n',
+    );
+    expect((await importFile(app, twice)).status).toBe(200);
+    expect(await app.query("select count(*) as n from link_group where link_id = 'grafana'")).toEqual([{ n: 1 }]);
   });
 
   it("refuses to apply over a catalog changed since the preview", async () => {
@@ -156,8 +208,8 @@ describe("catalog import and export", () => {
     const app = await adminApp();
     const file = CATALOG.replace('groups: ["oidc:Developers"]\n        active: false', 'groups: []').replace('"local:Contractors"', '"oidc:developers"');
     const { warnings } = (await send(app, file, true)).body.diff;
-    expect(warnings).toContain('Link "grafana" has no group: nobody can see it.');
-    expect(warnings).toContain("Groups differ only by case: oidc:Developers, oidc:developers.");
+    expect(warnings).toContainEqual({ code: "no_group", kind: "link", id: "grafana" });
+    expect(warnings).toContainEqual({ code: "groups_differ_by_case", groups: ["oidc:Developers", "oidc:developers"] });
   });
 
   it("is refused to non-admins and without a session", async () => {
@@ -185,5 +237,9 @@ describe("catalog import and export", () => {
     expect(await app.query("select count(*) as n from link")).toEqual([{ n: 500 }]);
     const tooBig = (await post(app, "/api/admin/catalog", { yaml: "#".repeat(1024 * 1024 + 1), dryRun: true })).status;
     expect(tooBig).toBe(413);
+
+    const fewer = big.slice(0, big.indexOf("      - id: link-40\n"));
+    expect((await importFile(app, fewer)).body.diff.removed.links).toHaveLength(460);
+    expect(await app.query("select count(*) as n from link")).toEqual([{ n: 40 }]);
   });
 });

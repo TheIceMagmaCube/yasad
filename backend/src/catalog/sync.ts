@@ -1,17 +1,36 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import type { DB } from "../db";
-import { category, categoryGroup, group, link, linkGroup } from "../schema";
+import { category, categoryGroup, group, link, linkGroup, setting } from "../schema";
 import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog } from "./format";
 import { groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
+
+/** A point the admin should check before applying, as a code the interface translates. */
+export type CatalogWarning = { code: "no_group"; kind: "category" | "link"; id: string } | { code: "groups_differ_by_case"; groups: string[] };
 
 export type CatalogDiff = {
   added: { categories: string[]; links: string[] };
   updated: { categories: string[]; links: string[] };
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
-  warnings: string[];
+  warnings: CatalogWarning[];
 };
+
+const REVISION_KEY = "catalog.revision";
+
+// D1 refuses a statement with more than 100 bound parameters.
+const MAX_IDS_PER_STATEMENT = 90;
+
+/** Return the revision of the stored catalog, increased by every write; "0" before the first one. */
+async function readRevision(db: DB): Promise<string> {
+  const row = await db.select({ value: setting.value }).from(setting).where(eq(setting.key, REVISION_KEY)).get();
+  return row?.value ?? "0";
+}
+
+/** Return the list cut into slices short enough to bind in one statement. */
+function chunks<T>(items: T[]): T[][] {
+  return Array.from({ length: Math.ceil(items.length / MAX_IDS_PER_STATEMENT) }, (_, i) => items.slice(i * MAX_IDS_PER_STATEMENT, (i + 1) * MAX_IDS_PER_STATEMENT));
+}
 
 /** Return the catalog stored in the database, in display order. */
 export async function readCatalog(db: DB): Promise<Catalog> {
@@ -72,13 +91,6 @@ function normalize(catalog: Catalog): Catalog {
   };
 }
 
-/** Return a fingerprint of the catalog, sent with the preview and checked on confirmation. */
-export async function catalogVersion(catalog: Catalog): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(normalize(catalog)));
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 type Placed<T> = T & { position: number; categoryId?: string };
 
 function categoriesOf(catalog: Catalog): Map<string, Placed<Omit<CatalogCategory, "links">>> {
@@ -118,8 +130,8 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
   diff.groupsCreated = [...refs].filter((ref) => !existing.has(groupRef(parseGroupRef(ref)))).sort();
 
   for (const cat of nxt.categories) {
-    if (cat.groups.length === 0) diff.warnings.push(`Category "${cat.id}" has no group: nobody can see it.`);
-    for (const lnk of cat.links) if (lnk.groups.length === 0) diff.warnings.push(`Link "${lnk.id}" has no group: nobody can see it.`);
+    if (cat.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "category", id: cat.id });
+    for (const lnk of cat.links) if (lnk.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "link", id: lnk.id });
   }
   const byLowerCase = new Map<string, Set<string>>();
   for (const ref of new Set([...refs, ...existing])) {
@@ -127,7 +139,7 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
     byLowerCase.set(key, (byLowerCase.get(key) ?? new Set()).add(ref));
   }
   for (const variants of byLowerCase.values()) {
-    if (variants.size > 1) diff.warnings.push(`Groups differ only by case: ${[...variants].sort().join(", ")}.`);
+    if (variants.size > 1) diff.warnings.push({ code: "groups_differ_by_case", groups: [...variants].sort() });
   }
   return diff;
 }
@@ -139,7 +151,7 @@ export function isEmpty(diff: CatalogDiff): boolean {
 
 /** Return the statements linking one category to its groups, matched by (source, name). */
 function categoryGroupRows(db: DB, categoryId: string, refs: string[]) {
-  return refs.map((ref) => {
+  return [...new Set(refs)].map((ref) => {
     const { source, name } = parseGroupRef(ref);
     return db
       .insert(categoryGroup)
@@ -149,7 +161,7 @@ function categoryGroupRows(db: DB, categoryId: string, refs: string[]) {
 
 /** Return the statements linking one link to its groups, matched by (source, name). */
 function linkGroupRows(db: DB, linkId: string, refs: string[]) {
-  return refs.map((ref) => {
+  return [...new Set(refs)].map((ref) => {
     const { source, name } = parseGroupRef(ref);
     return db
       .insert(linkGroup)
@@ -160,15 +172,21 @@ function linkGroupRows(db: DB, linkId: string, refs: string[]) {
 /**
  * Write `next` over the stored catalog in one batch, touching only what the diff lists.
  *
+ * The batch starts with a guard that fails on a primary key conflict when the revision is no longer
+ * `revision`, so it rolls back whole if another write came first, and ends by increasing the revision.
  * Missing groups are created first; group links are matched by (source, name), so a group created
  * concurrently is still the one used.
  */
-export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff): Promise<void> {
+export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, revision: string): Promise<void> {
   if (isEmpty(diff)) return;
   const now = new Date();
   const cats = categoriesOf(next);
   const lnks = linksOf(next);
-  const statements = [];
+  // Copying the revision row onto itself conflicts exactly when its value is no longer `revision`. A
+  // missing row is revision "0": it cannot appear without a write, which stores "1" or more.
+  const statements: unknown[] = [
+    db.insert(setting).select(db.select().from(setting).where(and(eq(setting.key, REVISION_KEY), ne(setting.value, revision)))),
+  ];
 
   for (const ref of diff.groupsCreated) statements.push(insertGroupIfMissing(db, parseGroupRef(ref)));
 
@@ -202,19 +220,23 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff): Pr
       ...linkGroupRows(db, id, lnk.groups),
     );
   }
-  if (diff.removed.links.length > 0) {
+  for (const ids of chunks(diff.removed.links)) {
+    statements.push(db.delete(linkGroup).where(inArray(linkGroup.linkId, ids)), db.delete(link).where(inArray(link.id, ids)));
+  }
+  for (const ids of chunks(diff.removed.categories)) {
     statements.push(
-      db.delete(linkGroup).where(inArray(linkGroup.linkId, diff.removed.links)),
-      db.delete(link).where(inArray(link.id, diff.removed.links)),
+      db.delete(categoryGroup).where(inArray(categoryGroup.categoryId, ids)),
+      db.delete(link).where(inArray(link.categoryId, ids)),
+      db.delete(category).where(inArray(category.id, ids)),
     );
   }
-  if (diff.removed.categories.length > 0) {
-    statements.push(
-      db.delete(categoryGroup).where(inArray(categoryGroup.categoryId, diff.removed.categories)),
-      db.delete(link).where(inArray(link.categoryId, diff.removed.categories)),
-      db.delete(category).where(inArray(category.id, diff.removed.categories)),
-    );
-  }
+  const nextRevision = String(Number(revision) + 1);
+  statements.push(
+    db
+      .insert(setting)
+      .values({ key: REVISION_KEY, value: nextRevision, updatedAt: now })
+      .onConflictDoUpdate({ target: setting.key, set: { value: nextRevision, updatedAt: now } }),
+  );
   await db.batch(statements as [unknown, ...unknown[]]);
 }
 
@@ -226,16 +248,23 @@ export type ImportResult =
 /**
  * Validate the file, compare it with the stored catalog and, unless `dryRun`, apply it.
  *
- * Applying needs the `baseVersion` returned by the preview (when given), so a catalog changed in the
- * meantime is not overwritten unseen. An invalid file writes nothing.
+ * `baseVersion` is the catalog revision, read before the catalog so that it is never newer than what
+ * the diff was computed from. Applying with the `baseVersion` of a preview refuses a catalog changed
+ * since; without one, the revision just read is used. An invalid file writes nothing.
  */
 export async function importCatalog(db: DB, text: string, options: { dryRun: boolean; baseVersion?: string }): Promise<ImportResult> {
   const parsed = parseCatalog(text);
   if (!parsed.ok) return { status: "invalid", errors: parsed.errors };
-  const current = await readCatalog(db);
-  const baseVersion = await catalogVersion(current);
+  const baseVersion = await readRevision(db);
   if (options.baseVersion !== undefined && options.baseVersion !== baseVersion) return { status: "changed" };
-  const diff = await diffCatalog(db, current, parsed.catalog);
-  if (!options.dryRun) await applyCatalog(db, parsed.catalog, diff);
+  const diff = await diffCatalog(db, await readCatalog(db), parsed.catalog);
+  if (!options.dryRun) {
+    try {
+      await applyCatalog(db, parsed.catalog, diff, baseVersion);
+    } catch (err) {
+      if ((await readRevision(db)) !== baseVersion) return { status: "changed" };
+      throw err;
+    }
+  }
   return { status: options.dryRun ? "preview" : "applied", diff, baseVersion };
 }

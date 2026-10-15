@@ -1,3 +1,5 @@
+import type { CatalogErrorParams } from "../api";
+
 export const en = {
   tagline: "One clean screen with the links each person is allowed to see.",
   loading: "Loading…",
@@ -82,6 +84,22 @@ export const en = {
     categories: "Categories",
     links: "Links",
     removalNotice: (n: number) => `${n} item${n === 1 ? "" : "s"} will be deleted.`,
+    noGroup: (kind: "category" | "link", id: string) => `${kind === "category" ? "Category" : "Link"} "${id}" has no group: nobody can see it.`,
+    groupsDifferByCase: (groups: string[]) => `Groups differ only by case: ${groups.join(", ")}.`,
+    errors: {
+      invalid_id: () => "Use lower-case letters, digits and dashes.",
+      invalid_group_ref: () => "Use @everyone, @authenticated, oidc:<name> or local:<name>.",
+      invalid_icon: () => "Use si:<slug> or lucide:<name>.",
+      invalid_url: () => "Use an http or https URL.",
+      duplicate_id: (p: CatalogErrorParams) => `The id "${p.id}" is used twice.`,
+      duplicate_key: (p: CatalogErrorParams) => `The key "${p.key}" is written twice.`,
+      unknown_field: (p: CatalogErrorParams) => `Unknown field: ${p.fields?.join(", ")}.`,
+      required: () => "This field is required.",
+      too_long: (p: CatalogErrorParams) => `Too long: at most ${p.max}.`,
+      yaml_syntax: (p: CatalogErrorParams) => (p.line ? `YAML syntax error on line ${p.line}.` : "YAML syntax error."),
+      anchors_not_allowed: () => "Anchors and aliases are not allowed.",
+      invalid: () => "Invalid value.",
+    },
     apply: "Import",
     cancel: "Cancel",
     applied: "Catalog imported.",

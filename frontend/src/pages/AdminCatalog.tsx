@@ -1,19 +1,31 @@
 import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 
-import { api, ApiError, type CatalogImport } from "../api";
+import { api, ApiError, type CatalogError, type CatalogImport, type CatalogWarning } from "../api";
 import { Button, buttonVariants } from "../components/ui/button";
 import { Label } from "../components/ui/label";
+import type { Messages } from "../i18n/en";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
 
 type State =
   | { name: "idle" }
   | { name: "preview"; yaml: string; result: CatalogImport; changed: boolean }
-  | { name: "invalid"; errors: { path: string; message: string }[] }
+  | { name: "invalid"; errors: CatalogError[] }
   | { name: "message"; text: string; tone: "info" | "error" };
 
 const isEmpty = ({ diff }: CatalogImport) =>
   [diff.added, diff.updated, diff.removed].every((part) => part.categories.length === 0 && part.links.length === 0);
+
+/** Return the text of a catalog error, falling back to a generic one for a code this version does not know. */
+function errorText(error: CatalogError, s: Messages["catalog"]): string {
+  const message = (s.errors as Record<string, (p: CatalogError["params"]) => string>)[error.code] ?? s.errors.invalid;
+  return message(error.params ?? {});
+}
+
+/** Return the text of a preview warning. */
+function warningText(warning: CatalogWarning, s: Messages["catalog"]): string {
+  return warning.code === "no_group" ? s.noGroup(warning.kind, warning.id) : s.groupsDifferByCase(warning.groups);
+}
 
 function Ids({ label, ids }: { label: string; ids: string[] }) {
   if (ids.length === 0) return null;
@@ -57,7 +69,11 @@ export function AdminCatalog() {
 
   async function choose(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) await preview(await file.text());
+    if (!file) return;
+    const text = await file.text();
+    // Cleared so that choosing the same file again, once fixed, fires a new change event.
+    e.target.value = "";
+    await preview(text);
   }
 
   async function apply(yaml: string, baseVersion: string) {
@@ -65,7 +81,6 @@ export function AdminCatalog() {
     try {
       await api.applyCatalog(yaml, baseVersion);
       setState({ name: "message", text: s.applied, tone: "info" });
-      if (fileRef.current) fileRef.current.value = "";
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "catalog_changed") await preview(yaml, true);
       else fail(err);
@@ -76,7 +91,7 @@ export function AdminCatalog() {
 
   const reset = () => {
     setState({ name: "idle" });
-    if (fileRef.current) fileRef.current.value = "";
+    fileRef.current?.focus();
   };
 
   return (
@@ -120,7 +135,7 @@ export function AdminCatalog() {
                 <li key={i}>
                   {e.path && <code className="font-mono">{e.path}</code>}
                   {e.path && ": "}
-                  {e.message}
+                  {errorText(e, s)}
                 </li>
               ))}
             </ul>
@@ -153,8 +168,8 @@ export function AdminCatalog() {
                   <div>
                     <h3 className="font-semibold">{s.warnings}</h3>
                     <ul className="list-disc pl-5 text-sm">
-                      {state.result.diff.warnings.map((w) => (
-                        <li key={w}>{w}</li>
+                      {state.result.diff.warnings.map((w, i) => (
+                        <li key={i}>{warningText(w, s)}</li>
                       ))}
                     </ul>
                   </div>

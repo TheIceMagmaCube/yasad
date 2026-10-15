@@ -44,9 +44,20 @@ if (config.setupCode !== null && (await hasLocalAdmin(db as unknown as DB))) con
 
 // The catalog file is the source of truth: applied on every start, refusing to start when invalid.
 if (config.catalogFile) {
-  const result = await importCatalog(db as unknown as DB, await readFile(config.catalogFile, "utf8"), { dryRun: false });
+  let result: Awaited<ReturnType<typeof importCatalog>>;
+  try {
+    result = await importCatalog(db as unknown as DB, await readFile(config.catalogFile, "utf8"), { dryRun: false });
+  } catch (err) {
+    console.error(`Could not apply the catalog file ${config.catalogFile}: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
   if (result.status === "invalid") {
-    console.error(`Invalid catalog file ${config.catalogFile}:\n${result.errors.map((e) => `- ${e.path || "(file)"}: ${e.message}`).join("\n")}`);
+    const lines = result.errors.map((e) => `- ${e.path || "(file)"}: ${e.code}${Object.keys(e.params).length ? ` ${JSON.stringify(e.params)}` : ""}`);
+    console.error(`Invalid catalog file ${config.catalogFile}:\n${lines.join("\n")}`);
+    process.exit(1);
+  }
+  if (result.status === "changed") {
+    console.error(`Could not apply the catalog file ${config.catalogFile}: the catalog changed during the import.`);
     process.exit(1);
   }
   if (result.status === "applied") {
