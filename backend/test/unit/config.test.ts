@@ -26,6 +26,7 @@ describe("loadConfig", () => {
       trustProxy: 0,
       sessionMaxAge: 604800,
       defaultLanguage: "en",
+      passwordSignIn: true,
     });
   });
 
@@ -37,6 +38,11 @@ describe("loadConfig", () => {
   it("reads DEFAULT_LANGUAGE and rejects an unsupported one", () => {
     expect(loadConfig({ ...valid, DEFAULT_LANGUAGE: " FR " }).defaultLanguage).toBe("fr");
     expect(problemsOf({ ...valid, DEFAULT_LANGUAGE: "de" })).toEqual([expect.stringContaining("DEFAULT_LANGUAGE")]);
+  });
+
+  it("reads PASSWORD_SIGN_IN and rejects anything but true or false", () => {
+    expect(loadConfig({ ...valid, PASSWORD_SIGN_IN: "False" }).passwordSignIn).toBe(false);
+    expect(problemsOf({ ...valid, PASSWORD_SIGN_IN: "no" })).toEqual([expect.stringContaining("PASSWORD_SIGN_IN")]);
   });
 
   it("treats an empty SETUP_CODE as unset", () => {

@@ -1,20 +1,30 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api, type User } from "./api";
+import { api, ApiError, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
+import { ChangePassword } from "./pages/ChangePassword";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
 import { SignIn } from "./pages/SignIn";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
+/** Path showing the password form even when password sign-in is off (local admins only). */
+const LOCAL_SIGN_IN = "/sign-in/local";
+
 type View = { name: "loading" } | { name: "error" } | { name: "setup" } | { name: "signIn" } | { name: "home"; user: User };
+
+/** Treat the setup state as closed when the API waits for a temporary password to be replaced. */
+function passwordChangePending(err: unknown): SetupState {
+  if (err instanceof ApiError && err.body.code === "password_change_required") return { open: false };
+  throw err;
+}
 
 /** Return the screen to show: setup while open and nobody is signed in, then home or sign-in. */
 async function loadView(): Promise<View> {
   try {
-    const [setup, user] = await Promise.all([api.setupState(), api.session()]);
+    const [setup, user] = await Promise.all([api.setupState().catch(passwordChangePending), api.session()]);
     if (setup.open && !user) return { name: "setup" };
     return user ? { name: "home", user } : { name: "signIn" };
   } catch {
@@ -84,11 +94,19 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
     case "setup":
       return <Setup onDone={refresh} onClosed={refresh} />;
     case "signIn":
-      return <SignIn onSignedIn={refresh} />;
+      return (
+        <SignIn
+          local={location.pathname === LOCAL_SIGN_IN}
+          onSignedIn={() => {
+            if (location.pathname === LOCAL_SIGN_IN) history.replaceState(null, "", "/");
+            refresh();
+          }}
+        />
+      );
     case "home":
       return (
         <AppShell user={view.user} onSignOut={() => void api.signOut().finally(refresh)}>
-          <Home user={view.user} />
+          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <Home user={view.user} />}
         </AppShell>
       );
   }

@@ -29,5 +29,6 @@ instance.get("/", async (c) => {
     logo: displayableLogo(values.get("instance.logo")),
     theme: knownTheme(values.get("instance.theme")),
     defaultLanguage: c.var.config.defaultLanguage,
+    passwordSignIn: c.var.config.passwordSignIn,
   });
 });

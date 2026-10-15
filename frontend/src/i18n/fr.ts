@@ -16,6 +16,7 @@ export const fr = {
     invalid_password: "Utilisez de 12 à 128 caractères.",
     password_mismatch: "Les mots de passe ne correspondent pas.",
     email_taken: "Cette adresse e-mail est déjà utilisée par un autre compte.",
+    password_unchanged: "Choisissez un mot de passe différent de l'actuel.",
   },
   preferences: {
     language: "Langue",
@@ -62,6 +63,19 @@ export const fr = {
     password: "Mot de passe",
     submit: "Se connecter",
     invalid: "E-mail ou mot de passe incorrect.",
+    disabledTitle: "Connexion par mot de passe désactivée",
+    disabled: "Cette instance n'accepte pas la connexion par mot de passe. Demandez à votre administrateur comment vous connecter.",
+    adminsOnly: "Sur cette instance, la connexion par mot de passe est réservée aux administrateurs.",
+  },
+  changePassword: {
+    title: "Choisissez votre mot de passe",
+    intro: "Votre compte a un mot de passe temporaire. Choisissez le vôtre avant de continuer.",
+    current: "Mot de passe actuel",
+    new: "Nouveau mot de passe",
+    newHint: "Au moins 12 caractères.",
+    confirm: "Confirmer le nouveau mot de passe",
+    submit: "Enregistrer le mot de passe",
+    wrongCurrent: "Le mot de passe actuel est incorrect.",
   },
   home: {
     title: "Bienvenue",

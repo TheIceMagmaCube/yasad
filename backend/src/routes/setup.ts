@@ -4,7 +4,7 @@ import { type Context, Hono } from "hono";
 import { authFor, MAX_PASSWORD, MIN_PASSWORD } from "../auth";
 import type { AppEnv } from "../context";
 import { apiError } from "../errors";
-import { failuresInWindow, recordFailure, SETUP_LIMIT } from "../rate-limit";
+import { releaseAttempt, reserveAttempt, SETUP_LIMIT } from "../rate-limit";
 import { account, setting, user } from "../schema";
 import { codesMatch, hasLocalAdmin, isSetupOpen, localAdmins, SETUP_CODE_STILL_SET } from "../setup-state";
 
@@ -21,7 +21,8 @@ async function readJson(c: Context): Promise<Record<string, unknown>> {
 /**
  * Return the response refusing the setup code, or null when setup is open and the code is right.
  *
- * Checks in order: setup closed (404), too many failures (429), wrong code (403, counted).
+ * Checks in order: setup closed (404), too many failures (429), wrong code (403, counted). The attempt
+ * is counted before the code is checked and given back when the code is right.
  */
 async function refuseCode(c: Context<AppEnv>, code: unknown): Promise<Response | null> {
   const { db, config, clientIp } = c.var;
@@ -31,18 +32,18 @@ async function refuseCode(c: Context<AppEnv>, code: unknown): Promise<Response |
   }
 
   const key = `setup:${clientIp}`;
-  const { count, retryAfterMs } = await failuresInWindow(db, key, SETUP_LIMIT);
-  if (count >= SETUP_LIMIT.max) {
-    c.header("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
+  const attempt = await reserveAttempt(db, key, SETUP_LIMIT);
+  if (!attempt.allowed) {
+    c.header("Retry-After", String(Math.ceil(attempt.retryAfterMs / 1000)));
     return apiError(c, 429, "rate_limited", "Too many attempts. Try again later.");
   }
 
   if (typeof code !== "string" || !(await codesMatch(code.trim(), config.setupCode!))) {
-    const failures = await recordFailure(db, key, SETUP_LIMIT);
     return apiError(c, 403, "invalid_code", "This setup code is not valid.", {
-      attemptsLeft: Math.max(0, SETUP_LIMIT.max - failures),
+      attemptsLeft: Math.max(0, SETUP_LIMIT.max - attempt.count),
     });
   }
+  await releaseAttempt(db, key);
   return null;
 }
 

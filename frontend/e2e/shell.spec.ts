@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 import { SETUP_CODE } from "../playwright.config";
-import { ADMIN, expectAccessible, MODES, setInstanceTheme, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, expectAccessible, MODES, setInstanceTheme, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -72,6 +72,21 @@ for (const theme of THEMES) {
     }
   }
 }
+
+test("the temporary password screen is accessible", async ({ page }) => {
+  await addTemporaryUser();
+  const res = await page.request.post("/api/auth/sign-in/email", { data: TEMPORARY });
+  expect(res.ok()).toBe(true);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      const csp = watchCsp(page);
+      await open(page, "/", theme, mode, 320);
+      await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
+      await expectAccessible(page, `change password (${theme}, ${mode})`);
+      expect(csp).toEqual([]);
+    }
+  }
+});
 
 test("the account menu works with the keyboard", async ({ page }) => {
   setInstanceTheme("default");

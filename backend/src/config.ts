@@ -7,6 +7,7 @@ export type Config = {
   trustProxy: number;
   sessionMaxAge: number;
   defaultLanguage: Language;
+  passwordSignIn: boolean;
 };
 
 export const LANGUAGES = ["en", "fr"] as const;
@@ -67,11 +68,15 @@ export function loadConfig(raw: RawConfig): Config {
   const defaultLanguage = LANGUAGES.find((l) => l === rawLanguage);
   if (!defaultLanguage) problems.push(`DEFAULT_LANGUAGE must be one of: ${LANGUAGES.join(", ")}.`);
 
+  const rawPasswordSignIn = raw.PASSWORD_SIGN_IN?.trim().toLowerCase() || "true";
+  if (!["true", "false"].includes(rawPasswordSignIn)) problems.push("PASSWORD_SIGN_IN must be true or false.");
+  const passwordSignIn = rawPasswordSignIn !== "false";
+
   if (publicUrl.startsWith("https://")) {
     if (authSecret.startsWith(EXAMPLE_PREFIX)) problems.push("AUTH_SECRET still holds the example value from .env.example.");
     if (setupCode?.startsWith(EXAMPLE_PREFIX)) problems.push("SETUP_CODE still holds the example value from .env.example.");
   }
 
   if (problems.length > 0) throw new ConfigError(problems);
-  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge, defaultLanguage: defaultLanguage! };
+  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge, defaultLanguage: defaultLanguage!, passwordSignIn };
 }

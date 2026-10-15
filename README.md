@@ -82,13 +82,14 @@ Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then
 | `PUBLIC_URL` | yes | The URL people open, e.g. `https://portal.example.org`. Cookies are `Secure` when it is https. |
 | `SETUP_CODE` | for setup | One-time code for the first-run setup, at least 24 characters. Remove it once setup is done. |
 | `SESSION_MAX_AGE` | no | Session duration in seconds. Default `604800` (7 days). |
+| `PASSWORD_SIGN_IN` | no | `true` (default) or `false`. With `false`, only local administrators can sign in with a password, from `/sign-in/local`; sessions already open stay valid until they expire. |
 | `DEFAULT_LANGUAGE` | no | Interface language when the browser asks for neither English nor French: `en` (default) or `fr`. |
 | `TRUST_PROXY` | no | Number of proxies in front of YASAD (`true` means 1). The client IP is then read from `X-Forwarded-For`. Leave it unset when YASAD is reached directly, otherwise anyone can forge the header. |
 | `DATABASE_URL` | no | libSQL URL. Default `file:/data/yasad.db` in the image. |
 
 Behind proxies, count every hop: with Cloudflare in front of your reverse proxy (for example Nginx Proxy Manager), set `TRUST_PROXY=2`. With a value too low, every visitor shares the IP of a proxy, so 5 wrong setup codes from anyone block setup for everyone for 15 minutes.
 
-Sign-in attempts are not limited yet (#6): do not expose a pre-release on the internet with real accounts.
+Failed sign-ins are limited in the database: 5 per e-mail and IP, 30 per IP, per 15 minutes. Set `TRUST_PROXY` correctly: with a value too low, every visitor shares one counter.
 
 On Cloudflare Workers, set the same values as secrets (`wrangler secret put AUTH_SECRET`); the client IP comes from `CF-Connecting-IP`.
 

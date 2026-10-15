@@ -14,6 +14,7 @@ export const en = {
     invalid_password: "Use 12 to 128 characters.",
     password_mismatch: "The passwords do not match.",
     email_taken: "This e-mail address is already used by another account.",
+    password_unchanged: "Choose a password different from the current one.",
   },
   preferences: {
     language: "Language",
@@ -58,6 +59,19 @@ export const en = {
     password: "Password",
     submit: "Sign in",
     invalid: "Wrong e-mail or password.",
+    disabledTitle: "Password sign-in is off",
+    disabled: "This instance does not accept password sign-in. Ask your administrator how to sign in.",
+    adminsOnly: "Password sign-in is reserved to administrators on this instance.",
+  },
+  changePassword: {
+    title: "Choose your password",
+    intro: "Your account has a temporary password. Choose your own before going on.",
+    current: "Current password",
+    new: "New password",
+    newHint: "At least 12 characters.",
+    confirm: "Confirm new password",
+    submit: "Save password",
+    wrongCurrent: "The current password is not correct.",
   },
   home: {
     title: "Welcome",
