@@ -58,10 +58,13 @@ describe("admin groups", () => {
     const group = await create(app, "  Contractors ");
     expect(group).toMatchObject({ name: "Contractors", source: "local", memberIds: [] });
     expect((await codeOf(await post(app, "/api/admin/groups", { name: "Contractors" }))).fields).toEqual({ name: "name_taken" });
+    expect((await codeOf(await post(app, "/api/admin/groups", { name: "CONTRACTORS" }))).fields).toEqual({ name: "name_taken" });
     expect((await codeOf(await post(app, "/api/admin/groups", { name: " " }))).fields).toEqual({ name: "invalid_name" });
 
     await create(app, "Vendors");
     expect((await codeOf(await send(app, "PATCH", `/api/admin/groups/${group.id}`, { name: "Vendors" }))).fields).toEqual({ name: "name_taken" });
+    expect((await codeOf(await send(app, "PATCH", `/api/admin/groups/${group.id}`, { name: "vendors" }))).fields).toEqual({ name: "name_taken" });
+    expect((await send(app, "PATCH", `/api/admin/groups/${group.id}`, { name: "CONTRACTORS" })).status).toBe(200);
     const renamed = await send(app, "PATCH", `/api/admin/groups/${group.id}`, { name: "Partners" });
     expect(((await renamed.json()) as { group: AdminGroup }).group.name).toBe("Partners");
   });

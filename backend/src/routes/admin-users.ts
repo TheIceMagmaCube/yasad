@@ -123,8 +123,9 @@ adminUsers.post("/", async (c) => {
 });
 
 /**
- * Change a user's name, role or disabled state.
+ * Change a user's name, e-mail, role or disabled state.
  *
+ * The e-mail of an OIDC account comes from the provider and cannot be changed here.
  * `role` applies to local accounts; `roleOverride` (admin, user or null to follow the provider) to OIDC
  * accounts, and sets the role at once when not null. Disabling closes every session. An admin cannot
  * change their own role or disable themselves, and the last enabled local admin stays one.
@@ -144,6 +145,12 @@ adminUsers.patch("/:id", async (c) => {
     fields.roleOverride = "invalid_role";
   }
   if (body.disabled !== undefined && typeof body.disabled !== "boolean") fields.disabled = "invalid_value";
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : body.email === undefined ? undefined : "";
+  if (email !== undefined && email !== target.email) {
+    if (target.origin !== "local") fields.email = "email_from_provider";
+    else if (!EMAIL.test(email)) fields.email = "invalid_email";
+    else if (await db.select({ id: user.id }).from(user).where(eq(user.email, email)).get()) fields.email = "email_taken";
+  }
   if (Object.keys(fields).length > 0) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields });
 
   const role = (body.role as Role | undefined) ?? (body.roleOverride === undefined ? undefined : ((body.roleOverride as Role | null) ?? undefined));
@@ -164,6 +171,7 @@ adminUsers.patch("/:id", async (c) => {
       .set({
         updatedAt: now,
         ...(name !== undefined && { name }),
+        ...(email !== undefined && { email }),
         ...(role !== undefined && { role }),
         ...(body.roleOverride !== undefined && { roleOverride: body.roleOverride as Role | null }),
         ...(disabled !== undefined && { disabled }),

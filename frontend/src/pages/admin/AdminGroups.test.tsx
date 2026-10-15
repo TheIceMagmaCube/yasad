@@ -71,7 +71,7 @@ describe("AdminGroups", () => {
     await user.click(await screen.findByRole("button", { name: "New group" }));
     await user.type(screen.getByLabelText("Name"), "Contractors");
     await user.click(screen.getByRole("button", { name: "Create the group" }));
-    expect(await screen.findByText("A local group already has this name.")).toBeInTheDocument();
+    expect(await screen.findByText("A local group already has this name, perhaps with other capitals.")).toBeInTheDocument();
     expect(sentBody(fetchMock, 2)).toEqual({ name: "Contractors" });
   });
 

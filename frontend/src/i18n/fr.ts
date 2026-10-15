@@ -17,7 +17,8 @@ export const fr = {
     password_mismatch: "Les mots de passe ne correspondent pas.",
     email_taken: "Cette adresse e-mail est déjà utilisée par un autre compte.",
     password_unchanged: "Choisissez un mot de passe différent de l'actuel.",
-    name_taken: "Un groupe local porte déjà ce nom.",
+    name_taken: "Un groupe local porte déjà ce nom, peut-être avec d'autres majuscules.",
+    email_from_provider: "Cet e-mail vient du fournisseur d'identité : modifiez-le chez lui.",
   },
   preferences: {
     language: "Langue",

@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
 import { bumpRevision } from "../catalog/sync";
@@ -59,8 +59,13 @@ async function localGroup(c: Context<AppEnv>): Promise<{ id: string; name: strin
   return row;
 }
 
-const nameTaken = async (db: DB, name: string) =>
-  (await db.select({ id: group.id }).from(group).where(and(eq(group.source, "local"), eq(group.name, name))).get()) !== undefined;
+/** Return whether another local group has this name, ignoring case: the catalog would tell them apart only by case. */
+const nameTaken = async (db: DB, name: string, exceptId?: string) =>
+  (await db
+    .select({ id: group.id })
+    .from(group)
+    .where(and(eq(group.source, "local"), eq(sql`lower(${group.name})`, name.toLowerCase()), exceptId ? ne(group.id, exceptId) : undefined))
+    .get()) !== undefined;
 
 export const adminGroups = new Hono<AppEnv>();
 
@@ -93,11 +98,11 @@ adminGroups.patch("/:id", async (c) => {
   if (name === null) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "invalid_name" } });
   if (name === target.name) return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });
   const taken = () => apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "name_taken" } });
-  if (await nameTaken(db, name)) return taken();
+  if (await nameTaken(db, name, target.id)) return taken();
   try {
     await db.batch([db.update(group).set({ name }).where(eq(group.id, target.id)), bumpRevision(db)]);
   } catch (err) {
-    if (await nameTaken(db, name)) return taken();
+    if (await nameTaken(db, name, target.id)) return taken();
     throw err;
   }
   return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });

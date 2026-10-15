@@ -97,6 +97,29 @@ describe("AdminUsers", () => {
     expect(sentBody(fetchMock, 1)).toEqual({ roleOverride: "admin", disabled: true });
   });
 
+  it("changes the e-mail of a local account, and explains a taken one", async () => {
+    const fetchMock = mockApi({
+      "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB, CAROL] } },
+      "PATCH /api/admin/users/bob": { status: 422, body: { error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } } },
+    });
+    renderWithProviders(<AdminUsers me={ME} />);
+    const userEv = userEvent.setup();
+    await userEv.click(await screen.findByRole("button", { name: "Edit Bob" }));
+    const field = screen.getByLabelText("E-mail");
+    await userEv.clear(field);
+    await userEv.type(field, "carol@example.invalid");
+    await userEv.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("already used by another account");
+    expect(sentBody(fetchMock, 1)).toEqual({ email: "carol@example.invalid" });
+  });
+
+  it("offers no e-mail field for an OIDC account", async () => {
+    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA, CAROL] } } });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Edit Carol" }));
+    expect(screen.queryByLabelText("E-mail")).toBeNull();
+  });
+
   it("offers no role or disable control on one's own account", async () => {
     mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA] } } });
     renderWithProviders(<AdminUsers me={ME} />);

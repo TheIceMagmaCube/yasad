@@ -45,7 +45,7 @@ export type AdminUser = {
   groups: { id: string; name: string; source: GroupSource }[];
   lastSignInAt: string | null;
 };
-export type UserChanges = { name?: string; role?: Role; roleOverride?: Role | null; disabled?: boolean };
+export type UserChanges = { name?: string; email?: string; role?: Role; roleOverride?: Role | null; disabled?: boolean };
 export type AdminGroup = { id: string; name: string; source: GroupSource; memberIds: string[]; categories: number; links: number };
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };

@@ -17,7 +17,8 @@ export const en = {
     password_mismatch: "The passwords do not match.",
     email_taken: "This e-mail address is already used by another account.",
     password_unchanged: "Choose a password different from the current one.",
-    name_taken: "A local group already has this name.",
+    name_taken: "A local group already has this name, perhaps with other capitals.",
+    email_from_provider: "This e-mail comes from the identity provider: change it there.",
   },
   preferences: {
     language: "Language",

@@ -236,9 +236,10 @@ function NewUser({ onCancel, onCreated }: { onCancel: () => void; onCreated: (us
 }
 
 /** Return the changes the form makes to the user, leaving out what stays the same. */
-function changesOf(user: AdminUser, form: { name: string; role: Role; override: Role | ""; disabled: boolean }): UserChanges {
+function changesOf(user: AdminUser, form: { name: string; email: string; role: Role; override: Role | ""; disabled: boolean }): UserChanges {
   const changes: UserChanges = {};
   if (form.name.trim() !== user.name) changes.name = form.name;
+  if (user.origin === "local" && form.email.trim().toLowerCase() !== user.email) changes.email = form.email;
   if (user.origin === "local" && form.role !== user.role) changes.role = form.role;
   if (user.origin === "oidc" && (form.override || null) !== user.roleOverride) changes.roleOverride = form.override || null;
   if (form.disabled !== user.disabled) changes.disabled = form.disabled;
@@ -250,6 +251,7 @@ function EditUser({ user, self, busy, onCancel, onSave }: { user: AdminUser; sel
   const s = m.users;
   const id = useId();
   const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState<Role>(user.role);
   const [override, setOverride] = useState<Role | "">(user.roleOverride ?? "");
   const [disabled, setDisabled] = useState(user.disabled);
@@ -258,13 +260,16 @@ function EditUser({ user, self, busy, onCancel, onSave }: { user: AdminUser; sel
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(changesOf(user, { name, role, override, disabled }));
+        onSave(changesOf(user, { name, email, role, override, disabled }));
       }}
       noValidate
       aria-label={`${m.admin.edit} ${user.name}`}
       className="mt-3 max-w-md"
     >
       <Field id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+      {user.origin === "local" && (
+        <Field id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
+      )}
       {!self && user.origin === "local" && (
         <div className="mt-4 flex items-center gap-2">
           <input id={`${id}-admin`} type="checkbox" checked={role === "admin"} onChange={(e) => setRole(e.target.checked ? "admin" : "user")} className="size-4 accent-primary" />

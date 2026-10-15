@@ -114,6 +114,21 @@ describe("admin users", () => {
     expect(await app.query(`select name from "user" where id = 'bob'`)).toEqual([{ name: "Robert" }]);
   });
 
+  it("changes the e-mail of a local account, never to a taken one nor for an OIDC account", async () => {
+    const app = await adminApp();
+    await addUser(app, { id: "bob", email: BOB });
+    await addOidcUser(app, { id: "carol", email: "carol@example.invalid" });
+    const changed = await send(app, "PATCH", "/api/admin/users/bob", { email: " Robert@Example.invalid " });
+    expect(((await changed.json()) as { user: AdminUser }).user.email).toBe("robert@example.invalid");
+    expect((await signIn(app.another(), "robert@example.invalid")).status).toBe(200);
+
+    const fieldsOf = async (res: Response) => ((await res.json()) as { error: { fields: object } }).error.fields;
+    expect(await fieldsOf(await send(app, "PATCH", "/api/admin/users/bob", { email: "CAROL@example.invalid" }))).toEqual({ email: "email_taken" });
+    expect(await fieldsOf(await send(app, "PATCH", "/api/admin/users/bob", { email: "nope" }))).toEqual({ email: "invalid_email" });
+    expect(await fieldsOf(await send(app, "PATCH", "/api/admin/users/carol", { email: "c2@example.invalid" }))).toEqual({ email: "email_from_provider" });
+    expect((await send(app, "PATCH", "/api/admin/users/bob", { email: "robert@example.invalid" })).status).toBe(200);
+  });
+
   it("refuses to change one's own role, disable or delete oneself", async () => {
     const app = await adminApp();
     await addUser(app, { id: "bob", email: BOB, role: "admin" });
