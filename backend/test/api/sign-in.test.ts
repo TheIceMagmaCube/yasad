@@ -1,4 +1,4 @@
-import { testApp } from "#harness";
+import { TEST_IP, testApp } from "#harness";
 import { describe, expect, it } from "vitest";
 
 import { addUser, PASSWORD, post, signIn } from "./users";
@@ -39,7 +39,9 @@ describe("sign-in limits", () => {
   it("blocks an IP after 30 failures across e-mails", async () => {
     const app = await testApp();
     await addUser(app, { id: "u1", email: "bob@example.org" });
-    for (let i = 0; i < 30; i++) await signIn(app, `nobody${i}@example.org`, "wrong password!");
+    // 29 failures already counted for this IP (30 real sign-ins would hash 30 passwords, too slow on workerd).
+    await app.exec(`insert into rate_limit (key, count, window_start) values ('signin:${TEST_IP}', 29, ${Date.now()})`);
+    expect((await signIn(app, "nobody@example.org", "wrong password!")).status).toBe(401);
     expect((await signIn(app, "bob@example.org")).status).toBe(429);
     expect((await signIn(app, "bob@example.org", PASSWORD, "198.51.100.7")).status).toBe(200);
   });
