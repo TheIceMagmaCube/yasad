@@ -14,6 +14,7 @@ import { forwardedClientIp } from "./client-ip";
 import { type Config, ConfigError, loadConfig } from "./config";
 import type { DB } from "./db";
 import * as schema from "./schema";
+import { withSecurityHeaders } from "./security";
 import { hasLocalAdmin, SETUP_CODE_STILL_SET } from "./setup-state";
 
 let config: Config;
@@ -50,6 +51,7 @@ function clientIp(c: Context): string {
 }
 
 const server = new Hono();
+server.use("*", withSecurityHeaders(() => config.publicUrl.startsWith("https://")));
 server.route(
   "/",
   createApp({ getDb: () => db as unknown as DB, getRawConfig: () => process.env, getClientIp: clientIp }),

@@ -8,6 +8,7 @@ import type { AppEnv } from "./context";
 import type { DB } from "./db";
 import { apiError } from "./errors";
 import { setup } from "./routes/setup";
+import { sameOriginOnly, withSecurityHeaders } from "./security";
 import { version } from "./version";
 
 export type { AppEnv } from "./context";
@@ -25,6 +26,8 @@ export type AppDeps = {
 export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
   const app = new Hono<AppEnv>().basePath("/api");
 
+  app.use("*", withSecurityHeaders<AppEnv>((c) => c.get("config")?.publicUrl.startsWith("https://") ?? false));
+
   app.use("*", async (c, next) => {
     let config: Config;
     try {
@@ -39,6 +42,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     await next();
   });
 
+  app.use("*", sameOriginOnly);
   app.use(
     "*",
     bodyLimit({

@@ -11,6 +11,7 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 - `backend/`: Hono API, Drizzle (SQLite), Better Auth.
   - `src/app.ts`: runtime-agnostic app. Everything shared goes here or below. Each entry passes `getDb`, `getRawConfig` and `getClientIp`.
   - `src/config.ts`: environment validation, shared by both entries. `src/auth.ts`: Better Auth, mounted on `/api/auth/*`, public sign-up disabled.
+  - `src/security.ts`: security headers (CSP and others) and the same-origin check on state-changing requests. `frontend/public/_headers` is generated from it for the Worker's static assets; a test fails when they drift.
   - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`).
   - `src/server.ts`: Docker/Node entry (libSQL file, runs migrations at startup, serves `frontend/dist`).
   - `src/worker.ts`: Cloudflare Workers entry (D1 binding, static assets from `frontend/dist`).
@@ -34,6 +35,7 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 - Filtering happens on the server; forbidden links never reach the browser, including through the API. Every access rule needs a test that calls the API directly.
 - OIDC groups are written server-side from the verified ID token (Better Auth hook), never from user-editable fields.
 - No automatic linking between a local account and an OIDC account sharing an e-mail.
+- State-changing requests (POST, PUT, PATCH, DELETE), Better Auth routes included, must send a JSON body and come from PUBLIC_URL's origin. The CSP allows no inline script or style and no third-party origin: widen it in `security.ts` only, with the reason in the PR.
 - WCAG 2.2 AA; keyboard navigation must work everywhere.
 
 ## Conventions

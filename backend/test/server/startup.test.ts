@@ -1,7 +1,7 @@
 // Node-only: starts the real Docker entry (src/server.ts) as a child process.
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -123,4 +123,18 @@ describe("server startup", () => {
     const session = await fetch(`${second.url}/api/auth/get-session`, { headers: { cookie } });
     expect(((await session.json()) as { user: { email: string } }).user.email).toBe("ada@example.org");
   }, 30_000);
+
+  it("sends the security headers on the static frontend", async () => {
+    const staticDir = await mkdtemp(join(tmpdir(), "yasad-static-"));
+    tmpDirs.push(staticDir);
+    await writeFile(join(staticDir, "index.html"), "<!doctype html><title>YASAD</title>");
+    const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${await tmpDb()}`, STATIC_DIR: staticDir });
+    await waitForHealth(server);
+    for (const path of ["/", "/some/client/route"]) {
+      const res = await fetch(`${server.url}${path}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-security-policy")).toContain("default-src 'self'");
+      expect(res.headers.get("x-frame-options")).toBe("DENY");
+    }
+  }, 20_000);
 });
