@@ -157,6 +157,13 @@ describe("POST /api/setup", () => {
     expect(statuses[0]).toBe(201);
     expect([404, 409]).toContain(statuses[1]);
   });
+
+  it("lets no more than 5 wrong codes through in a parallel burst", async () => {
+    const app = await testApp({ SETUP_CODE: CODE });
+    const statuses = await Promise.all(Array.from({ length: 12 }, () => post(app, "/api/setup/verify-code", { code: "wrong" }).then((r) => r.status)));
+    expect(statuses.filter((s) => s === 403)).toHaveLength(5);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(7);
+  });
 });
 
 describe("authentication", () => {

@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { authFor, MAX_PASSWORD, MIN_PASSWORD } from "../auth";
 import type { AppEnv } from "../context";
 import { apiError } from "../errors";
-import { failuresInWindow, PASSWORD_CHANGE_LIMIT, recordFailure } from "../rate-limit";
+import { PASSWORD_CHANGE_LIMIT, releaseAttempt, reserveAttempt } from "../rate-limit";
 import { account, session, user } from "../schema";
 
 export const accountRoutes = new Hono<AppEnv>();
@@ -34,9 +34,9 @@ accountRoutes.post("/password", async (c) => {
   }
 
   const key = `password:${userId}`;
-  const { count, retryAfterMs } = await failuresInWindow(db, key, PASSWORD_CHANGE_LIMIT);
-  if (count >= PASSWORD_CHANGE_LIMIT.max) {
-    c.header("Retry-After", String(Math.ceil(retryAfterMs / 1000)));
+  const attempt = await reserveAttempt(db, key, PASSWORD_CHANGE_LIMIT);
+  if (!attempt.allowed) {
+    c.header("Retry-After", String(Math.ceil(attempt.retryAfterMs / 1000)));
     return apiError(c, 429, "rate_limited", "Too many attempts. Try again later.");
   }
 
@@ -45,13 +45,16 @@ accountRoutes.post("/password", async (c) => {
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
     .get();
-  if (!credential?.password) return apiError(c, 409, "no_local_password", "This account has no local password.");
+  if (!credential?.password) {
+    await releaseAttempt(db, key);
+    return apiError(c, 409, "no_local_password", "This account has no local password.");
+  }
 
   const { password } = await auth.$context;
   if (!(await password.verify({ hash: credential.password, password: currentPassword }))) {
-    await recordFailure(db, key, PASSWORD_CHANGE_LIMIT);
     return apiError(c, 403, "invalid_password", "The current password is not correct.");
   }
+  await releaseAttempt(db, key);
 
   const hash = await password.hash(newPassword);
   const now = new Date();

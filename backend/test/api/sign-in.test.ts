@@ -28,6 +28,14 @@ describe("sign-in limits", () => {
     expect((await signIn(app, "bob@example.org", PASSWORD, "198.51.100.7")).status).toBe(200);
   });
 
+  it("lets no more than 5 guesses through in a parallel burst", async () => {
+    const app = await testApp();
+    await addUser(app, { id: "u1", email: "bob@example.org" });
+    const statuses = await Promise.all(Array.from({ length: 20 }, () => signIn(app, "bob@example.org", "wrong password!").then((r) => r.status)));
+    expect(statuses.filter((s) => s === 401)).toHaveLength(5);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(15);
+  });
+
   it("blocks an IP after 30 failures across e-mails", async () => {
     const app = await testApp();
     await addUser(app, { id: "u1", email: "bob@example.org" });

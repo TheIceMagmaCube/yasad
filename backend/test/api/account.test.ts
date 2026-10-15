@@ -76,6 +76,12 @@ describe("POST /api/account/password", () => {
     expect(res.headers.get("retry-after")).not.toBeNull();
   });
 
+  it("lets no more than 5 guesses through in a parallel burst", async () => {
+    const app = await flaggedUser();
+    const statuses = await Promise.all(Array.from({ length: 12 }, () => changePassword(app, "wrong password!", NEW_PASSWORD).then((r) => r.status)));
+    expect(statuses.filter((s) => s === 403)).toHaveLength(5);
+  });
+
   it("also works for a user without the flag", async () => {
     const app = await testApp();
     await addUser(app, { id: "u2", email: "carol@example.org" });

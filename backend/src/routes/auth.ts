@@ -4,7 +4,7 @@ import { type Context, Hono } from "hono";
 import { authFor } from "../auth";
 import type { AppEnv } from "../context";
 import { apiError } from "../errors";
-import { clearFailures, failuresInWindow, type Limit, recordFailure, SIGN_IN_ACCOUNT_LIMIT, SIGN_IN_IP_LIMIT } from "../rate-limit";
+import { clearAttempts, type Limit, releaseAttempt, reserveAttempt, SIGN_IN_ACCOUNT_LIMIT, SIGN_IN_IP_LIMIT } from "../rate-limit";
 import { account, user } from "../schema";
 
 /** Body Better Auth sends for a wrong e-mail or password; reused so a refusal never stands out. */
@@ -24,7 +24,8 @@ async function isLocalAdmin(c: Context<AppEnv>, email: string): Promise<boolean>
 /**
  * Sign in with e-mail and password, limited per IP and e-mail and per IP.
  *
- * The limits are checked before the password, so a right password is refused too while blocked.
+ * Each attempt is counted before the password is checked (a right password is refused too while
+ * blocked) and given back unless it failed.
  * With PASSWORD_SIGN_IN=false only local admins may sign in; every other refusal gets the same
  * answer as a wrong password, after hashing the password so the timing matches too.
  */
@@ -41,10 +42,10 @@ async function signIn(c: Context<AppEnv>): Promise<Response> {
     [`signin:${clientIp}`, SIGN_IN_IP_LIMIT],
   ];
 
-  const windows = await Promise.all(keys.map(([key, limit]) => failuresInWindow(db, key, limit)));
-  const blocked = windows.filter((w, i) => w.count >= keys[i]![1].max);
+  const attempts = await Promise.all(keys.map(([key, limit]) => reserveAttempt(db, key, limit)));
+  const blocked = attempts.filter((a) => !a.allowed);
   if (blocked.length > 0) {
-    c.header("Retry-After", String(Math.ceil(Math.max(...blocked.map((w) => w.retryAfterMs)) / 1000)));
+    c.header("Retry-After", String(Math.ceil(Math.max(...blocked.map((a) => a.retryAfterMs)) / 1000)));
     return apiError(c, 429, "rate_limited", "Too many attempts. Try again later.");
   }
 
@@ -57,10 +58,10 @@ async function signIn(c: Context<AppEnv>): Promise<Response> {
     res = await auth.handler(c.req.raw);
   }
 
-  if (res.status === 401 || res.status === 403) {
-    await Promise.all(keys.map(([key, limit]) => recordFailure(db, key, limit)));
-  } else if (res.ok) {
-    await clearFailures(db, keys[0]![0]);
+  if (res.ok) {
+    await Promise.all([clearAttempts(db, keys[0]![0]), releaseAttempt(db, keys[1]![0])]);
+  } else if (res.status !== 401 && res.status !== 403) {
+    await Promise.all(keys.map(([key]) => releaseAttempt(db, key)));
   }
   return res;
 }
