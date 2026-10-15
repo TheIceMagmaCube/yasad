@@ -8,8 +8,10 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 
 ## Layout
 
-- `backend/`: Hono API, Drizzle (SQLite), Better Auth (to come in M1).
-  - `src/app.ts`: runtime-agnostic app. Everything shared goes here or below.
+- `backend/`: Hono API, Drizzle (SQLite), Better Auth.
+  - `src/app.ts`: runtime-agnostic app. Everything shared goes here or below. Each entry passes `getDb`, `getRawConfig` and `getClientIp`.
+  - `src/config.ts`: environment validation, shared by both entries. `src/auth.ts`: Better Auth, mounted on `/api/auth/*`, public sign-up disabled.
+  - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`).
   - `src/server.ts`: Docker/Node entry (libSQL file, runs migrations at startup, serves `frontend/dist`).
   - `src/worker.ts`: Cloudflare Workers entry (D1 binding, static assets from `frontend/dist`).
   - `drizzle/`: generated SQL migrations, one set for both targets.
@@ -17,9 +19,9 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 
 ## Commands
 
-- `npm run dev`: backend (:3000) and frontend (Vite) together.
+- `npm run dev`: backend (:3000) and frontend (Vite) together. Needs `backend/.env` (copy `backend/.env.example`).
 - `npm run lint`, `npm run typecheck`, `npm run build`.
-- `npm test`: the API tests in `backend/test/api/` run twice, on libSQL (`test:node`) and inside workerd on D1 (`test:workers`). Write API tests against `request()` from `#harness`, never against a specific driver.
+- `npm test`: the API tests in `backend/test/api/` run twice, on libSQL (`test:node`) and inside workerd on D1 (`test:workers`). Write API tests against `testApp(env)` from `#harness` (fresh database, cookie jar, config overrides), never against a specific driver. Node-only tests live in `backend/test/server/` (real `server.ts` process) and `backend/test/unit/`; frontend tests (Vitest, Testing Library) next to the components.
 - `npm run db:generate --workspace backend` after any change to `backend/src/schema.ts`; commit the migration (CI fails otherwise).
 - `npm run build:worker --workspace backend`: Worker bundle dry run.
 - `docker compose up --build`: production image on :3000.

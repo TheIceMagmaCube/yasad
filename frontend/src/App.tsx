@@ -8,23 +8,29 @@ import { strings } from "./strings";
 
 type View = { name: "loading" } | { name: "error" } | { name: "setup" } | { name: "signIn" } | { name: "home"; user: User };
 
+/** Return the screen to show: setup while open and nobody is signed in, then home or sign-in. */
+async function loadView(): Promise<View> {
+  try {
+    const [setup, user] = await Promise.all([api.setupState(), api.session()]);
+    if (setup.open && !user) return { name: "setup" };
+    return user ? { name: "home", user } : { name: "signIn" };
+  } catch {
+    return { name: "error" };
+  }
+}
+
 export function App() {
   const [view, setView] = useState<View>({ name: "loading" });
 
-  const refresh = useCallback(async () => {
-    try {
-      const [setup, user] = await Promise.all([api.setupState(), api.session()]);
-      if (setup.open && !user) setView({ name: "setup" });
-      else if (user) setView({ name: "home", user });
-      else setView({ name: "signIn" });
-    } catch {
-      setView({ name: "error" });
-    }
-  }, []);
+  const refresh = useCallback(() => void loadView().then(setView), []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let active = true;
+    void loadView().then((next) => active && setView(next));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   switch (view.name) {
     case "loading":

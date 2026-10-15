@@ -62,7 +62,40 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 
 ## Quick start
 
-To be written once milestone 1 ships.
+Milestone 1 is in progress: for now YASAD covers the first-run setup and sign-in.
+
+```sh
+docker run -d -p 3000:3000 -v yasad-data:/data \
+  -e AUTH_SECRET="$(openssl rand -base64 32)" \
+  -e PUBLIC_URL=https://portal.example.org \
+  -e SETUP_CODE="$(openssl rand -base64 24)" \
+  ghcr.io/theicemagmacube/yasad:beta
+```
+
+Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then remove `SETUP_CODE` and restart: setup only opens while no local administrator exists and the code is set.
+
+### Configuration
+
+| Variable | Required | Description |
+|---|---|---|
+| `AUTH_SECRET` | yes | Signs sessions. At least 32 characters. |
+| `PUBLIC_URL` | yes | The URL people open, e.g. `https://portal.example.org`. Cookies are `Secure` when it is https. |
+| `SETUP_CODE` | for setup | One-time code for the first-run setup, at least 24 characters. Remove it once setup is done. |
+| `SESSION_MAX_AGE` | no | Session duration in seconds. Default `604800` (7 days). |
+| `TRUST_PROXY` | no | `true` to read the client IP from `X-Forwarded-For`. Set it only behind your own reverse proxy, otherwise anyone can forge the header. |
+| `DATABASE_URL` | no | libSQL URL. Default `file:/data/yasad.db` in the image. |
+
+On Cloudflare Workers, set the same values as secrets (`wrangler secret put AUTH_SECRET`); the client IP comes from `CF-Connecting-IP`.
+
+### Development
+
+```sh
+npm ci
+cp backend/.env.example backend/.env
+npm run dev
+```
+
+Open http://localhost:5173 and use the setup code from `backend/.env`. For the Worker target: `cp backend/.dev.vars.example backend/.dev.vars`, then `npm run dev:worker --workspace backend`.
 
 ## Contributing
 

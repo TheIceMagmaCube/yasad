@@ -11,7 +11,12 @@ const ADMIN = {
 
 const post = (app: TestApp, path: string, body: unknown, headers?: HeadersInit) =>
   app.request(path, { method: "POST", body: JSON.stringify(body), headers });
-const json = async (res: Response) => (await res.json()) as Record<string, any>;
+type Body = {
+  open?: boolean;
+  error: { code: string; attemptsLeft?: number; fields: Record<string, string> };
+  user: { name: string; email: string; role: string };
+};
+const json = async (res: Response) => (await res.json()) as Body;
 const setupState = async (app: TestApp) => json(await app.request("/api/setup"));
 const session = async (app: TestApp) => json(await app.request("/api/auth/get-session"));
 
