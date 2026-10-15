@@ -12,7 +12,7 @@ const TABLES = ["session", "account", "verification", "user", "setting", "rate_l
 /** Return a client on the D1 database, emptied first. */
 export async function testApp(overrides: TestEnv = {}): Promise<TestApp> {
   await env.DB.batch(TABLES.map((table) => env.DB.prepare(`delete from "${table}"`)));
-  const bindings = { ...env, ...BASE_ENV, ...overrides };
+  const bindings = { DB: env.DB, ...BASE_ENV, ...overrides };
   return client(
     async (req) => worker.fetch(req, bindings),
     async (sql) => {

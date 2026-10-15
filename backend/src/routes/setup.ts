@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, notExists } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
 import { authFor, MAX_PASSWORD, MIN_PASSWORD } from "../auth";
@@ -6,7 +6,7 @@ import type { AppEnv } from "../context";
 import { apiError } from "../errors";
 import { failuresInWindow, recordFailure, SETUP_LIMIT } from "../rate-limit";
 import { account, setting, user } from "../schema";
-import { codesMatch, isSetupOpen, SETUP_CODE_STILL_SET } from "../setup-state";
+import { codesMatch, hasLocalAdmin, isSetupOpen, localAdmins, SETUP_CODE_STILL_SET } from "../setup-state";
 
 const SETUP_MARKER = "setup.completed";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -96,8 +96,11 @@ setup.post("/", async (c) => {
   const hash = await (await auth.$context).password.hash(password);
   const now = new Date();
   const userId = crypto.randomUUID();
+  // One transaction. A marker left without a local admin is cleared; a concurrent setup that
+  // committed first keeps its marker, so the insert below fails and this batch rolls back.
   try {
     await db.batch([
+      db.delete(setting).where(and(eq(setting.key, SETUP_MARKER), notExists(localAdmins(db)))),
       db.insert(setting).values({ key: SETUP_MARKER, value: now.toISOString(), updatedAt: now }),
       db.insert(user).values({ id: userId, name, email, role: "admin", createdAt: now, updatedAt: now }),
       db.insert(account).values({
@@ -110,8 +113,9 @@ setup.post("/", async (c) => {
         updatedAt: now,
       }),
     ]);
-  } catch {
-    return apiError(c, 409, "setup_closed", "Setup was just completed by another request.");
+  } catch (err) {
+    if (await hasLocalAdmin(db)) return apiError(c, 409, "setup_closed", "Setup was just completed by another request.");
+    throw err;
   }
 
   const signIn = await auth.api.signInEmail({ body: { email, password }, asResponse: true });

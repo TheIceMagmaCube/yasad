@@ -123,6 +123,25 @@ describe("POST /api/setup", () => {
     expect((await json(res)).error.fields).toHaveProperty("email");
   });
 
+  it("recovers from a stale setup marker left without a local admin", async () => {
+    const app = await testApp({ SETUP_CODE: CODE });
+    await app.exec(`insert into setting (key, value) values ('setup.completed', 'stale')`);
+    expect((await post(app, "/api/setup", { code: CODE, ...ADMIN })).status).toBe(201);
+  });
+
+  it("reports a failed write as a server error, not as a closed setup", async () => {
+    const app = await testApp({ SETUP_CODE: CODE });
+    await app.exec(`create trigger fail_user before insert on "user" begin select raise(abort, 'write failed'); end`);
+    try {
+      const res = await post(app, "/api/setup", { code: CODE, ...ADMIN });
+      expect(res.status).toBe(500);
+      expect((await json(res)).error.code).toBe("internal_error");
+      expect(await setupState(app)).toEqual({ open: true });
+    } finally {
+      await app.exec("drop trigger fail_user");
+    }
+  });
+
   it("lets exactly one of two concurrent setups win", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
     const results = await Promise.all([

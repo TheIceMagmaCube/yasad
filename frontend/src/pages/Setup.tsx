@@ -9,6 +9,7 @@ type Step = "code" | "admin" | "done";
 type FieldErrors = Partial<Record<keyof AdminInput, string>>;
 
 const s = strings.setup;
+const FIELD_ORDER: (keyof AdminInput)[] = ["name", "email", "password", "passwordConfirm"];
 const EMPTY_ADMIN: AdminInput = { name: "", email: "", password: "", passwordConfirm: "" };
 
 /** Return the message for an API error on the setup code. */
@@ -49,7 +50,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
   const [admin, setAdmin] = useState<AdminInput>(EMPTY_ADMIN);
-  const [error, setError] = useState<{ text: string; n: number } | null>(null);
+  const [error, setError] = useState<{ text: string; fields: FieldErrors; n: number } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<User | null>(null);
@@ -69,8 +70,8 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
     if (error) errorRef.current?.focus();
   }, [error]);
 
-  /** Show an error and move the focus to it, even when the message repeats. */
-  const fail = (text: string) => setError((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
+  /** Show an error summary and move the focus to it, even when the message repeats. */
+  const fail = (text: string, fields: FieldErrors = {}) => setError((prev) => ({ text, fields, n: (prev?.n ?? 0) + 1 }));
 
   async function submitCode(e: FormEvent) {
     e.preventDefault();
@@ -80,8 +81,8 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
       setError(null);
       setStep("admin");
     } catch (err) {
+      fail(codeError(err));
       if (err instanceof ApiError && err.body.code === "setup_closed") onClosed();
-      else fail(codeError(err));
     } finally {
       setBusy(false);
     }
@@ -93,7 +94,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
     if (admin.password.length < 12) local.password = s.passwordTooShort;
     if (admin.passwordConfirm !== admin.password) local.passwordConfirm = s.passwordMismatch;
     setFieldErrors(local);
-    if (Object.keys(local).length > 0) return fail(s.checkFields);
+    if (Object.keys(local).length > 0) return fail(s.checkFields, local);
 
     setBusy(true);
     try {
@@ -104,14 +105,13 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "invalid_input") {
         setFieldErrors(err.body.fields ?? {});
-        fail(s.checkFields);
+        fail(s.checkFields, err.body.fields);
       } else if (err instanceof ApiError && err.body.code === "invalid_code") {
         setStep("code");
         fail(codeError(err));
-      } else if (err instanceof ApiError && err.body.code === "setup_closed") {
-        onClosed();
       } else {
         fail(codeError(err));
+        if (err instanceof ApiError && err.body.code === "setup_closed") onClosed();
       }
     } finally {
       setBusy(false);
@@ -130,7 +130,25 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
 
       {error && (
         <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-800 outline-none">
-          {error.text}
+          <p>{error.text}</p>
+          {FIELD_ORDER.some((id) => error.fields[id]) && (
+            <ul className="mt-2 list-disc pl-5">
+              {FIELD_ORDER.filter((id) => error.fields[id]).map((id) => (
+                <li key={id}>
+                  <a
+                    href={`#${id}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById(id)?.focus();
+                    }}
+                    className="underline"
+                  >
+                    {error.fields[id]}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

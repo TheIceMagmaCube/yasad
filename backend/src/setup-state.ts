@@ -7,16 +7,18 @@ import { account, user } from "./schema";
 export const SETUP_CODE_STILL_SET =
   "SETUP_CODE is still set although an administrator exists. Remove it from the configuration and restart YASAD.";
 
-/** Return whether an admin with a local password account exists. */
-export async function hasLocalAdmin(db: DB): Promise<boolean> {
-  const row = await db
+/** Return a query selecting the admins with a local password account, usable as a subquery. */
+export function localAdmins(db: DB) {
+  return db
     .select({ id: user.id })
     .from(user)
     .innerJoin(account, eq(account.userId, user.id))
-    .where(and(eq(user.role, "admin"), eq(account.providerId, "credential")))
-    .limit(1)
-    .get();
-  return row !== undefined;
+    .where(and(eq(user.role, "admin"), eq(account.providerId, "credential")));
+}
+
+/** Return whether an admin with a local password account exists. */
+export async function hasLocalAdmin(db: DB): Promise<boolean> {
+  return (await localAdmins(db).limit(1).get()) !== undefined;
 }
 
 /** Return whether setup is open: a setup code is configured and no local admin exists. */

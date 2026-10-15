@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -93,6 +93,21 @@ describe("Setup", () => {
     expect(screen.getByRole("alert")).toHaveFocus();
   });
 
+  it("lists each problem in the error summary, with a link to its field", async () => {
+    mockApi({ "POST /api/setup/verify-code": { status: 204 } });
+    const user = userEvent.setup();
+    render(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    await user.type(screen.getByLabelText("Setup code"), CODE);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await fillAdmin(user, "correct horse battery", "correct horse battery!");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
+    const alert = screen.getByRole("alert");
+    expect(alert).not.toHaveTextContent("Something went wrong");
+    await user.click(within(alert).getByRole("link", { name: "The passwords do not match." }));
+    expect(screen.getByLabelText("Confirm password")).toHaveFocus();
+  });
+
   it("shows the server's field errors", async () => {
     mockApi({
       "POST /api/setup/verify-code": { status: 204 },
@@ -118,5 +133,6 @@ describe("Setup", () => {
     await user.type(screen.getByLabelText("Setup code"), CODE);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(onClosed).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert")).toHaveTextContent("Setup is already done.");
   });
 });

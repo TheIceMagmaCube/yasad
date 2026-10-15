@@ -46,6 +46,11 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     return c.json({ ok: database, version, database }, database ? 200 : 503);
   });
 
+  app.onError((err, c) => {
+    console.error(err);
+    return apiError(c, 500, "internal_error", "Something went wrong on the server. See the server logs.");
+  });
+
   app.route("/setup", setup);
   app.on(["GET", "POST"], "/auth/*", (c) => authFor(c).handler(c.req.raw));
 
