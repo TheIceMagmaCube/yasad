@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { mockApi } from "./test-utils";
 
-const ADA = { name: "Ada Lovelace", email: "ada@example.org", role: "admin" };
+const ADA = { name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
 
 afterEach(() => {
   cleanup();
@@ -89,7 +89,7 @@ describe("App", () => {
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Account menu for Ada Lovelace" }));
     const menu = screen.getByRole("menu");
-    expect(menu).toHaveTextContent("ada@example.org");
+    expect(menu).toHaveTextContent("ada@example.invalid");
     expect(menu).toHaveTextContent("Administrator");
     await user.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();

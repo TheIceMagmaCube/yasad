@@ -12,8 +12,8 @@ const changePassword = (app: Awaited<ReturnType<typeof testApp>>, currentPasswor
 /** Return an app with a signed-in user who still has a temporary password. */
 async function flaggedUser() {
   const app = await testApp();
-  await addUser(app, { id: "u1", email: "bob@example.org", mustChangePassword: true });
-  expect((await signIn(app, "bob@example.org")).status).toBe(200);
+  await addUser(app, { id: "u1", email: "bob@example.invalid", mustChangePassword: true });
+  expect((await signIn(app, "bob@example.invalid")).status).toBe(200);
   return app;
 }
 
@@ -46,7 +46,7 @@ describe("temporary password", () => {
     expect(await app.query("select must_change_password as flag from \"user\" where id = 'u1'")).toEqual([{ flag: 0 }]);
 
     expect((await post(app, "/api/auth/sign-out", {})).status).toBe(200);
-    expect((await signIn(app, "bob@example.org", NEW_PASSWORD)).status).toBe(200);
+    expect((await signIn(app, "bob@example.invalid", NEW_PASSWORD)).status).toBe(200);
   });
 });
 
@@ -84,8 +84,8 @@ describe("POST /api/account/password", () => {
 
   it("also works for a user without the flag", async () => {
     const app = await testApp();
-    await addUser(app, { id: "u2", email: "carol@example.org" });
-    await signIn(app, "carol@example.org");
+    await addUser(app, { id: "u2", email: "carol@example.invalid" });
+    await signIn(app, "carol@example.invalid");
     expect((await changePassword(app, PASSWORD, NEW_PASSWORD)).status).toBe(204);
   });
 });

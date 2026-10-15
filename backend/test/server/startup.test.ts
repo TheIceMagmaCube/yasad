@@ -105,7 +105,7 @@ describe("server startup", () => {
       body: JSON.stringify({
         code: SETUP_CODE,
         name: "Ada",
-        email: "ada@example.org",
+        email: "ada@example.invalid",
         password: "correct horse battery",
         passwordConfirm: "correct horse battery",
       }),
@@ -121,7 +121,7 @@ describe("server startup", () => {
     await waitForHealth(second);
     expect(second.output()).toContain(SETUP_CODE_STILL_SET);
     const session = await fetch(`${second.url}/api/auth/get-session`, { headers: { cookie } });
-    expect(((await session.json()) as { user: { email: string } }).user.email).toBe("ada@example.org");
+    expect(((await session.json()) as { user: { email: string } }).user.email).toBe("ada@example.invalid");
   }, 30_000);
 
   it("sends the security headers on the static frontend", async () => {

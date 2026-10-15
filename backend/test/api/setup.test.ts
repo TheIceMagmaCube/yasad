@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const CODE = "setup-code-for-the-tests-0123456789";
 const ADMIN = {
   name: "Ada Lovelace",
-  email: "Ada@Example.org",
+  email: "Ada@Example.invalid",
   password: "correct horse battery",
   passwordConfirm: "correct horse battery",
 };
@@ -36,7 +36,7 @@ describe("setup availability", () => {
 
   it("stays open when the only admin signs in with OIDC", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
-    await app.exec(`insert into "user" (id, name, email, role) values ('o1', 'Okta Admin', 'okta@example.org', 'admin')`);
+    await app.exec(`insert into "user" (id, name, email, role) values ('o1', 'Okta Admin', 'okta@example.invalid', 'admin')`);
     await app.exec(`insert into account (id, account_id, provider_id, user_id) values ('a1', 'sub-1', 'oidc', 'o1')`);
     expect(await setupState(app)).toEqual({ open: true });
     expect((await post(app, "/api/setup", { code: CODE, ...ADMIN })).status).toBe(201);
@@ -88,16 +88,16 @@ describe("POST /api/setup", () => {
     const app = await testApp({ SETUP_CODE: CODE });
     const res = await post(app, "/api/setup", { code: CODE, ...ADMIN });
     expect(res.status).toBe(201);
-    expect(await json(res)).toEqual({ user: { name: "Ada Lovelace", email: "ada@example.org" } });
+    expect(await json(res)).toEqual({ user: { name: "Ada Lovelace", email: "ada@example.invalid" } });
     const { user } = await session(app);
-    expect(user).toMatchObject({ name: "Ada Lovelace", email: "ada@example.org", role: "admin" });
+    expect(user).toMatchObject({ name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" });
   });
 
   it("closes setup for good once done", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
     await post(app, "/api/setup", { code: CODE, ...ADMIN });
     expect(await setupState(app)).toEqual({ open: false, setupCodeStillSet: true });
-    const again = await post(app, "/api/setup", { code: CODE, ...ADMIN, email: "eve@example.org" });
+    const again = await post(app, "/api/setup", { code: CODE, ...ADMIN, email: "eve@example.invalid" });
     expect(again.status).toBe(404);
   });
 
@@ -133,7 +133,7 @@ describe("POST /api/setup", () => {
 
   it("rejects an e-mail already used by another account", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
-    await app.exec(`insert into "user" (id, name, email) values ('o1', 'Ada', 'ada@example.org')`);
+    await app.exec(`insert into "user" (id, name, email) values ('o1', 'Ada', 'ada@example.invalid')`);
     const res = await post(app, "/api/setup", { code: CODE, ...ADMIN });
     expect(res.status).toBe(422);
     expect((await json(res)).error.fields).toEqual({ email: "email_taken" });
@@ -162,7 +162,7 @@ describe("POST /api/setup", () => {
     const app = await testApp({ SETUP_CODE: CODE });
     const results = await Promise.all([
       post(app, "/api/setup", { code: CODE, ...ADMIN }),
-      post(app, "/api/setup", { code: CODE, ...ADMIN, email: "eve@example.org" }),
+      post(app, "/api/setup", { code: CODE, ...ADMIN, email: "eve@example.invalid" }),
     ]);
     const statuses = results.map((r) => r.status).sort();
     expect(statuses[0]).toBe(201);
@@ -180,7 +180,7 @@ describe("POST /api/setup", () => {
 describe("authentication", () => {
   it("refuses public sign-up", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
-    const res = await post(app, "/api/auth/sign-up/email", { name: "Eve", email: "eve@example.org", password: "password-of-eve" });
+    const res = await post(app, "/api/auth/sign-up/email", { name: "Eve", email: "eve@example.invalid", password: "password-of-eve" });
     expect(res.status).toBe(404);
     expect(await setupState(app)).toEqual({ open: true });
   });
@@ -191,9 +191,9 @@ describe("authentication", () => {
     expect((await post(app, "/api/auth/sign-out", {})).status).toBe(200);
     expect(await session(app)).toBeNull();
 
-    const wrong = await post(app, "/api/auth/sign-in/email", { email: "ada@example.org", password: "wrong password!" });
+    const wrong = await post(app, "/api/auth/sign-in/email", { email: "ada@example.invalid", password: "wrong password!" });
     expect(wrong.status).toBe(401);
-    const right = await post(app, "/api/auth/sign-in/email", { email: "ada@example.org", password: ADMIN.password });
+    const right = await post(app, "/api/auth/sign-in/email", { email: "ada@example.invalid", password: ADMIN.password });
     expect(right.status).toBe(200);
     expect((await session(app)).user.role).toBe("admin");
   });
