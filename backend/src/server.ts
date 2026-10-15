@@ -40,10 +40,10 @@ const db = drizzle(createClient({ url: databaseUrl }), { schema });
 await migrate(db, { migrationsFolder: migrationsDir });
 if (config.setupCode !== null && (await hasLocalAdmin(db as unknown as DB))) console.warn(SETUP_CODE_STILL_SET);
 
-/** Return the client IP: X-Forwarded-For when TRUST_PROXY is set, otherwise the socket address. */
+/** Return the client IP: from X-Forwarded-For behind TRUST_PROXY proxies, otherwise the socket address. */
 function clientIp(c: Context): string {
-  if (config.trustProxy) {
-    const forwarded = forwardedClientIp(c.req.header("x-forwarded-for"));
+  if (config.trustProxy > 0) {
+    const forwarded = forwardedClientIp(c.req.header("x-forwarded-for"), config.trustProxy);
     if (forwarded) return forwarded;
   }
   return getConnInfo(c).remote.address ?? "unknown";

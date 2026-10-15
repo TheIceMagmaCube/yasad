@@ -23,14 +23,14 @@ describe("loadConfig", () => {
       authSecret: "a".repeat(32),
       publicUrl: "https://yasad.example.org",
       setupCode: null,
-      trustProxy: false,
+      trustProxy: 0,
       sessionMaxAge: 604800,
     });
   });
 
   it("reads the optional settings", () => {
     const config = loadConfig({ ...valid, SETUP_CODE: " " + "c".repeat(24) + " ", TRUST_PROXY: "true", SESSION_MAX_AGE: "3600" });
-    expect(config).toMatchObject({ setupCode: "c".repeat(24), trustProxy: true, sessionMaxAge: 3600 });
+    expect(config).toMatchObject({ setupCode: "c".repeat(24), trustProxy: 1, sessionMaxAge: 3600 });
   });
 
   it("treats an empty SETUP_CODE as unset", () => {
@@ -54,6 +54,14 @@ describe("loadConfig", () => {
   it("rejects a SESSION_MAX_AGE that is not a positive whole number", () => {
     for (const value of ["7d", "-1", "0", "1.5"]) {
       expect(problemsOf({ ...valid, SESSION_MAX_AGE: value })).toEqual([expect.stringContaining("SESSION_MAX_AGE")]);
+    }
+  });
+
+  it("reads TRUST_PROXY as a number of proxies", () => {
+    expect(loadConfig({ ...valid, TRUST_PROXY: "false" }).trustProxy).toBe(0);
+    expect(loadConfig({ ...valid, TRUST_PROXY: "2" }).trustProxy).toBe(2);
+    for (const value of ["yes", "-1", "1.5"]) {
+      expect(problemsOf({ ...valid, TRUST_PROXY: value })).toEqual([expect.stringContaining("TRUST_PROXY")]);
     }
   });
 

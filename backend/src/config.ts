@@ -4,7 +4,7 @@ export type Config = {
   authSecret: string;
   publicUrl: string;
   setupCode: string | null;
-  trustProxy: boolean;
+  trustProxy: number;
   sessionMaxAge: number;
 };
 
@@ -51,11 +51,19 @@ export function loadConfig(raw: RawConfig): Config {
     else problems.push("SESSION_MAX_AGE must be a whole number of seconds.");
   }
 
+  let trustProxy = 0;
+  const rawTrustProxy = raw.TRUST_PROXY?.trim().toLowerCase();
+  if (rawTrustProxy === "true") trustProxy = 1;
+  else if (rawTrustProxy && rawTrustProxy !== "false") {
+    if (/^\d+$/.test(rawTrustProxy)) trustProxy = Number(rawTrustProxy);
+    else problems.push("TRUST_PROXY must be true, false or the number of proxies in front of YASAD.");
+  }
+
   if (publicUrl.startsWith("https://")) {
     if (authSecret.startsWith(EXAMPLE_PREFIX)) problems.push("AUTH_SECRET still holds the example value from .env.example.");
     if (setupCode?.startsWith(EXAMPLE_PREFIX)) problems.push("SETUP_CODE still holds the example value from .env.example.");
   }
 
   if (problems.length > 0) throw new ConfigError(problems);
-  return { authSecret, publicUrl, setupCode, trustProxy: raw.TRUST_PROXY?.trim() === "true", sessionMaxAge };
+  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge };
 }
