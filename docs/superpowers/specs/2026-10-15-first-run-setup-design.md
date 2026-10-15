@@ -46,8 +46,11 @@ Out of scope (later issues):
 | `PUBLIC_URL` | Required, absolute URL. Drives `Secure` cookies and origin checks. |
 | `SETUP_CODE` | Optional. When set, at least 24 characters. |
 | `TRUST_PROXY` | Optional, `true` to read the client IP from `X-Forwarded-For` (Docker only). |
+| `SESSION_MAX_AGE` | Optional, whole number of seconds, default `604800` (7 days). |
 
 Invalid configuration: Docker refuses to start with a clear message; Workers answers 500 and logs the error.
+
+Local development: `backend/.env.example` (versioned) is copied to `backend/.env` (git-ignored) and loaded by the dev script with `node --env-file-if-exists=.env`. The Workers equivalent is `backend/.dev.vars.example`, copied to `.dev.vars`. The example files hold dev-only values (a sample `AUTH_SECRET`, `PUBLIC_URL=http://localhost:5173`, a sample `SETUP_CODE`), so a fresh clone starts with `cp` and `npm run dev`. The README quick start documents both, and `TRUST_PROXY`.
 
 ### Better Auth (`backend/src/auth.ts`)
 
@@ -80,7 +83,7 @@ Code comparison runs in constant time (hash both sides with SHA-256, then compar
 
 ### Setup state
 
-`isSetupOpen(db, config)` = `config.setupCode` is set AND no user has `role = admin`. The `setting` marker is the concurrency guard, not the source of truth: a wiped database loses it, and setup still needs `SETUP_CODE`.
+`isSetupOpen(db, config)` = `config.setupCode` is set AND no **local** admin exists (a user with `role = admin` and a `credential` account). An OIDC admin (#9) never closes setup: the local emergency account must always be creatable. The `setting` marker is the concurrency guard, not the source of truth: a wiped database loses it, and setup still needs `SETUP_CODE`.
 
 ### Warning while `SETUP_CODE` stays set
 
@@ -104,15 +107,17 @@ Uniform body: `{ error: { code, message, ...details } }`.
 |---|---|---|
 | Setup closed (admin exists, or `SETUP_CODE` unset) | 404 | `setup_closed` |
 | Wrong code | 403 | `invalid_code`, with `attemptsLeft` |
-| Too many attempts (5 per 15 minutes per IP) | 429 | `rate_limited`, with `Retry-After` |
+| Too many attempts (5 wrong codes per 15 minutes per IP) | 429 | `rate_limited`, with `Retry-After` |
 | Invalid fields (e-mail, password under 12, confirmation mismatch) | 422 | `invalid_input`, with per-field details |
 | Lost race: another setup just completed | 409 | `setup_closed` |
 
-404 rather than 403 when closed, so the route does not reveal itself. Client IP: `CF-Connecting-IP` on Workers; on Docker the socket address, or `X-Forwarded-For` only when `TRUST_PROXY=true` (otherwise anyone could forge it and escape the limit).
+Attempt counter: one counter per IP (key `setup:<ip>`), shared by `verify-code` and `POST /api/setup`. Only wrong codes count. A right code does not reset it (setup closes right after anyway).
+
+404 rather than 403 when closed, so the route does not reveal itself. Client IP: `CF-Connecting-IP` on Workers; on Docker the socket address, or `X-Forwarded-For` only when `TRUST_PROXY=true` (otherwise anyone could forge it and escape the limit). Behind a reverse proxy without `TRUST_PROXY`, every client shares the proxy IP and the limit becomes global; acceptable for setup (one installer), to revisit for sign-in in #6.
 
 ## Sessions
 
-Handled by Better Auth: cookie HttpOnly, SameSite=Lax, Secure when `PUBLIC_URL` is https. Stored in the database, so they survive a restart. Duration: Better Auth default (7 days, extended on use); `SESSION_MAX_AGE` from the decisions page is wired in the same change.
+Handled by Better Auth: cookie HttpOnly, SameSite=Lax, Secure when `PUBLIC_URL` is https. Stored in the database, so they survive a restart. Duration: `SESSION_MAX_AGE` seconds (default 7 days), extended on use.
 
 ## User interface
 
@@ -134,6 +139,8 @@ API tests in `backend/test/api/`, run on libSQL and D1. The harness `request()` 
 - `SETUP_CODE` unset, even on an empty database: 404.
 - Valid setup: admin created with `role = admin`, session cookie returned, recognised by `GET /api/auth/get-session`.
 - Second setup after success: 404.
+- A user with `role = admin` but no `credential` account (future OIDC admin) does not close setup.
+- Wrong codes across `verify-code` and `POST /api/setup` share one counter; right codes do not count.
 - Short password, confirmation mismatch, invalid e-mail: 422, nothing written.
 - Two concurrent setups (`Promise.all`): exactly one succeeds, the other gets 409.
 - Public sign-up (`POST /api/auth/sign-up/email`) refused.
@@ -142,7 +149,8 @@ API tests in `backend/test/api/`, run on libSQL and D1. The harness `request()` 
 
 Node-only tests:
 
-- `loadConfig`: short `SETUP_CODE`, missing or short `AUTH_SECRET` rejected.
+- `loadConfig`: short `SETUP_CODE`, missing or short `AUTH_SECRET`, non-integer `SESSION_MAX_AGE` rejected.
+- A fresh clone with `.env` copied from `.env.example` starts (`test/server/`).
 - `test/server/`: `server.ts` refuses an invalid configuration; warns when `SETUP_CODE` stays set with an admin present.
 
 Frontend (Vitest and Testing Library):
