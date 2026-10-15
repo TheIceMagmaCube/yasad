@@ -12,7 +12,7 @@ afterEach(() => {
 
 async function signIn(password: string) {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("E-mail"), "ada@example.org");
+  await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
   await user.type(screen.getByLabelText("Password"), password);
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 }
@@ -23,7 +23,7 @@ describe("SignIn", () => {
     const onSignedIn = vi.fn();
     renderWithProviders(<SignIn onSignedIn={onSignedIn} />);
     await signIn("correct horse battery");
-    expect(sentBody(fetchMock, 0)).toEqual({ email: "ada@example.org", password: "correct horse battery" });
+    expect(sentBody(fetchMock, 0)).toEqual({ email: "ada@example.invalid", password: "correct horse battery" });
     expect(onSignedIn).toHaveBeenCalledOnce();
   });
 

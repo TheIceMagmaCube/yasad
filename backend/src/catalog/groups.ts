@@ -29,7 +29,7 @@ export function insertGroupIfMissing(db: DB, { source, name }: GroupKey) {
 /**
  * Return the id of the group, creating it when it does not exist yet.
  *
- * The catalog import and the OIDC sign-in (#9) both go through the (source, name) pair, so a group
+ * The catalog import and the OIDC sign-in both go through the (source, name) pair, so a group
  * created by an import is the one its members get at their first sign-in.
  */
 export async function findOrCreateGroup(db: DB, key: GroupKey): Promise<string> {

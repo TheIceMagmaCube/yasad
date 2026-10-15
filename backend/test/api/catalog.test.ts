@@ -49,8 +49,8 @@ type ImportBody = {
 
 async function adminApp(env = {}): Promise<TestApp> {
   const app = await testApp(env);
-  await addUser(app, { id: "admin", email: "ada@example.org", role: "admin" });
-  expect((await signIn(app, "ada@example.org")).status).toBe(200);
+  await addUser(app, { id: "admin", email: "ada@example.invalid", role: "admin" });
+  expect((await signIn(app, "ada@example.invalid")).status).toBe(200);
   return app;
 }
 
@@ -215,8 +215,8 @@ describe("catalog import and export", () => {
   it("is refused to non-admins and without a session", async () => {
     const anonymous = await testApp();
     expect((await anonymous.request("/api/admin/catalog")).status).toBe(401);
-    await addUser(anonymous, { id: "bob", email: "bob@example.org" });
-    await signIn(anonymous, "bob@example.org");
+    await addUser(anonymous, { id: "bob", email: "bob@example.invalid" });
+    await signIn(anonymous, "bob@example.invalid");
     expect((await anonymous.request("/api/admin/catalog")).status).toBe(403);
     expect((await post(anonymous, "/api/admin/catalog", { yaml: CATALOG, dryRun: true })).status).toBe(403);
   });

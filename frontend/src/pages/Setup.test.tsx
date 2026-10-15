@@ -14,7 +14,7 @@ afterEach(() => {
 
 async function fillAdmin(user: ReturnType<typeof userEvent.setup>, password = "correct horse battery", confirm = password) {
   await user.type(screen.getByLabelText("Name"), "Ada Lovelace");
-  await user.type(screen.getByLabelText("E-mail"), "ada@example.org");
+  await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
   await user.type(screen.getByLabelText("Password"), password);
   await user.type(screen.getByLabelText("Confirm password"), confirm);
 }
@@ -23,7 +23,7 @@ describe("Setup", () => {
   it("goes from the code to the admin account to the final notice", async () => {
     const fetchMock = mockApi({
       "POST /api/setup/verify-code": { status: 204 },
-      "POST /api/setup": { status: 201, body: { user: { name: "Ada Lovelace", email: "ada@example.org" } } },
+      "POST /api/setup": { status: 201, body: { user: { name: "Ada Lovelace", email: "ada@example.invalid" } } },
     });
     const onDone = vi.fn();
     const user = userEvent.setup();
@@ -38,7 +38,7 @@ describe("Setup", () => {
     expect(sentBody(fetchMock, 1)).toEqual({
       code: CODE,
       name: "Ada Lovelace",
-      email: "ada@example.org",
+      email: "ada@example.invalid",
       password: "correct horse battery",
       passwordConfirm: "correct horse battery",
     });

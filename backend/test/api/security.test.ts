@@ -58,7 +58,7 @@ describe("cross-site requests", () => {
     const app = await testApp();
     const res = await app.request("/api/auth/sign-in/email", {
       method: "POST",
-      body: JSON.stringify({ email: "ada@example.org", password: "correct horse battery" }),
+      body: JSON.stringify({ email: "ada@example.invalid", password: "correct horse battery" }),
       headers: { origin: "https://evil.example" },
     });
     expect(res.status).toBe(403);

@@ -10,7 +10,7 @@ export const THEMES = ["default", "dusk"] as const;
 export const MODES = ["light", "dark"] as const;
 export const WIDTHS = [320, 1280] as const;
 
-export const ADMIN = { name: "Ada Lovelace", email: "ada@example.org", password: "correct horse battery" };
+export const ADMIN = { name: "Ada Lovelace", email: "ada@example.invalid", password: "correct horse battery" };
 
 /** Set the instance theme directly in the database, as the future admin screen will. */
 export function setInstanceTheme(theme: string): void {
@@ -24,7 +24,7 @@ export function setInstanceTheme(theme: string): void {
   }
 }
 
-export const TEMPORARY = { email: "bob@example.org", password: "temporary password" };
+export const TEMPORARY = { email: "bob@example.invalid", password: "temporary password" };
 
 /** Insert a user who must replace a temporary password, with a known one. */
 export async function addTemporaryUser(): Promise<void> {
