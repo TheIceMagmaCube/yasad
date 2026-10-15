@@ -6,11 +6,30 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { createApp } from "../../src/app";
 import type { DB } from "../../src/db";
 import * as schema from "../../src/schema";
+import { BASE_ENV, client, type TestApp, type TestEnv } from "./shared";
 
+export { BASE_ENV, TEST_IP } from "./shared";
 export const target = "node";
 
-export async function request(path: string, init?: RequestInit): Promise<Response> {
-  const db = drizzle(createClient({ url: ":memory:" }), { schema });
+/** Return a client on a fresh in-memory database. */
+export async function testApp(env: TestEnv = {}): Promise<TestApp> {
+  const libsql = createClient({ url: ":memory:" });
+  const db = drizzle(libsql, { schema });
   await migrate(db, { migrationsFolder: "drizzle" });
-  return createApp(() => db as unknown as DB).request(path, init);
+  const raw = { ...BASE_ENV, ...env };
+  const app = createApp({
+    getDb: () => db as unknown as DB,
+    getRawConfig: () => raw,
+    getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown",
+  });
+  return client(
+    async (req) => app.fetch(req),
+    async (sql) => {
+      await libsql.execute(sql);
+    },
+  );
+}
+
+export async function request(path: string, init?: RequestInit): Promise<Response> {
+  return (await testApp()).request(path, init);
 }

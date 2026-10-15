@@ -1,8 +1,12 @@
-# Local run of the production image: docker compose up --build
+# Local run of the production image: AUTH_SECRET=... SETUP_CODE=... docker compose up --build
 services:
   yasad:
     build: .
     image: ghcr.io/theicemagmacube/yasad:latest
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET, e.g. openssl rand -base64 32}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      SETUP_CODE: ${SETUP_CODE:-}
     ports:
       - "3000:3000"
     volumes:
