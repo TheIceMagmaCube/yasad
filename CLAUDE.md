@@ -6,6 +6,8 @@ Product decisions live in Outline, page "Décisions en vigueur" (https://outline
 
 GitHub issues describe the need and the acceptance criteria, not the solution. Technical choices come from the decisions page and from this file.
 
+Design specs (conception pages) are written in Outline, as children of "YASAD", never committed to the repo. Link them from the PR.
+
 ## Layout
 
 - `backend/`: Hono API, Drizzle (SQLite), Better Auth.
