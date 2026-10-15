@@ -77,6 +77,14 @@ function otherActiveLocalAdmins(db: DB, id: string) {
 
 const isActiveLocalAdmin = (u: AdminUser) => u.origin === "local" && u.role === "admin" && !u.disabled;
 
+/** Return whether an account other than `exceptId` uses this e-mail. */
+const emailTaken = async (db: DB, email: string, exceptId?: string) =>
+  (await db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(eq(user.email, email), exceptId ? ne(user.id, exceptId) : undefined))
+    .get()) !== undefined;
+
 /** Validate a name and an e-mail; return the normalized values or an error code per invalid field. */
 function parseIdentity(body: Record<string, unknown>, fields: Record<string, string>) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -102,9 +110,8 @@ adminUsers.post("/", async (c) => {
   if (!isRole(role)) fields.role = "invalid_role";
   if (Object.keys(fields).length > 0) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields });
 
-  const emailTaken = async () => (await db.select({ id: user.id }).from(user).where(eq(user.email, email)).get()) !== undefined;
   const taken = () => apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { email: "email_taken" } });
-  if (await emailTaken()) return taken();
+  if (await emailTaken(db, email)) return taken();
 
   const password = temporaryPassword();
   const hash = await (await authFor(c).$context).password.hash(password);
@@ -116,7 +123,7 @@ adminUsers.post("/", async (c) => {
       db.insert(account).values({ id: crypto.randomUUID(), accountId: id, providerId: "credential", userId: id, password: hash, createdAt: now, updatedAt: now }),
     ]);
   } catch (err) {
-    if (await emailTaken()) return taken();
+    if (await emailTaken(db, email)) return taken();
     throw err;
   }
   return c.json({ user: (await listUsers(db, id))[0], temporaryPassword: password }, 201);
@@ -149,7 +156,7 @@ adminUsers.patch("/:id", async (c) => {
   if (email !== undefined && email !== target.email) {
     if (target.origin !== "local") fields.email = "email_from_provider";
     else if (!EMAIL.test(email)) fields.email = "invalid_email";
-    else if (await db.select({ id: user.id }).from(user).where(eq(user.email, email)).get()) fields.email = "email_taken";
+    else if (await emailTaken(db, email, id)) fields.email = "email_taken";
   }
   if (Object.keys(fields).length > 0) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields });
 
@@ -165,32 +172,41 @@ adminUsers.patch("/:id", async (c) => {
   // Checked inside the write, so two admins demoting each other cannot both succeed.
   const guard: SQL | undefined = demotes ? exists(otherActiveLocalAdmins(db, id)) : undefined;
   const now = new Date();
-  await db.batch([
-    db
-      .update(user)
-      .set({
-        updatedAt: now,
-        ...(name !== undefined && { name }),
-        ...(email !== undefined && { email }),
-        ...(role !== undefined && { role }),
-        ...(body.roleOverride !== undefined && { roleOverride: body.roleOverride as Role | null }),
-        ...(disabled !== undefined && { disabled }),
-      })
-      .where(and(eq(user.id, id), guard)),
-    db.delete(session).where(and(eq(session.userId, id), exists(db.select({ id: user.id }).from(user).where(and(eq(user.id, id), eq(user.disabled, true)))))),
-  ]);
+  try {
+    await db.batch([
+      db
+        .update(user)
+        .set({
+          updatedAt: now,
+          ...(name !== undefined && { name }),
+          ...(email !== undefined && { email }),
+          ...(role !== undefined && { role }),
+          ...(body.roleOverride !== undefined && { roleOverride: body.roleOverride as Role | null }),
+          ...(disabled !== undefined && { disabled }),
+        })
+        .where(and(eq(user.id, id), guard)),
+      db.delete(session).where(and(eq(session.userId, id), exists(db.select({ id: user.id }).from(user).where(and(eq(user.id, id), eq(user.disabled, true)))))),
+    ]);
+  } catch (err) {
+    if (email !== undefined && (await emailTaken(db, email, id))) {
+      return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { email: "email_taken" } });
+    }
+    throw err;
+  }
   const [updated] = await listUsers(db, id);
   if (demotes && isActiveLocalAdmin(updated!)) return apiError(c, 409, "last_local_admin", "Keep at least one enabled local administrator.");
   return c.json({ user: updated });
 });
 
-/** Give a local account a new temporary password, returned once, and close its sessions. */
+/** Give a local account a new temporary password, returned once, and close its sessions. Not one's own: it would sign the admin out. */
 adminUsers.post("/:id/password", async (c) => {
   const { db } = c.var;
   const id = c.req.param("id");
   const [target] = await listUsers(db, id);
   if (!target) return apiError(c, 404, "not_found", "No such user.");
   if (target.origin !== "local") return apiError(c, 409, "no_local_password", "This account has no local password.");
+  const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+  if (current?.user.id === id) return apiError(c, 409, "cannot_change_self", "You cannot reset your own password here.");
 
   const password = temporaryPassword();
   const hash = await (await authFor(c).$context).password.hash(password);

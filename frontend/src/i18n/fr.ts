@@ -65,6 +65,7 @@ export const fr = {
     password: "Mot de passe",
     submit: "Se connecter",
     invalid: "E-mail ou mot de passe incorrect.",
+    accountDisabled: "Ce compte est désactivé. Adressez-vous à votre administrateur.",
     disabledTitle: "Connexion par mot de passe désactivée",
     disabled: "Cette instance n'accepte pas la connexion par mot de passe. Demandez à votre administrateur comment vous connecter.",
     adminsOnly: "Sur cette instance, la connexion par mot de passe est réservée aux administrateurs.",
@@ -114,7 +115,9 @@ export const fr = {
     errors: {
       last_local_admin:
         "Gardez au moins un administrateur local actif : il peut encore se connecter si le fournisseur d'identité est indisponible.",
-      cannot_change_self: "Vous ne pouvez ni changer votre propre rôle, ni désactiver ou supprimer votre propre compte.",
+      cannot_change_self:
+        "Vous ne pouvez ni changer votre propre rôle, ni réinitialiser votre propre mot de passe, ni désactiver ou supprimer votre propre compte.",
+      catalog_managed_by_file: "Le fichier de catalogue (CATALOG_FILE) utilise ce groupe : modifiez d'abord ce fichier, puis redémarrez YASAD.",
       read_only_group: "Ce groupe vient du fournisseur d'identité ou de YASAD lui-même : il ne se modifie pas ici.",
       no_local_password: "Ce compte se connecte par le fournisseur d'identité : il n'a pas de mot de passe ici.",
       not_found: "Cet élément n'existe plus. La liste est à jour.",
@@ -149,6 +152,7 @@ export const fr = {
     lastSignIn: "Dernière connexion",
     never: "Jamais",
     resetPassword: "Réinitialiser le mot de passe",
+    resetQuestion: (name) => `Réinitialiser le mot de passe de ${name} ? Son mot de passe actuel ne fonctionnera plus et ses sessions seront fermées.`,
     deleteQuestion: (name) => `Supprimer ${name} ? Ses sessions et ses adhésions aux groupes sont supprimées aussi.`,
     deleteOidcNotice:
       "Ce compte vient du fournisseur d'identité : il sera recréé à sa prochaine connexion s'il appartient encore aux groupes autorisés.",

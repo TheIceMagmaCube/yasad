@@ -148,13 +148,23 @@ describe("AdminUsers", () => {
     expect(screen.getByText(/created again at its next sign-in/)).toBeInTheDocument();
   });
 
-  it("resets a local password and shows the new one", async () => {
-    mockApi({
+  it("resets a local password once confirmed, and shows the new one", async () => {
+    const fetchMock = mockApi({
       "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB] } },
       "POST /api/admin/users/bob/password": { status: 200, body: { temporaryPassword: "zyxwvutsrqponmkjihgf" } },
     });
     renderWithProviders(<AdminUsers me={ME} />);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Reset password: Bob" }));
+    const userEv = userEvent.setup();
+    await userEv.click(await screen.findByRole("button", { name: "Reset password: Bob" }));
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/password"))).toBe(false);
+    await userEv.click(within(screen.getByRole("group", { name: /^Reset the password of Bob\?/ })).getByRole("button", { name: "Reset password" }));
     expect(await screen.findByRole("region", { name: "Temporary password for Bob" })).toHaveTextContent("zyxwvutsrqponmkjihgf");
+  });
+
+  it("offers no password reset on one's own account", async () => {
+    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB] } } });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByRole("button", { name: "Reset password: Bob" });
+    expect(screen.queryByRole("button", { name: "Reset password: Ada" })).not.toBeInTheDocument();
   });
 });

@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { fieldErrorMessage } from "../../i18n/errors";
 import { useStrings } from "../../i18n/LocaleProvider";
-import { adminErrorText, ConfirmDelete, NoticeBox, selectClass, useNotice } from "./shared";
+import { adminErrorText, ConfirmAction, NoticeBox, selectClass, useNotice } from "./shared";
 
 /** Admin page: list every group, manage local ones and their members; OIDC and built-in groups are read-only. */
 export function AdminGroups() {
@@ -130,8 +130,9 @@ export function AdminGroups() {
                   />
                 )}
                 {local && deleting === group.id && (
-                  <ConfirmDelete
+                  <ConfirmAction
                     question={s.deleteQuestion(group.name)}
+                    confirmLabel={m.admin.confirmDelete}
                     busy={busy}
                     onCancel={() => setDeleting(null)}
                     onConfirm={() =>
@@ -143,7 +144,7 @@ export function AdminGroups() {
                     }
                   >
                     {group.categories + group.links > 0 && <p className="mt-2">{s.deleteCatalogNotice(group.categories, group.links)}</p>}
-                  </ConfirmDelete>
+                  </ConfirmAction>
                 )}
                 {local && renaming !== group.id && deleting !== group.id && (
                   <div className="mt-3 flex flex-wrap items-end gap-2">

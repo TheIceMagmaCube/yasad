@@ -33,7 +33,8 @@ export function SignIn({ onSignedIn, local = false }: { onSignedIn: () => void; 
       await api.signIn(email, password);
       onSignedIn();
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 401 ? s.invalid : errorMessage(err, m));
+      const code = err instanceof ApiError ? err.body.code : null;
+      setError(err instanceof ApiError && err.status === 401 ? s.invalid : code === "account_disabled" ? s.accountDisabled : errorMessage(err, m));
     } finally {
       setBusy(false);
     }

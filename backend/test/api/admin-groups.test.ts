@@ -5,8 +5,8 @@ import { addOidcUser, addUser, post, send, signIn } from "./users";
 
 type AdminGroup = { id: string; name: string; source: string; memberIds: string[]; categories: number; links: number };
 
-async function adminApp(): Promise<TestApp> {
-  const app = await testApp();
+async function adminApp(env = {}): Promise<TestApp> {
+  const app = await testApp(env);
   await addUser(app, { id: "ada", email: "ada@example.invalid", role: "admin" });
   expect((await signIn(app, "ada@example.invalid")).status).toBe(200);
   return app;
@@ -69,6 +69,17 @@ describe("admin groups", () => {
     expect(((await renamed.json()) as { group: AdminGroup }).group.name).toBe("Partners");
   });
 
+  it("compares names ignoring case beyond ASCII letters", async () => {
+    const app = await adminApp();
+    const team = await create(app, "Équipe");
+    for (const name of ["Équipe", "équipe", "ÉQUIPE"]) {
+      expect((await codeOf(await post(app, "/api/admin/groups", { name }))).fields).toEqual({ name: "name_taken" });
+    }
+    const vendors = await create(app, "Vendors");
+    expect((await codeOf(await send(app, "PATCH", `/api/admin/groups/${vendors.id}`, { name: "équipe" }))).fields).toEqual({ name: "name_taken" });
+    expect((await send(app, "PATCH", `/api/admin/groups/${team.id}`, { name: "ÉQUIPE" })).status).toBe(200);
+  });
+
   it("lists system groups first, then others by name", async () => {
     const app = await adminApp();
     await create(app, "Zeta");
@@ -124,6 +135,29 @@ describe("admin groups", () => {
     expect(exported).not.toContain("Contractors");
     const stale = await post(app, "/api/admin/catalog", { yaml: CATALOG, dryRun: false, baseVersion: before });
     expect((await codeOf(stale)).code).toBe("catalog_changed");
+  });
+
+  it("refuses to rename or delete a group CATALOG_FILE uses, and still changes its members", async () => {
+    const app = await adminApp({ CATALOG_FILE: "/config/catalog.yaml" });
+    const [onCategory, onLink, unused] = [await create(app, "Contractors"), await create(app, "Vendors"), await create(app, "Spare")];
+    await app.exec(`insert into category (id, title, position) values ('tools', 'Tools', 0)`);
+    await app.exec(`insert into link (id, category_id, title, url, position) values ('mail', 'tools', 'Mail', 'https://mail.example.invalid', 0)`);
+    await app.exec(`insert into category_group (category_id, group_id) values ('tools', '${onCategory.id}')`);
+    await app.exec(`insert into link_group (link_id, group_id) values ('mail', '${onLink.id}')`);
+
+    for (const group of [onCategory, onLink]) {
+      for (const [method, body] of [
+        ["PATCH", { name: "Partners" }],
+        ["DELETE", {}],
+      ] as const) {
+        const res = await send(app, method, `/api/admin/groups/${group.id}`, body);
+        expect(res.status).toBe(409);
+        expect((await codeOf(res)).code).toBe("catalog_managed_by_file");
+      }
+      expect((await send(app, "PUT", `/api/admin/groups/${group.id}/members/ada`)).status).toBe(204);
+    }
+    expect((await send(app, "PATCH", `/api/admin/groups/${unused.id}`, { name: "Partners" })).status).toBe(200);
+    expect((await send(app, "DELETE", `/api/admin/groups/${unused.id}`)).status).toBe(204);
   });
 
   it("renaming a group keeps it in the catalog, under its new name", async () => {

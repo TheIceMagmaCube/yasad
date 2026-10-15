@@ -1,4 +1,4 @@
-import { and, asc, count, eq, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
 import { bumpRevision } from "../catalog/sync";
@@ -59,13 +59,32 @@ async function localGroup(c: Context<AppEnv>): Promise<{ id: string; name: strin
   return row;
 }
 
-/** Return whether another local group has this name, ignoring case: the catalog would tell them apart only by case. */
-const nameTaken = async (db: DB, name: string, exceptId?: string) =>
-  (await db
-    .select({ id: group.id })
-    .from(group)
-    .where(and(eq(group.source, "local"), eq(sql`lower(${group.name})`, name.toLowerCase()), exceptId ? ne(group.id, exceptId) : undefined))
-    .get()) !== undefined;
+/**
+ * Return whether another local group has this name, ignoring case: the catalog would tell them apart only by case.
+ *
+ * Compared in JavaScript: SQLite's lower() folds ASCII letters only, so "Équipe" would not match itself.
+ */
+async function nameTaken(db: DB, name: string, exceptId?: string): Promise<boolean> {
+  const key = name.toLowerCase();
+  const local = await db.select({ id: group.id, name: group.name }).from(group).where(eq(group.source, "local"));
+  return local.some((g) => g.id !== exceptId && g.name.toLowerCase() === key);
+}
+
+/**
+ * Return the 409 refusing to rename or delete a group the catalog uses while CATALOG_FILE manages it.
+ *
+ * The file names its groups: at the next start it would bring the old name back, empty, and move the links to it.
+ */
+async function usedByCatalogFile(c: Context<AppEnv>, id: string): Promise<Response | null> {
+  if (!c.var.config.catalogFile) return null;
+  const { db } = c.var;
+  const [inCategory, inLink] = await Promise.all([
+    db.select({ id: categoryGroup.groupId }).from(categoryGroup).where(eq(categoryGroup.groupId, id)).get(),
+    db.select({ id: linkGroup.groupId }).from(linkGroup).where(eq(linkGroup.groupId, id)).get(),
+  ]);
+  if (!inCategory && !inLink) return null;
+  return apiError(c, 409, "catalog_managed_by_file", "CATALOG_FILE uses this group; change that file first.");
+}
 
 export const adminGroups = new Hono<AppEnv>();
 
@@ -94,6 +113,8 @@ adminGroups.patch("/:id", async (c) => {
   const { db } = c.var;
   const target = await localGroup(c);
   if (target instanceof Response) return target;
+  const refused = await usedByCatalogFile(c, target.id);
+  if (refused) return refused;
   const name = parseName((await readJson(c)).name);
   if (name === null) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "invalid_name" } });
   if (name === target.name) return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });
@@ -113,6 +134,8 @@ adminGroups.delete("/:id", async (c) => {
   const { db } = c.var;
   const target = await localGroup(c);
   if (target instanceof Response) return target;
+  const refused = await usedByCatalogFile(c, target.id);
+  if (refused) return refused;
   await db.batch([db.delete(group).where(eq(group.id, target.id)), bumpRevision(db)]);
   return c.body(null, 204);
 });

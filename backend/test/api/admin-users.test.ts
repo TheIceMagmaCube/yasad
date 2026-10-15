@@ -129,7 +129,17 @@ describe("admin users", () => {
     expect((await send(app, "PATCH", "/api/admin/users/bob", { email: "robert@example.invalid" })).status).toBe(200);
   });
 
-  it("refuses to change one's own role, disable or delete oneself", async () => {
+  it("answers email_taken, not a server error, when two changes take the same e-mail at once", async () => {
+    const app = await adminApp();
+    await addUser(app, { id: "bob", email: BOB });
+    await addUser(app, { id: "dave", email: "dave@example.invalid" });
+    const statuses = await Promise.all(
+      ["bob", "dave"].map((id) => send(app, "PATCH", `/api/admin/users/${id}`, { email: "shared@example.invalid" }).then((r) => r.status)),
+    );
+    expect(statuses.sort()).toEqual([200, 422]);
+  });
+
+  it("refuses to change one's own role, reset one's own password, disable or delete oneself", async () => {
     const app = await adminApp();
     await addUser(app, { id: "bob", email: BOB, role: "admin" });
     for (const [method, body] of [
@@ -141,6 +151,9 @@ describe("admin users", () => {
       expect(res.status).toBe(409);
       expect(await codeOf(res)).toBe("cannot_change_self");
     }
+    const reset = await post(app, "/api/admin/users/ada/password", {});
+    expect(reset.status).toBe(409);
+    expect(await codeOf(reset)).toBe("cannot_change_self");
     expect((await send(app, "PATCH", "/api/admin/users/ada", { name: "Ada L." })).status).toBe(200);
   });
 

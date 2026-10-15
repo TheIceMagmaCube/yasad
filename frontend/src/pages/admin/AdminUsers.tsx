@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { fieldErrorMessage } from "../../i18n/errors";
 import { useLocale, useStrings } from "../../i18n/LocaleProvider";
-import { adminErrorText, ConfirmDelete, NoticeBox, selectClass, TemporaryPassword, useNotice } from "./shared";
+import { adminErrorText, ConfirmAction, NoticeBox, selectClass, TemporaryPassword, useNotice } from "./shared";
 
 type Secret = { name: string; password: string };
 
@@ -20,6 +20,7 @@ export function AdminUsers({ me }: { me: User }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = () =>
@@ -95,8 +96,9 @@ export function AdminUsers({ me }: { me: User }) {
                   }
                 />
               ) : deleting === user.id ? (
-                <ConfirmDelete
+                <ConfirmAction
                   question={s.deleteQuestion(user.name)}
+                  confirmLabel={m.admin.confirmDelete}
                   busy={busy}
                   onCancel={() => setDeleting(null)}
                   onConfirm={() =>
@@ -108,26 +110,28 @@ export function AdminUsers({ me }: { me: User }) {
                   }
                 >
                   {user.origin === "oidc" && <p className="mt-2">{s.deleteOidcNotice}</p>}
-                </ConfirmDelete>
+                </ConfirmAction>
+              ) : resetting === user.id ? (
+                <ConfirmAction
+                  question={s.resetQuestion(user.name)}
+                  confirmLabel={s.resetPassword}
+                  busy={busy}
+                  onCancel={() => setResetting(null)}
+                  onConfirm={() =>
+                    void act(async () => {
+                      setResetting(null);
+                      const { temporaryPassword } = await api.resetPassword(user.id);
+                      setSecret({ name: user.name, password: temporaryPassword });
+                    })
+                  }
+                />
               ) : (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => setEditing(user.id)} aria-label={`${m.admin.edit} ${user.name}`}>
                     {m.admin.edit}
                   </Button>
-                  {user.origin === "local" && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      aria-label={`${s.resetPassword}: ${user.name}`}
-                      onClick={() =>
-                        void act(async () => {
-                          const { temporaryPassword } = await api.resetPassword(user.id);
-                          setSecret({ name: user.name, password: temporaryPassword });
-                        })
-                      }
-                    >
+                  {user.origin === "local" && user.id !== me.id && (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setResetting(user.id)} aria-label={`${s.resetPassword}: ${user.name}`}>
                       {s.resetPassword}
                     </Button>
                   )}

@@ -84,9 +84,10 @@ export function TemporaryPassword({ name, password, onDone }: { name: string; pa
   );
 }
 
-/** Ask to confirm a deletion in the page itself (no modal: Radix Dialog injects styles the CSP refuses). */
-export function ConfirmDelete({ question, children, busy, onConfirm, onCancel }: {
+/** Ask to confirm an action that cannot be undone, in the page itself (no modal: Radix Dialog injects styles the CSP refuses). */
+export function ConfirmAction({ question, confirmLabel, children, busy, onConfirm, onCancel }: {
   question: string;
+  confirmLabel: string;
   children?: ReactNode;
   busy: boolean;
   onConfirm: () => void;
@@ -101,7 +102,7 @@ export function ConfirmDelete({ question, children, busy, onConfirm, onCancel }:
       {children}
       <div className="mt-3 flex flex-wrap gap-3">
         <Button type="button" variant="outline" disabled={busy} onClick={onConfirm} className="border-destructive text-destructive">
-          {m.admin.confirmDelete}
+          {confirmLabel}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>
           {m.admin.cancel}
