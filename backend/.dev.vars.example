@@ -1,0 +1,4 @@
+# Local Worker development only (npm run dev:worker): cp backend/.dev.vars.example backend/.dev.vars
+AUTH_SECRET=dev-only-secret-do-not-use-in-production
+PUBLIC_URL=http://localhost:8787
+SETUP_CODE=dev-only-setup-code-0123456789

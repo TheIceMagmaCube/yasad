@@ -33,3 +33,4 @@ dist-worker/
 .idea/
 .vscode/
 .DS_Store
+.dev.vars

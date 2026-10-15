@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "dev:worker": "wrangler dev",
     "build": "node scripts/build-server.mjs",
     "build:worker": "wrangler deploy --dry-run --outdir dist-worker",
