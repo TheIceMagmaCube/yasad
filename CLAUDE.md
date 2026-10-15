@@ -14,7 +14,7 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
   - `src/app.ts`: runtime-agnostic app. Everything shared goes here or below. Each entry passes `getDb`, `getRawConfig` and `getClientIp`.
   - `src/config.ts`: environment validation, shared by both entries. `src/auth.ts`: Better Auth, mounted on `/api/auth/*`, public sign-up disabled.
   - `src/security.ts`: security headers (CSP and others) and the same-origin check on state-changing requests. `frontend/public/_headers` is generated from it for the Worker's static assets; a test fails when they drift.
-  - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`). `routes/auth.ts` is the allow-list of Better Auth routes (sign-in limits, `PASSWORD_SIGN_IN`); any other `/api/auth/*` path answers 404. Add a Better Auth route there only when the app uses it.
+  - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`). `admin-users.ts` and `admin-groups.ts` are the admin screens' API; the last enabled local admin is checked inside the write, not before it. `routes/auth.ts` is the allow-list of Better Auth routes (sign-in limits, `PASSWORD_SIGN_IN`); any other `/api/auth/*` path answers 404. Add a Better Auth route there only when the app uses it.
   - `src/server.ts`: Docker/Node entry (libSQL file, runs migrations at startup, serves `frontend/dist`).
   - `src/worker.ts`: Cloudflare Workers entry (D1 binding, static assets from `frontend/dist`).
   - `src/catalog/`: catalog file format (`format.ts`, YAML and zod), groups by (source, name) (`groups.ts`, `findOrCreateGroup` is also for OIDC sign-in) and the diff and single-batch apply (`sync.ts`). Example in `docs/catalog.example.yaml`, checked by a test.
@@ -38,7 +38,8 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
 ## Rules that must hold
 
 - Two targets, one code: no Node-only API (`fs`, `child_process`, timers for background jobs) outside `server.ts`; no filesystem writes; scheduled work goes through a function both entries can trigger.
-- Atomic writes use `db.batch([...])` (works on D1 and libSQL). Never `db.transaction()`: D1 does not support it.
+- Atomic writes use `db.batch([...])` (works on D1 and libSQL). Never `db.transaction()`: D1 does not support it. A check that must hold under concurrent requests goes inside the write (a `where exists` condition, or a guard statement in the batch), then the result is read back.
+- Foreign keys are enforced on both targets: deleting a user or a group relies on `ON DELETE CASCADE` for sessions, accounts, memberships and catalog links.
 - Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (pages, when they come, will join the intersection). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
 - Filtering happens on the server; forbidden links never reach the browser, including through the API. Every access rule needs a test that calls the API directly.
 - OIDC groups are written server-side from the verified ID token (Better Auth hook), never from user-editable fields.

@@ -9,7 +9,7 @@ import { account, setting, user } from "../schema";
 import { codesMatch, hasLocalAdmin, isSetupOpen, localAdmins, SETUP_CODE_STILL_SET } from "../setup-state";
 
 const SETUP_MARKER = "setup.completed";
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type AdminInput = { name: string; email: string; password: string };
 

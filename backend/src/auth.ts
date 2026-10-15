@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 
 import type { Config } from "./config";
@@ -31,6 +32,19 @@ export function createAuth(db: DB, config: Config) {
       },
     },
     session: { expiresIn: config.sessionMaxAge },
+    databaseHooks: {
+      session: {
+        create: {
+          // A disabled account gets a session the sign-in route deletes at once: not a sign-in.
+          after: async ({ userId, createdAt }) => {
+            await db
+              .update(user)
+              .set({ lastSignInAt: createdAt })
+              .where(and(eq(user.id, userId), eq(user.disabled, false)));
+          },
+        },
+      },
+    },
     rateLimit: { enabled: false },
     advanced: { useSecureCookies: config.publicUrl.startsWith("https://") },
     telemetry: { enabled: false },

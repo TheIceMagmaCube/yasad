@@ -96,7 +96,7 @@ export function AdminCatalog() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold">{s.title}</h1>
+      <h2 className="text-xl font-semibold">{s.title}</h2>
       <p className="mt-2 text-sm text-muted-foreground">{s.intro}</p>
 
       <a href="/api/admin/catalog" download="catalog.yaml" className={buttonVariants({ variant: "outline", className: "mt-6" })}>

@@ -30,8 +30,26 @@ export type CatalogDiff = {
 };
 export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
 
+export type Role = "admin" | "user";
+export type GroupSource = "oidc" | "local" | "system";
+export type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  origin: "local" | "oidc";
+  role: Role;
+  roleSource: "local" | "override" | "provider";
+  roleOverride: Role | null;
+  disabled: boolean;
+  mustChangePassword: boolean;
+  groups: { id: string; name: string; source: GroupSource }[];
+  lastSignInAt: string | null;
+};
+export type UserChanges = { name?: string; role?: Role; roleOverride?: Role | null; disabled?: boolean };
+export type AdminGroup = { id: string; name: string; source: GroupSource; memberIds: string[]; categories: number; links: number };
+
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
-export type User = { name: string; email: string; role: string; mustChangePassword?: boolean };
+export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
 export type AdminInput = { name: string; email: string; password: string; passwordConfirm: string };
 
 /**
@@ -53,6 +71,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
+// State-changing requests always carry a JSON body, even an empty one (see the same-origin check).
+const send = (method: string, body: unknown = {}): RequestInit => ({ method, body: JSON.stringify(body) });
 
 export const api = {
   instance: () => call<Instance>("/api/instance"),
@@ -66,4 +86,18 @@ export const api = {
   applyCatalog: (yaml: string, baseVersion: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: false, baseVersion })),
   changePassword: (currentPassword: string, newPassword: string) =>
     call<void>("/api/account/password", post({ currentPassword, newPassword })),
+  users: async () => (await call<{ users: AdminUser[] }>("/api/admin/users")).users,
+  createUser: (input: { name: string; email: string; role: Role }) =>
+    call<{ user: AdminUser; temporaryPassword: string }>("/api/admin/users", post(input)),
+  updateUser: (id: string, changes: UserChanges) => call<{ user: AdminUser }>(`/api/admin/users/${encodeURIComponent(id)}`, send("PATCH", changes)),
+  resetPassword: (id: string) => call<{ temporaryPassword: string }>(`/api/admin/users/${encodeURIComponent(id)}/password`, post({})),
+  deleteUser: (id: string) => call<void>(`/api/admin/users/${encodeURIComponent(id)}`, send("DELETE")),
+  groups: async () => (await call<{ groups: AdminGroup[] }>("/api/admin/groups")).groups,
+  createGroup: (name: string) => call<{ group: AdminGroup }>("/api/admin/groups", post({ name })),
+  renameGroup: (id: string, name: string) => call<{ group: AdminGroup }>(`/api/admin/groups/${encodeURIComponent(id)}`, send("PATCH", { name })),
+  deleteGroup: (id: string) => call<void>(`/api/admin/groups/${encodeURIComponent(id)}`, send("DELETE")),
+  addMember: (groupId: string, userId: string) =>
+    call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("PUT")),
+  removeMember: (groupId: string, userId: string) =>
+    call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("DELETE")),
 };

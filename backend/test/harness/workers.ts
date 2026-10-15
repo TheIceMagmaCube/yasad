@@ -7,7 +7,7 @@ import { BASE_ENV, client, type TestApp, type TestEnv } from "./shared";
 export { BASE_ENV, TEST_IP } from "./shared";
 export const target = "workers";
 
-const TABLES = ["link_group", "category_group", "link", "category", "session", "account", "verification", "user", "setting", "rate_limit"];
+const TABLES = ["user_group", "link_group", "category_group", "link", "category", "session", "account", "verification", "user", "setting", "rate_limit"];
 
 /** Return a client on the D1 database, emptied first. */
 export async function testApp(overrides: TestEnv = {}): Promise<TestApp> {

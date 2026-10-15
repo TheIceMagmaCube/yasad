@@ -25,6 +25,10 @@ export const user = sqliteTable("user", {
   image: text("image"),
   role: text("role").notNull().default("user"),
   mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(false),
+  disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
+  /** OIDC accounts: role set in YASAD over the provider's, or null to follow the provider. */
+  roleOverride: text("role_override", { enum: ["admin", "user"] }),
+  lastSignInAt: integer("last_sign_in_at", { mode: "timestamp_ms" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -98,6 +102,20 @@ export const group = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("group_source_name_idx").on(t.source, t.name)],
+);
+
+/** Members of local groups; OIDC memberships come from the identity provider (#9). */
+export const userGroup = sqliteTable(
+  "user_group",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => group.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.groupId] }), index("user_group_group_id_idx").on(t.groupId)],
 );
 
 /** Link categories; `id` is the stable identifier written in the catalog file. */

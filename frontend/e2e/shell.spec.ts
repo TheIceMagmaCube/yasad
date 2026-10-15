@@ -90,6 +90,38 @@ test("the catalog page previews and imports a file, accessibly", async ({ page }
   await expect(page.getByRole("status")).toHaveText("Catalog imported.");
 });
 
+test("the users and groups pages create an account and a group, accessibly", async ({ page }) => {
+  await signIn(page);
+  const csp = watchCsp(page);
+  await open(page, "/admin/users", "default", "light", 320);
+  await page.getByRole("button", { name: "New user" }).click();
+  await page.getByLabel("Name").fill("Grace Hopper");
+  await page.getByLabel("E-mail").fill("grace@example.invalid");
+  await page.getByRole("button", { name: "Create the account" }).click();
+  await expect(page.getByRole("region", { name: "Temporary password for Grace Hopper" })).toBeFocused();
+  await expectAccessible(page, "temporary password panel");
+
+  await open(page, "/admin/groups", "default", "light", 320);
+  await page.getByRole("button", { name: "New group" }).click();
+  await page.getByLabel("Name").fill("Reviewers");
+  await page.getByRole("button", { name: "Create the group" }).click();
+  await page.getByLabel("Person to add to Reviewers").selectOption({ label: "Grace Hopper (grace@example.invalid)" });
+  await page.getByRole("button", { name: "Add a member to Reviewers" }).click();
+  await expect(page.getByRole("button", { name: "Remove Grace Hopper" })).toBeVisible();
+
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const path of ["/admin/users", "/admin/groups"]) {
+        await open(page, path, theme, mode, 320);
+        await expect(page.getByRole("link", { name: path.endsWith("users") ? "Users" : "Groups" })).toHaveAttribute("aria-current", "page");
+        await expect(page.getByRole("heading", { name: /^Grace Hopper|^Reviewers/ })).toBeVisible();
+        await expectAccessible(page, `${path} (${theme}, ${mode})`);
+      }
+    }
+  }
+  expect(csp).toEqual([]);
+});
+
 test("the temporary password screen is accessible", async ({ page }) => {
   await addTemporaryUser();
   const res = await page.request.post("/api/auth/sign-in/email", { data: TEMPORARY });
