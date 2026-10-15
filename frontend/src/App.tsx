@@ -1,24 +1,41 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-type Health = { ok: boolean; version: string; database: boolean };
+import { api, type User } from "./api";
+import { Home } from "./pages/Home";
+import { Setup } from "./pages/Setup";
+import { SignIn } from "./pages/SignIn";
+import { strings } from "./strings";
+
+type View = { name: "loading" } | { name: "error" } | { name: "setup" } | { name: "signIn" } | { name: "home"; user: User };
 
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
+  const [view, setView] = useState<View>({ name: "loading" });
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => res.json() as Promise<Health>)
-      .then(setHealth)
-      .catch(() => setHealth(null));
+  const refresh = useCallback(async () => {
+    try {
+      const [setup, user] = await Promise.all([api.setupState(), api.session()]);
+      if (setup.open && !user) setView({ name: "setup" });
+      else if (user) setView({ name: "home", user });
+      else setView({ name: "signIn" });
+    } catch {
+      setView({ name: "error" });
+    }
   }, []);
 
-  return (
-    <main className="mx-auto max-w-2xl p-8">
-      <h1 className="text-3xl font-semibold">YASAD</h1>
-      <p className="mt-2 text-slate-600">Yet Another Simple Accessible Dashboard.</p>
-      <p className="mt-6 text-sm" role="status">
-        {health ? `API ${health.version}: ${health.ok ? "up" : "database unreachable"}` : "Checking the API…"}
-      </p>
-    </main>
-  );
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  switch (view.name) {
+    case "loading":
+      return <p role="status" className="p-8">{strings.loading}</p>;
+    case "error":
+      return <p role="alert" className="p-8">{strings.errors.unreachable}</p>;
+    case "setup":
+      return <Setup onDone={refresh} onClosed={refresh} />;
+    case "signIn":
+      return <SignIn onSignedIn={refresh} />;
+    case "home":
+      return <Home user={view.user} onSignOut={() => void api.signOut().finally(refresh)} />;
+  }
 }
