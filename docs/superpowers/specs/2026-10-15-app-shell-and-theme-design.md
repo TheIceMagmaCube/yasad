@@ -45,7 +45,8 @@ Public, no session needed. Returns:
 
 - `title`, `logo`, `theme` come from the `setting` table, keys `instance.title`, `instance.logo`, `instance.theme`. Missing rows give the defaults: `"YASAD"`, `null` (built-in logo), `"default"`.
 - A `theme` value that is not a known theme id returns `"default"`. The display never breaks on a bad value.
-- `logo` is returned as stored (a URL or `data:` URI) for the future admin screen; `null` means the built-in logo.
+- `logo` is returned only when it is a same-origin path (starting with a single `/`) or a `data:image/` URI, the only sources the CSP allows; any other value returns `null`, the built-in logo.
+- `Cache-Control: no-store`, so a change is seen on the next load.
 - No migration: the `setting` table exists since #4. Nothing writes these keys yet except SQL.
 
 ### `DEFAULT_LANGUAGE`
@@ -62,11 +63,13 @@ Public, no session needed. Returns:
 
 `frontend/public/theme-init.js` is loaded with a blocking `<script src>` in `<head>`, before the stylesheet (the CSP forbids inline scripts). It reads from `localStorage`, inside try/catch:
 
-- `yasad.theme`: last instance theme seen (or the dev override), else `default`;
+- `yasad.devTheme`: theme override, read only in dev builds (see Theme);
+- `yasad.instanceTheme`: last instance theme seen, else `default`;
 - `yasad.mode`: `system`, `light` or `dark`, else `system`;
-- `yasad.language`: `en` or `fr`, if the person chose one.
+- `yasad.language`: `en` or `fr`, if the person chose one;
+- `yasad.instanceLanguage`: last `defaultLanguage` seen.
 
-It sets `data-theme`, `data-mode` (resolved: `light` or `dark`, using `prefers-color-scheme` when the mode is `system`) and `lang` on `<html>`. The app then loads `/api/instance`, applies the instance theme and caches it. Only a first visit to an instance using a non-default theme can show `default` briefly.
+It sets `data-theme` (dev override, else cached instance theme), `data-mode` (resolved: `light` or `dark`, using `prefers-color-scheme` when the mode is `system`) and `lang` on `<html>`. The app shows its loading state until both `/api/instance` and the session are resolved, then applies the instance theme and language and caches them. If `/api/instance` fails, the app keeps the cached values (else the defaults) and carries on; no error screen for it. Only a first visit to an instance using a non-default theme can show `default` briefly.
 
 ### Theme
 
@@ -75,18 +78,20 @@ It sets `data-theme`, `data-mode` (resolved: `light` or `dark`, using `prefers-c
 - Components use only token classes (`bg-background`, `text-primary`...), never raw colors. Replacing a theme touches no component.
 - System font stack, no web font.
 - `ThemeProvider` holds the mode, writes `yasad.mode`, updates `data-mode`, and follows `prefers-color-scheme` changes while the mode is `system`.
-- Dev only (`import.meta.env.DEV`): the Appearance menu also offers the theme (`default`, `dusk`), stored in `yasad.theme` and taking precedence over the instance theme. Absent from production builds.
+- Dev only (`import.meta.env.DEV`): the Appearance menu also offers the theme (`default`, `dusk`), stored in `yasad.devTheme` and taking precedence over the instance theme. Production builds ignore the key.
+- `color-scheme` follows `data-mode` (`light` or `dark`), so native controls (select lists, scrollbars) match the mode.
 
 ### Languages
 
 - `src/i18n/en.ts` defines the messages (strings and functions such as `invalidCode(left)`); its type is `Messages`. `src/i18n/fr.ts` is `satisfies Messages`, so a missing French key fails `tsc`.
-- `LocaleProvider` picks the language: the person's choice (`yasad.language`), else the first browser language (`navigator.languages`) that is `en` or `fr`, else `defaultLanguage` from `/api/instance`, else `en`. It keeps `<html lang>` in sync.
+- `LocaleProvider` picks the language: the person's choice (`yasad.language`), else the first browser language (`navigator.languages`) whose primary subtag is `en` or `fr` (`fr-CA` gives `fr`), else `defaultLanguage` from `/api/instance` (cached in `yasad.instanceLanguage`), else `en`. It keeps `<html lang>` in sync.
 - `useStrings()` returns the current messages. `strings.ts` is removed.
 - API errors are shown from their `code` (`messages.apiErrors[code]`), falling back to the generic message; the server's English `message` is never displayed.
 
 ### Components
 
 - shadcn/ui is installed (components copied in `src/components/ui/`): Button, Input, Label, DropdownMenu. Setup and SignIn move to them; `Field` wraps Label and Input.
+- The instance title is also the document title.
 - `AppShell`: skip link ("Skip to content") to `<main id="content">`, header with logo and title on the left, `UserMenu` on the right.
 - `UserMenu` (DropdownMenu, `modal={false}`): name, e-mail and role, Language submenu, Appearance submenu, Sign out. At 320 px the title truncates and the trigger shows the initials.
 - `AuthLayout` shows the instance title and logo, with native `<select>` elements for language and appearance in its footer.
