@@ -89,12 +89,16 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitemradio", { name: "English" })).toBeFocused();
 
-  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowDown"); // Français, System, Light, Dark
-  await expect(menu.getByRole("menuitemradio", { name: "Dark" })).toBeFocused();
+  for (const name of ["Français", "System", "Light", "Dark"]) {
+    await page.keyboard.press("ArrowDown");
+    await expect(menu.getByRole("menuitemradio", { name })).toBeFocused();
+  }
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-mode", "dark");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
 
-  await trigger.press("Enter");
+  await page.keyboard.press("Enter");
   await expect(menu).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
