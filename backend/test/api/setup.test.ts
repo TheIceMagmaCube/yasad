@@ -101,6 +101,17 @@ describe("POST /api/setup", () => {
     expect(again.status).toBe(404);
   });
 
+  it("opens again when every local admin is disabled, to recover access", async () => {
+    const app = await testApp({ SETUP_CODE: CODE });
+    await post(app, "/api/setup", { code: CODE, ...ADMIN });
+    await app.exec(`update "user" set disabled = 1`);
+    const recovery = app.another();
+    expect(await setupState(recovery)).toEqual({ open: true });
+    const res = await post(recovery, "/api/setup", { code: CODE, ...ADMIN, email: "grace@example.invalid" });
+    expect(res.status).toBe(201);
+    expect(await setupState(recovery.another())).toEqual({ open: false });
+  });
+
   it("rejects invalid fields and writes nothing", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
     const res = await post(app, "/api/setup", {

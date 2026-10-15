@@ -5,6 +5,9 @@ import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
 import { AdminCatalog } from "./pages/AdminCatalog";
+import { AdminGroups } from "./pages/admin/AdminGroups";
+import { adminTab, AdminLayout } from "./pages/admin/AdminLayout";
+import { AdminUsers } from "./pages/admin/AdminUsers";
 import { ChangePassword } from "./pages/ChangePassword";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
@@ -104,17 +107,21 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
           }}
         />
       );
-    case "home":
+    case "home": {
+      const tab = view.user.role === "admin" ? adminTab(location.pathname) : null;
       return (
         <AppShell user={view.user} onSignOut={() => void api.signOut().finally(refresh)}>
           {view.user.mustChangePassword ? (
             <ChangePassword onChanged={refresh} />
-          ) : view.user.role === "admin" && location.pathname === "/admin/catalog" ? (
-            <AdminCatalog />
+          ) : tab ? (
+            <AdminLayout tab={tab}>
+              {tab === "users" ? <AdminUsers me={view.user} /> : tab === "groups" ? <AdminGroups /> : <AdminCatalog />}
+            </AdminLayout>
           ) : (
             <Home user={view.user} />
           )}
         </AppShell>
       );
+    }
   }
 }

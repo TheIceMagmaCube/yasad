@@ -5,7 +5,7 @@ import { authFor } from "../auth";
 import type { AppEnv } from "../context";
 import { apiError } from "../errors";
 import { clearAttempts, type Limit, releaseAttempt, reserveAttempt, SIGN_IN_ACCOUNT_LIMIT, SIGN_IN_IP_LIMIT } from "../rate-limit";
-import { account, user } from "../schema";
+import { account, session, user } from "../schema";
 
 /** Address that never matches an account (".invalid" is reserved), used to refuse a sign-in the way Better Auth does. */
 const NO_ACCOUNT = "password-sign-in-disabled@yasad.invalid";
@@ -22,12 +22,28 @@ async function isLocalAdmin(c: Context<AppEnv>, email: string): Promise<boolean>
 }
 
 /**
+ * Return the 403 refusing a successful sign-in of a disabled account, after deleting its new session.
+ *
+ * Checked only once Better Auth accepted the password, so a wrong password still gets the usual 401
+ * and a disabled account cannot be told apart without its password.
+ */
+async function refuseDisabled(c: Context<AppEnv>, res: Response): Promise<Response | null> {
+  const body = (await res.clone().json().catch(() => null)) as { token?: string; user?: { id?: string } } | null;
+  if (!body?.user?.id || !body.token) return null;
+  const row = await c.var.db.select({ disabled: user.disabled }).from(user).where(eq(user.id, body.user.id)).get();
+  if (!row?.disabled) return null;
+  await c.var.db.delete(session).where(eq(session.token, body.token));
+  return apiError(c, 403, "account_disabled", "This account is disabled.");
+}
+
+/**
  * Sign in with e-mail and password, limited per IP and e-mail and per IP.
  *
  * Each attempt is counted before the password is checked (a right password is refused too while
  * blocked) and given back only when it succeeds or the server fails. With PASSWORD_SIGN_IN=false only
  * local admins may sign in: any other request goes to Better Auth with an address that matches no
  * account, so its validation errors, its timing and its 401 are exactly those of a wrong password.
+ * A disabled account is refused after its password is checked, and the attempt stays counted.
  */
 async function signIn(c: Context<AppEnv>): Promise<Response> {
   const { db, config, clientIp } = c.var;
@@ -59,6 +75,8 @@ async function signIn(c: Context<AppEnv>): Promise<Response> {
   const res = await authFor(c).handler(request);
 
   if (res.ok) {
+    const refused = await refuseDisabled(c, res);
+    if (refused) return refused;
     await Promise.all([clearAttempts(db, keys[0]![0]), releaseAttempt(db, keys[1]![0])]);
   } else if (res.status >= 500) {
     await Promise.all(keys.map(([key]) => releaseAttempt(db, key)));

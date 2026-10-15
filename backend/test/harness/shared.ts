@@ -7,6 +7,8 @@ export type TestApp = {
   exec(sql: string): Promise<void>;
   /** Run one SQL query directly on the database and return its rows. */
   query(sql: string): Promise<Record<string, unknown>[]>;
+  /** Return another client on the same database, with no cookies: a second browser. */
+  another(): TestApp;
 };
 
 export const BASE_ENV = {
@@ -43,5 +45,6 @@ export function client(
     },
     exec,
     query,
+    another: () => client(fetch, exec, query),
   };
 }

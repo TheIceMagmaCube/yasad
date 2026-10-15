@@ -36,4 +36,11 @@ describe("SignIn", () => {
     expect(screen.getByRole("alert")).toHaveFocus();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
+
+  it("says when the account is disabled", async () => {
+    mockApi({ "POST /api/auth/sign-in/email": { status: 403, body: { error: { code: "account_disabled", message: "Disabled" } } } });
+    renderWithProviders(<SignIn onSignedIn={vi.fn()} />);
+    await signIn("correct horse battery");
+    expect(screen.getByRole("alert")).toHaveTextContent("This account is disabled.");
+  });
 });

@@ -27,6 +27,17 @@ async function readRevision(db: DB): Promise<string> {
   return row?.value ?? "0";
 }
 
+/**
+ * Return the statement increasing the catalog revision, for a write that changes the exported file
+ * outside an import (a group renamed or deleted); usable in db.batch.
+ */
+export function bumpRevision(db: DB) {
+  return db
+    .insert(setting)
+    .values({ key: REVISION_KEY, value: "1" })
+    .onConflictDoUpdate({ target: setting.key, set: { value: sql`cast(${setting.value} as integer) + 1`, updatedAt: new Date() } });
+}
+
 /** Return the list cut into slices short enough to bind in one statement. */
 function chunks<T>(items: T[]): T[][] {
   return Array.from({ length: Math.ceil(items.length / MAX_IDS_PER_STATEMENT) }, (_, i) => items.slice(i * MAX_IDS_PER_STATEMENT, (i + 1) * MAX_IDS_PER_STATEMENT));

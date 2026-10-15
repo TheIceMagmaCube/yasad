@@ -26,7 +26,7 @@ export function setInstanceTheme(theme: string): void {
 
 export const TEMPORARY = { email: "bob@example.org", password: "temporary password" };
 
-/** Insert a user who must replace a temporary password, as the admin screen (#8) will. */
+/** Insert a user who must replace a temporary password, with a known one. */
 export async function addTemporaryUser(): Promise<void> {
   const hash = await hashPassword(TEMPORARY.password);
   const db = new DatabaseSync(E2E_DB);

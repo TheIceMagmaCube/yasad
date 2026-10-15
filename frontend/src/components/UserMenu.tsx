@@ -100,7 +100,7 @@ export function UserMenu({ user, onSignOut }: { user: User; onSignOut: () => voi
         <DropdownMenuSeparator />
         {user.role === "admin" && (
           <DropdownMenuItem asChild>
-            <a href="/admin/catalog">{m.catalog.menu}</a>
+            <a href="/admin/users">{m.admin.menu}</a>
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={onSignOut}>{m.userMenu.signOut}</DropdownMenuItem>
