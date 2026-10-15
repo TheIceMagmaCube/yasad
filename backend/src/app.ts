@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 
 import { authFor } from "./auth";
 import { type Config, loadConfig, type RawConfig } from "./config";
@@ -10,6 +11,8 @@ import { setup } from "./routes/setup";
 import { version } from "./version";
 
 export type { AppEnv } from "./context";
+
+const MAX_BODY = 16 * 1024;
 
 /** Runtime services each entry (server.ts, worker.ts) provides. */
 export type AppDeps = {
@@ -35,6 +38,14 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     c.set("clientIp", getClientIp(c));
     await next();
   });
+
+  app.use(
+    "*",
+    bodyLimit({
+      maxSize: MAX_BODY,
+      onError: (c) => apiError(c, 413, "payload_too_large", "The request body is too large."),
+    }),
+  );
 
   app.get("/health", async (c) => {
     let database = true;

@@ -10,6 +10,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { type Context, Hono } from "hono";
 
 import { createApp } from "./app";
+import { forwardedClientIp } from "./client-ip";
 import { type Config, ConfigError, loadConfig } from "./config";
 import type { DB } from "./db";
 import * as schema from "./schema";
@@ -42,7 +43,7 @@ if (config.setupCode !== null && (await hasLocalAdmin(db as unknown as DB))) con
 /** Return the client IP: X-Forwarded-For when TRUST_PROXY is set, otherwise the socket address. */
 function clientIp(c: Context): string {
   if (config.trustProxy) {
-    const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+    const forwarded = forwardedClientIp(c.req.header("x-forwarded-for"));
     if (forwarded) return forwarded;
   }
   return getConnInfo(c).remote.address ?? "unknown";

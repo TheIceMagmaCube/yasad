@@ -182,6 +182,13 @@ describe("authentication", () => {
     expect((await session(app)).user.role).toBe("admin");
   });
 
+  it("refuses request bodies over 16 KB", async () => {
+    const app = await testApp({ SETUP_CODE: CODE });
+    const res = await post(app, "/api/setup", { code: CODE, ...ADMIN, name: "x".repeat(20_000) });
+    expect(res.status).toBe(413);
+    expect((await json(res)).error.code).toBe("payload_too_large");
+  });
+
   it("answers 500 on an invalid configuration", async () => {
     const res = await (await testApp({ AUTH_SECRET: "short" })).request("/api/health");
     expect(res.status).toBe(500);

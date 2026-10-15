@@ -57,6 +57,13 @@ describe("loadConfig", () => {
     }
   });
 
+  it("rejects the example secrets on an https URL", () => {
+    const example = { AUTH_SECRET: "dev-only-secret-do-not-use-in-production", PUBLIC_URL: "https://portal.example.org" };
+    expect(problemsOf(example)).toEqual([expect.stringContaining("AUTH_SECRET")]);
+    expect(problemsOf({ ...valid, SETUP_CODE: "dev-only-setup-code-0123456789" })).toEqual([expect.stringContaining("SETUP_CODE")]);
+    expect(problemsOf({ ...example, PUBLIC_URL: "http://localhost:5173" })).toEqual([]);
+  });
+
   it("reports every problem at once", () => {
     expect(problemsOf({ SETUP_CODE: "x" })).toHaveLength(3);
   });

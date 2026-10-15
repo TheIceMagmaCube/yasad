@@ -18,6 +18,8 @@ export class ConfigError extends Error {
 export const MIN_AUTH_SECRET = 32;
 export const MIN_SETUP_CODE = 24;
 const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+/** Prefix of the values in .env.example and .dev.vars.example. */
+const EXAMPLE_PREFIX = "dev-only-";
 
 /**
  * Validate the raw environment and return the configuration.
@@ -47,6 +49,11 @@ export function loadConfig(raw: RawConfig): Config {
   if (rawMaxAge) {
     if (/^\d+$/.test(rawMaxAge) && Number(rawMaxAge) > 0) sessionMaxAge = Number(rawMaxAge);
     else problems.push("SESSION_MAX_AGE must be a whole number of seconds.");
+  }
+
+  if (publicUrl.startsWith("https://")) {
+    if (authSecret.startsWith(EXAMPLE_PREFIX)) problems.push("AUTH_SECRET still holds the example value from .env.example.");
+    if (setupCode?.startsWith(EXAMPLE_PREFIX)) problems.push("SETUP_CODE still holds the example value from .env.example.");
   }
 
   if (problems.length > 0) throw new ConfigError(problems);
