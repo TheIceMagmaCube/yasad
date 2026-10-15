@@ -37,6 +37,7 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 ## Conventions
 
 - Code, comments, commits and the README in English. Outline docs in French.
-- Branches `type/issue-topic` (e.g. `feat/12-oidc-login`), PR to `beta` or `main`, squash merge.
+- Branches `type/issue-topic` (e.g. `feat/12-oidc-login`), PR to `beta`, squash merge. `beta` is promoted to `main` by a PR merged with a merge commit (never squashed: semantic-release must see every commit, and `beta` must stay an ancestor of `main`).
 - PR titles follow Conventional Commits (`feat:`, `fix:`, `chore:`...): semantic-release derives the version from them and publishes a git tag and a GitHub release (the release notes are the changelog). No version commit, no `CHANGELOG.md`: `package.json` stays at `0.0.0-development`, and the version is injected at build time (`APP_VERSION`).
+- Versions stay in 0.x for now: versioning starts from the `v0.0.0` tag, `feat` and `fix` bump the patch, a breaking change bumps the minor (`.releaserc.json`). Going to 1.0.0 is a deliberate change of those rules.
 - Node 24 (`.nvmrc`). TypeScript stays on 6.0.x until typescript-eslint supports 7.
