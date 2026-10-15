@@ -8,6 +8,8 @@ export type Config = {
   sessionMaxAge: number;
   defaultLanguage: Language;
   passwordSignIn: boolean;
+  /** Path of the catalog file applied at startup (Docker only), or null. */
+  catalogFile: string | null;
 };
 
 export const LANGUAGES = ["en", "fr"] as const;
@@ -78,5 +80,5 @@ export function loadConfig(raw: RawConfig): Config {
   }
 
   if (problems.length > 0) throw new ConfigError(problems);
-  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge, defaultLanguage: defaultLanguage!, passwordSignIn };
+  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge, defaultLanguage: defaultLanguage!, passwordSignIn, catalogFile: raw.CATALOG_FILE?.trim() || null };
 }

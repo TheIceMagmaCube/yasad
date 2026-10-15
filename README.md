@@ -83,6 +83,7 @@ Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then
 | `SETUP_CODE` | for setup | One-time code for the first-run setup, at least 24 characters. Remove it once setup is done. |
 | `SESSION_MAX_AGE` | no | Session duration in seconds. Default `604800` (7 days). |
 | `PASSWORD_SIGN_IN` | no | `true` (default) or `false`. With `false`, only local administrators can sign in with a password, from `/sign-in/local`; sessions already open stay valid until they expire. |
+| `CATALOG_FILE` | no | Docker only. Path of a catalog file applied at every start; the catalog then matches the file and cannot be imported from the interface. An invalid file stops the start. |
 | `DEFAULT_LANGUAGE` | no | Interface language when the browser asks for neither English nor French: `en` (default) or `fr`. |
 | `TRUST_PROXY` | no | Number of proxies in front of YASAD (`true` means 1). The client IP is then read from `X-Forwarded-For`. Leave it unset when YASAD is reached directly, otherwise anyone can forge the header. |
 | `DATABASE_URL` | no | libSQL URL. Default `file:/data/yasad.db` in the image. |
@@ -92,6 +93,10 @@ Behind proxies, count every hop: with Cloudflare in front of your reverse proxy 
 Failed sign-ins are limited in the database: 5 per e-mail and IP, 30 per IP, per 15 minutes. Set `TRUST_PROXY` correctly: with a value too low, every visitor shares one counter.
 
 On Cloudflare Workers, set the same values as secrets (`wrangler secret put AUTH_SECRET`); the client IP comes from `CF-Connecting-IP`.
+
+### Catalog
+
+Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. Admins import and export it from the "Catalog" page (account menu); importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
 
 ### Development
 

@@ -137,4 +137,26 @@ describe("server startup", () => {
       expect(res.headers.get("x-frame-options")).toBe("DENY");
     }
   }, 20_000);
+
+  it("applies CATALOG_FILE on every start, and refuses to start on an invalid one", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "yasad-catalog-"));
+    tmpDirs.push(dir);
+    const file = join(dir, "catalog.yaml");
+    const db = `file:${await tmpDb()}`;
+    await writeFile(file, "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n      - id: mail\n        title: Mail\n        url: https://mail.example.org\n        groups: ['@everyone']\n");
+    const first = await start({ ...BASE_ENV, DATABASE_URL: db, CATALOG_FILE: file });
+    await waitForHealth(first);
+    expect(first.output()).toContain("2 added, 0 updated, 0 removed");
+    await stop(first);
+
+    const second = await start({ ...BASE_ENV, DATABASE_URL: db, CATALOG_FILE: file });
+    await waitForHealth(second);
+    expect(second.output()).toContain("0 added, 0 updated, 0 removed");
+    await stop(second);
+
+    await writeFile(file, "version: 1\ncategories:\n  - id: Tools\n");
+    const third = await start({ ...BASE_ENV, DATABASE_URL: db, CATALOG_FILE: file });
+    expect(await third.exited).toBe(1);
+    expect(third.output()).toContain("categories[0].id");
+  }, 30_000);
 });

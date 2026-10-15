@@ -1,0 +1,189 @@
+import { type TestApp, testApp } from "#harness";
+import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+
+import { addUser, post, signIn } from "./users";
+
+const CATALOG = `version: 1
+categories:
+  - id: dev-tools
+    title: Developer tools
+    groups: ["@authenticated"]
+    links:
+      - id: jira
+        title: Jira
+        url: https://acme.atlassian.net
+        description: Tickets and sprints
+        icon: si:jira
+        keywords: [tickets, issues]
+        groups: ["oidc:Developers", "local:Contractors"]
+      - id: grafana
+        title: Grafana
+        url: https://grafana.example.org
+        groups: ["oidc:Developers"]
+        active: false
+  - id: everyday
+    title: Everyday
+    groups: ["@everyone"]
+    links:
+      - id: mail
+        title: Mail
+        url: https://mail.example.org
+        icon: lucide:mail
+        groups: ["@everyone"]
+`;
+
+type Diff = {
+  added: { categories: string[]; links: string[] };
+  updated: { categories: string[]; links: string[] };
+  removed: { categories: string[]; links: string[] };
+  groupsCreated: string[];
+  warnings: string[];
+};
+type ImportBody = { applied: boolean; diff: Diff; baseVersion: string; error?: { code: string; errors?: { path: string }[] } };
+
+async function adminApp(env = {}): Promise<TestApp> {
+  const app = await testApp(env);
+  await addUser(app, { id: "admin", email: "ada@example.org", role: "admin" });
+  expect((await signIn(app, "ada@example.org")).status).toBe(200);
+  return app;
+}
+
+async function send(app: TestApp, yaml: string, dryRun: boolean, baseVersion?: string) {
+  const res = await post(app, "/api/admin/catalog", { yaml, dryRun, baseVersion });
+  return { status: res.status, body: (await res.json()) as ImportBody };
+}
+
+/** Preview then apply, as the admin page does. */
+async function importFile(app: TestApp, yaml: string) {
+  const preview = await send(app, yaml, true);
+  expect(preview.status).toBe(200);
+  return send(app, yaml, false, preview.body.baseVersion);
+}
+
+
+describe("catalog import and export", () => {
+  it("previews without writing, then applies", async () => {
+    const app = await adminApp();
+    const preview = await send(app, CATALOG, true);
+    expect(preview.body.applied).toBe(false);
+    expect(preview.body.diff.added).toEqual({ categories: ["dev-tools", "everyday"], links: ["jira", "grafana", "mail"] });
+    expect(preview.body.diff.groupsCreated).toEqual(["local:Contractors", "oidc:Developers"]);
+    expect(await app.query("select id from link")).toEqual([]);
+
+    const applied = await send(app, CATALOG, false, preview.body.baseVersion);
+    expect(applied.body.applied).toBe(true);
+    expect(await app.query("select id from link order by id")).toEqual([{ id: "grafana" }, { id: "jira" }, { id: "mail" }]);
+  });
+
+  it("exports the same catalog, and re-importing it changes nothing", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    const res = await app.request("/api/admin/catalog");
+    expect(res.headers.get("content-disposition")).toContain("catalog.yaml");
+    const exported = await res.text();
+    const sortGroups = (file: string) => {
+      const catalog = parse(file) as { categories: { groups: string[]; links: { groups: string[] }[] }[] };
+      for (const cat of catalog.categories) {
+        cat.groups.sort();
+        for (const lnk of cat.links) lnk.groups.sort();
+      }
+      return catalog;
+    };
+    expect(sortGroups(exported)).toEqual(sortGroups(CATALOG));
+    const again = await send(app, exported, true);
+    expect(again.body.diff.added).toEqual({ categories: [], links: [] });
+    expect(again.body.diff.updated).toEqual({ categories: [], links: [] });
+    expect(again.body.diff.removed).toEqual({ categories: [], links: [] });
+    expect((await send(app, CATALOG, true)).body.diff.updated).toEqual({ categories: [], links: [] });
+  });
+
+  it("removes what the file no longer has, but keeps groups", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    const onlyJira = CATALOG.slice(0, CATALOG.indexOf("      - id: grafana"));
+    const result = await importFile(app, onlyJira);
+    expect(result.body.diff.removed).toEqual({ categories: ["everyday"], links: ["grafana", "mail"] });
+    expect(await app.query("select id from link")).toEqual([{ id: "jira" }]);
+    expect(await app.query("select id from category")).toEqual([{ id: "dev-tools" }]);
+    expect(await app.query(`select name from "group" where source = 'oidc'`)).toEqual([{ name: "Developers" }]);
+  });
+
+  it("moves a link between categories as an update", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    const moved = CATALOG.replace("      - id: mail\n        title: Mail\n        url: https://mail.example.org\n        icon: lucide:mail\n        groups: [\"@everyone\"]\n", "").replace(
+      "  - id: everyday",
+      "      - id: mail\n        title: Mail\n        url: https://mail.example.org\n        icon: lucide:mail\n        groups: [\"@everyone\"]\n  - id: everyday",
+    );
+    const result = await importFile(app, moved);
+    expect(result.body.diff.updated.links).toEqual(["mail"]);
+    expect(result.body.diff.removed.links).toEqual([]);
+    expect(await app.query("select category_id from link where id = 'mail'")).toEqual([{ category_id: "dev-tools" }]);
+  });
+
+  it("refuses an invalid file and writes nothing", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    const broken = CATALOG.replace("https://mail.example.org", "javascript:alert(1)").replace("    groups: [\"@everyone\"]\n    links:", "    gropus: []\n    links:");
+    const res = await send(app, broken, false, "whatever");
+    expect(res.status).toBe(422);
+    expect(res.body.error!.code).toBe("invalid_catalog");
+    const paths = res.body.error!.errors!.map((e) => e.path);
+    expect(paths).toContain("categories[1].links[0].url");
+    expect(paths).toContain("categories[1]");
+    expect(await app.query("select url from link where id = 'mail'")).toEqual([{ url: "https://mail.example.org" }]);
+  });
+
+  it("refuses duplicate ids, anchors and aliases", async () => {
+    const app = await adminApp();
+    const duplicate = CATALOG.replace("id: grafana", "id: jira");
+    expect((await send(app, duplicate, true)).body.error!.errors).toEqual([{ path: "categories[0].links[1].id", message: 'The link id "jira" is used twice.' }]);
+    const bomb = `version: 1\ncategories:\n  - &a {id: x, title: X, groups: [], links: []}\n  - *a\n`;
+    expect((await send(app, bomb, true)).body.error!.code).toBe("invalid_catalog");
+  });
+
+  it("refuses to apply over a catalog changed since the preview", async () => {
+    const app = await adminApp();
+    const preview = await send(app, CATALOG, true);
+    await importFile(app, CATALOG.replace("title: Mail", "title: Webmail"));
+    const res = await send(app, CATALOG, false, preview.body.baseVersion);
+    expect(res.status).toBe(409);
+    expect(res.body.error!.code).toBe("catalog_changed");
+  });
+
+  it("warns about items nobody can see and groups that differ only by case", async () => {
+    const app = await adminApp();
+    const file = CATALOG.replace('groups: ["oidc:Developers"]\n        active: false', 'groups: []').replace('"local:Contractors"', '"oidc:developers"');
+    const { warnings } = (await send(app, file, true)).body.diff;
+    expect(warnings).toContain('Link "grafana" has no group: nobody can see it.');
+    expect(warnings).toContain("Groups differ only by case: oidc:Developers, oidc:developers.");
+  });
+
+  it("is refused to non-admins and without a session", async () => {
+    const anonymous = await testApp();
+    expect((await anonymous.request("/api/admin/catalog")).status).toBe(401);
+    await addUser(anonymous, { id: "bob", email: "bob@example.org" });
+    await signIn(anonymous, "bob@example.org");
+    expect((await anonymous.request("/api/admin/catalog")).status).toBe(403);
+    expect((await post(anonymous, "/api/admin/catalog", { yaml: CATALOG, dryRun: true })).status).toBe(403);
+  });
+
+  it("is read-only while CATALOG_FILE manages the catalog", async () => {
+    const app = await adminApp({ CATALOG_FILE: "/config/catalog.yaml" });
+    const res = await post(app, "/api/admin/catalog", { yaml: CATALOG, dryRun: true });
+    expect(res.status).toBe(409);
+    expect((await app.request("/api/admin/catalog")).status).toBe(200);
+  });
+
+  it("accepts files up to 1 MB, and 500 links in one import", async () => {
+    const app = await adminApp();
+    const links = Array.from({ length: 500 }, (_, i) => `      - id: link-${i}\n        title: Link ${i}\n        url: https://example.org/${i}\n        groups: ["@everyone", "oidc:Team ${i % 10}"]\n`).join("");
+    const big = `version: 1\ncategories:\n  - id: many\n    title: Many\n    groups: ["@everyone"]\n    links:\n${links}`;
+    expect(big.length).toBeGreaterThan(16 * 1024);
+    expect((await importFile(app, big)).status).toBe(200);
+    expect(await app.query("select count(*) as n from link")).toEqual([{ n: 500 }]);
+    const tooBig = (await post(app, "/api/admin/catalog", { yaml: "#".repeat(1024 * 1024 + 1), dryRun: true })).status;
+    expect(tooBig).toBe(413);
+  });
+});

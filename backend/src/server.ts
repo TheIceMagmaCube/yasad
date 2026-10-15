@@ -10,6 +10,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { type Context, Hono } from "hono";
 
 import { createApp } from "./app";
+import { importCatalog } from "./catalog/sync";
 import { forwardedClientIp } from "./client-ip";
 import { type Config, ConfigError, loadConfig } from "./config";
 import type { DB } from "./db";
@@ -40,6 +41,20 @@ if (databaseUrl.startsWith("file:")) {
 const db = drizzle(createClient({ url: databaseUrl }), { schema });
 await migrate(db, { migrationsFolder: migrationsDir });
 if (config.setupCode !== null && (await hasLocalAdmin(db as unknown as DB))) console.warn(SETUP_CODE_STILL_SET);
+
+// The catalog file is the source of truth: applied on every start, refusing to start when invalid.
+if (config.catalogFile) {
+  const result = await importCatalog(db as unknown as DB, await readFile(config.catalogFile, "utf8"), { dryRun: false });
+  if (result.status === "invalid") {
+    console.error(`Invalid catalog file ${config.catalogFile}:\n${result.errors.map((e) => `- ${e.path || "(file)"}: ${e.message}`).join("\n")}`);
+    process.exit(1);
+  }
+  if (result.status === "applied") {
+    const { added, updated, removed } = result.diff;
+    const count = (part: { categories: string[]; links: string[] }) => part.categories.length + part.links.length;
+    console.log(`Catalog loaded from ${config.catalogFile}: ${count(added)} added, ${count(updated)} updated, ${count(removed)} removed.`);
+  }
+}
 
 /** Return the client IP: from X-Forwarded-For behind TRUST_PROXY proxies, otherwise the socket address. */
 function clientIp(c: Context): string {

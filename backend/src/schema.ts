@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -87,3 +87,71 @@ export const rateLimit = sqliteTable("rate_limit", {
   count: integer("count").notNull(),
   windowStart: integer("window_start").notNull(),
 });
+
+/** Groups by origin: `oidc` (from the identity provider), `local` (managed in YASAD) or `system`. */
+export const group = sqliteTable(
+  "group",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    source: text("source", { enum: ["oidc", "local", "system"] }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("group_source_name_idx").on(t.source, t.name)],
+);
+
+/** Link categories; `id` is the stable identifier written in the catalog file. */
+export const category = sqliteTable("category", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  position: integer("position").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const link = sqliteTable(
+  "link",
+  {
+    id: text("id").primaryKey(),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => category.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    url: text("url").notNull(),
+    icon: text("icon"),
+    /** JSON array of strings. */
+    keywords: text("keywords").notNull().default("[]"),
+    position: integer("position").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("link_category_id_idx").on(t.categoryId)],
+);
+
+export const categoryGroup = sqliteTable(
+  "category_group",
+  {
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => category.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => group.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.categoryId, t.groupId] })],
+);
+
+export const linkGroup = sqliteTable(
+  "link_group",
+  {
+    linkId: text("link_id")
+      .notNull()
+      .references(() => link.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => group.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.linkId, t.groupId] })],
+);

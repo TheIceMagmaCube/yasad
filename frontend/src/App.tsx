@@ -4,6 +4,7 @@ import { api, ApiError, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
+import { AdminCatalog } from "./pages/AdminCatalog";
 import { ChangePassword } from "./pages/ChangePassword";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
@@ -106,7 +107,13 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
     case "home":
       return (
         <AppShell user={view.user} onSignOut={() => void api.signOut().finally(refresh)}>
-          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <Home user={view.user} />}
+          {view.user.mustChangePassword ? (
+            <ChangePassword onChanged={refresh} />
+          ) : view.user.role === "admin" && location.pathname === "/admin/catalog" ? (
+            <AdminCatalog />
+          ) : (
+            <Home user={view.user} />
+          )}
         </AppShell>
       );
   }

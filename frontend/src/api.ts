@@ -3,6 +3,7 @@ import type { Instance } from "./instance";
 export type ApiErrorBody = {
   code: string;
   message: string;
+  errors?: { path: string; message: string }[];
   attemptsLeft?: number;
   fields?: Record<string, string>;
 };
@@ -15,6 +16,15 @@ export class ApiError extends Error {
     super(body.message);
   }
 }
+
+export type CatalogDiff = {
+  added: { categories: string[]; links: string[] };
+  updated: { categories: string[]; links: string[] };
+  removed: { categories: string[]; links: string[] };
+  groupsCreated: string[];
+  warnings: string[];
+};
+export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -48,6 +58,8 @@ export const api = {
   session: async () => (await call<{ user: User } | null>("/api/auth/get-session"))?.user ?? null,
   signIn: (email: string, password: string) => call<unknown>("/api/auth/sign-in/email", post({ email, password })),
   signOut: () => call<unknown>("/api/auth/sign-out", post({})),
+  previewCatalog: (yaml: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: true })),
+  applyCatalog: (yaml: string, baseVersion: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: false, baseVersion })),
   changePassword: (currentPassword: string, newPassword: string) =>
     call<void>("/api/account/password", post({ currentPassword, newPassword })),
 };
