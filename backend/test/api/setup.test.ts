@@ -111,7 +111,12 @@ describe("POST /api/setup", () => {
       passwordConfirm: "other",
     });
     expect(res.status).toBe(422);
-    expect(Object.keys((await json(res)).error.fields).sort()).toEqual(["email", "name", "password", "passwordConfirm"]);
+    expect((await json(res)).error.fields).toEqual({
+      name: "invalid_name",
+      email: "invalid_email",
+      password: "invalid_password",
+      passwordConfirm: "password_mismatch",
+    });
     expect(await setupState(app)).toEqual({ open: true });
   });
 
@@ -120,7 +125,7 @@ describe("POST /api/setup", () => {
     await app.exec(`insert into "user" (id, name, email) values ('o1', 'Ada', 'ada@example.org')`);
     const res = await post(app, "/api/setup", { code: CODE, ...ADMIN });
     expect(res.status).toBe(422);
-    expect((await json(res)).error.fields).toHaveProperty("email");
+    expect((await json(res)).error.fields).toEqual({ email: "email_taken" });
   });
 
   it("recovers from a stale setup marker left without a local admin", async () => {

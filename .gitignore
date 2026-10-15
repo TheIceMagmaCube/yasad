@@ -34,3 +34,6 @@ dist-worker/
 .vscode/
 .DS_Store
 .dev.vars
+frontend/e2e/.data/
+frontend/test-results/
+frontend/playwright-report/

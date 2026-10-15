@@ -25,12 +25,18 @@ describe("loadConfig", () => {
       setupCode: null,
       trustProxy: 0,
       sessionMaxAge: 604800,
+      defaultLanguage: "en",
     });
   });
 
   it("reads the optional settings", () => {
     const config = loadConfig({ ...valid, SETUP_CODE: " " + "c".repeat(24) + " ", TRUST_PROXY: "true", SESSION_MAX_AGE: "3600" });
     expect(config).toMatchObject({ setupCode: "c".repeat(24), trustProxy: 1, sessionMaxAge: 3600 });
+  });
+
+  it("reads DEFAULT_LANGUAGE and rejects an unsupported one", () => {
+    expect(loadConfig({ ...valid, DEFAULT_LANGUAGE: " FR " }).defaultLanguage).toBe("fr");
+    expect(problemsOf({ ...valid, DEFAULT_LANGUAGE: "de" })).toEqual([expect.stringContaining("DEFAULT_LANGUAGE")]);
   });
 
   it("treats an empty SETUP_CODE as unset", () => {

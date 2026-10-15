@@ -83,6 +83,7 @@ It sets `data-theme` (dev override, else cached instance theme), `data-mode` (re
 
 ### Languages
 
+- The API sends codes, not sentences: error codes, and one code per invalid field in setup (`invalid_name`, `invalid_email`, `invalid_password`, `password_mismatch`, `email_taken`).
 - `src/i18n/en.ts` defines the messages (strings and functions such as `invalidCode(left)`); its type is `Messages`. `src/i18n/fr.ts` is `satisfies Messages`, so a missing French key fails `tsc`.
 - `LocaleProvider` picks the language: the person's choice (`yasad.language`), else the first browser language (`navigator.languages`) whose primary subtag is `en` or `fr` (`fr-CA` gives `fr`), else `defaultLanguage` from `/api/instance` (cached in `yasad.instanceLanguage`), else `en`. It keeps `<html lang>` in sync.
 - `useStrings()` returns the current messages. `strings.ts` is removed.
@@ -90,10 +91,10 @@ It sets `data-theme` (dev override, else cached instance theme), `data-mode` (re
 
 ### Components
 
-- shadcn/ui is installed (components copied in `src/components/ui/`): Button, Input, Label, DropdownMenu. Setup and SignIn move to them; `Field` wraps Label and Input.
+- shadcn/ui is installed (components copied in `src/components/ui/`, `components.json` for the CLI): Button, Input, Label, DropdownMenu. Setup and SignIn move to them; `Field` wraps Label and Input.
 - The instance title is also the document title.
 - `AppShell`: skip link ("Skip to content") to `<main id="content">`, header with logo and title on the left, `UserMenu` on the right.
-- `UserMenu` (DropdownMenu, `modal={false}`): name, e-mail and role, Language submenu, Appearance submenu, Sign out. At 320 px the title truncates and the trigger shows the initials.
+- `UserMenu` (DropdownMenu, `modal={false}`): name, e-mail and role, then Language and Appearance as labelled radio groups in the menu itself (submenus overflowed the screen at 320 px), then Sign out. At 320 px the title truncates and the trigger shows the initials.
 - `AuthLayout` shows the instance title and logo, with native `<select>` elements for language and appearance in its footer.
 - Radix injects a `<style>` element for scroll locking in modal mode, which the CSP blocks. Hence `modal={false}` and native selects; the E2E test fails on any CSP violation.
 
@@ -102,7 +103,7 @@ It sets `data-theme` (dev override, else cached instance theme), `data-mode` (re
 - API tests (libSQL and D1, `testApp`): `/api/instance` defaults, stored values, unknown theme falls back to `default`, `defaultLanguage` from the config. Config test: an invalid `DEFAULT_LANGUAGE` is refused.
 - Unit test: theme ids match the CSS files.
 - Frontend tests (Vitest): language priority, mode switching and `data-mode`, user menu content and sign-out, API errors translated by code. Existing tests updated.
-- E2E (`e2e/`, Playwright with `@axe-core/playwright`) against the built `server.ts` on a temporary database, theme set by SQL before each pass:
+- E2E (`frontend/e2e/`, Playwright with `@axe-core/playwright`) against the built `server.ts` on a temporary database, theme set by SQL before each pass:
   - axe on Setup, SignIn and the signed-in home, for each theme, each mode, at 320 px and 1280 px;
   - keyboard test of the user menu: open, arrow keys, Escape, focus back on the trigger;
   - any CSP violation in the console fails the test.

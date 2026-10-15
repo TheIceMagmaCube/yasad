@@ -6,7 +6,11 @@ export type Config = {
   setupCode: string | null;
   trustProxy: number;
   sessionMaxAge: number;
+  defaultLanguage: Language;
 };
+
+export const LANGUAGES = ["en", "fr"] as const;
+export type Language = (typeof LANGUAGES)[number];
 
 export class ConfigError extends Error {
   constructor(readonly problems: string[]) {
@@ -59,11 +63,15 @@ export function loadConfig(raw: RawConfig): Config {
     else problems.push("TRUST_PROXY must be true, false or the number of proxies in front of YASAD.");
   }
 
+  const rawLanguage = raw.DEFAULT_LANGUAGE?.trim().toLowerCase() || "en";
+  const defaultLanguage = LANGUAGES.find((l) => l === rawLanguage);
+  if (!defaultLanguage) problems.push(`DEFAULT_LANGUAGE must be one of: ${LANGUAGES.join(", ")}.`);
+
   if (publicUrl.startsWith("https://")) {
     if (authSecret.startsWith(EXAMPLE_PREFIX)) problems.push("AUTH_SECRET still holds the example value from .env.example.");
     if (setupCode?.startsWith(EXAMPLE_PREFIX)) problems.push("SETUP_CODE still holds the example value from .env.example.");
   }
 
   if (problems.length > 0) throw new ConfigError(problems);
-  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge };
+  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge, defaultLanguage: defaultLanguage! };
 }

@@ -3,25 +3,26 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { type AdminInput, api, ApiError, type User } from "../api";
 import { AuthLayout } from "../components/AuthLayout";
 import { Field, SubmitButton } from "../components/Field";
-import { strings } from "../strings";
+import { Button } from "../components/ui/button";
+import type { Messages } from "../i18n/en";
+import { errorMessage, fieldErrorMessage } from "../i18n/errors";
+import { useStrings } from "../i18n/LocaleProvider";
 
 type Step = "code" | "admin" | "done";
 type FieldErrors = Partial<Record<keyof AdminInput, string>>;
 
-const s = strings.setup;
 const FIELD_ORDER: (keyof AdminInput)[] = ["name", "email", "password", "passwordConfirm"];
 const EMPTY_ADMIN: AdminInput = { name: "", email: "", password: "", passwordConfirm: "" };
 
 /** Return the message for an API error on the setup code. */
-function codeError(err: unknown): string {
-  if (!(err instanceof ApiError)) return strings.errors.unreachable;
-  if (err.body.code === "invalid_code") return s.invalidCode(err.body.attemptsLeft ?? 0);
-  if (err.body.code === "rate_limited") return strings.errors.rateLimited;
-  if (err.body.code === "setup_closed") return s.closed;
-  return strings.errors.generic;
+function codeError(err: unknown, m: Messages): string {
+  if (err instanceof ApiError && err.body.code === "invalid_code") return m.setup.invalidCode(err.body.attemptsLeft ?? 0);
+  if (err instanceof ApiError && err.body.code === "setup_closed") return m.setup.closed;
+  return errorMessage(err, m);
 }
 
 function Steps({ step }: { step: Step }) {
+  const s = useStrings().setup;
   const items = [
     { key: "code", label: s.steps.code },
     { key: "admin", label: s.steps.admin },
@@ -34,7 +35,7 @@ function Steps({ step }: { step: Step }) {
           key={item.key}
           aria-current={i === current ? "step" : undefined}
           className={`flex-1 border-t-4 pt-1 ${
-            i < current ? "border-green-700 text-green-800" : i === current ? "border-zinc-900 font-semibold" : "border-zinc-300 text-zinc-600"
+            i < current ? "border-primary" : i === current ? "border-primary font-semibold" : "border-border text-muted-foreground"
           }`}
         >
           <span className="sr-only">{s.stepLabel(i + 1, items.length)}: </span>
@@ -47,6 +48,8 @@ function Steps({ step }: { step: Step }) {
 }
 
 export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () => void }) {
+  const m = useStrings();
+  const s = m.setup;
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
   const [admin, setAdmin] = useState<AdminInput>(EMPTY_ADMIN);
@@ -81,7 +84,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
       setError(null);
       setStep("admin");
     } catch (err) {
-      fail(codeError(err));
+      fail(codeError(err, m));
       if (err instanceof ApiError && err.body.code === "setup_closed") onClosed();
     } finally {
       setBusy(false);
@@ -104,13 +107,14 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
       setStep("done");
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "invalid_input") {
-        setFieldErrors(err.body.fields ?? {});
-        fail(s.checkFields, err.body.fields);
+        const fields = Object.fromEntries(Object.entries(err.body.fields ?? {}).map(([id, code]) => [id, fieldErrorMessage(code, m)]));
+        setFieldErrors(fields);
+        fail(s.checkFields, fields);
       } else if (err instanceof ApiError && err.body.code === "invalid_code") {
         setStep("code");
-        fail(codeError(err));
+        fail(codeError(err, m));
       } else {
-        fail(codeError(err));
+        fail(codeError(err, m));
         if (err instanceof ApiError && err.body.code === "setup_closed") onClosed();
       }
     } finally {
@@ -129,7 +133,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
       {step !== "done" && <Steps step={step} />}
 
       {error && (
-        <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-red-700 bg-red-50 p-3 text-sm text-red-800 outline-none">
+        <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-destructive p-3 text-sm text-destructive outline-none">
           <p>{error.text}</p>
           {FIELD_ORDER.some((id) => error.fields[id]) && (
             <ul className="mt-2 list-disc pl-5">
@@ -154,7 +158,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
 
       {step === "code" && (
         <form onSubmit={submitCode} noValidate>
-          <p className="mt-4 text-sm text-zinc-700">{s.codeHint}</p>
+          <p className="mt-4 text-sm text-muted-foreground">{s.codeHint}</p>
           <Field
             id="code"
             label={s.codeLabel}
@@ -203,32 +207,29 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
             error={fieldErrors.passwordConfirm}
           />
           <SubmitButton busy={busy}>{s.create}</SubmitButton>
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => {
               setError(null);
               setStep("code");
             }}
-            className="mt-3 w-full text-sm text-zinc-700 underline outline-none focus-visible:ring-2 focus-visible:ring-zinc-900"
+            className="mt-3 w-full"
           >
-            {strings.back}
-          </button>
+            {m.back}
+          </Button>
         </form>
       )}
 
       {step === "done" && created && (
         <div>
-          <p className="mt-4 rounded-md border border-green-700 bg-green-50 p-3 text-sm text-green-900">{s.doneSignedIn(created.name)}</p>
-          <p className="mt-3 rounded-md border border-amber-600 bg-amber-50 p-3 text-sm text-amber-950">
+          <p className="mt-4 rounded-md border border-primary p-3 text-sm">{s.doneSignedIn(created.name)}</p>
+          <p className="mt-3 rounded-md border-2 border-primary bg-muted p-3 text-sm">
             <strong>{s.doneNoticeTitle}</strong> {s.doneNotice}
           </p>
-          <button
-            type="button"
-            onClick={onDone}
-            className="mt-6 w-full rounded-md bg-zinc-900 px-4 py-2 font-semibold text-white outline-none hover:bg-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
-          >
+          <Button type="button" onClick={onDone} className="mt-6 w-full">
             {s.goToApp}
-          </button>
+          </Button>
         </div>
       )}
     </AuthLayout>

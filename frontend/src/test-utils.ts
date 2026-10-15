@@ -1,4 +1,9 @@
+import { render } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { vi } from "vitest";
+
+import { LocaleProvider } from "./i18n/LocaleProvider";
+import { ThemeProvider } from "./theme/ThemeProvider";
 
 type Route = { status: number; body?: unknown };
 export type Routes = Record<string, Route | Route[]>;
@@ -24,4 +29,9 @@ export function mockApi(routes: Routes) {
 /** Return the JSON body sent with the n-th call of the fetch mock. */
 export function sentBody(fetchMock: ReturnType<typeof mockApi>, n: number): unknown {
   return JSON.parse(String(fetchMock.mock.calls[n]![1]!.body));
+}
+
+/** Render inside the language and theme providers, as the app does. */
+export function renderWithProviders(ui: ReactNode) {
+  return render(createElement(LocaleProvider, { defaultLanguage: "en", children: createElement(ThemeProvider, { instanceTheme: "default", children: ui }) }));
 }

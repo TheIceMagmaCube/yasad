@@ -1,8 +1,8 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mockApi, sentBody } from "../test-utils";
+import { mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { SignIn } from "./SignIn";
 
 afterEach(() => {
@@ -21,7 +21,7 @@ describe("SignIn", () => {
   it("signs in with e-mail and password", async () => {
     const fetchMock = mockApi({ "POST /api/auth/sign-in/email": { status: 200, body: {} } });
     const onSignedIn = vi.fn();
-    render(<SignIn onSignedIn={onSignedIn} />);
+    renderWithProviders(<SignIn onSignedIn={onSignedIn} />);
     await signIn("correct horse battery");
     expect(sentBody(fetchMock, 0)).toEqual({ email: "ada@example.org", password: "correct horse battery" });
     expect(onSignedIn).toHaveBeenCalledOnce();
@@ -30,7 +30,7 @@ describe("SignIn", () => {
   it("focuses a clear error on wrong credentials", async () => {
     mockApi({ "POST /api/auth/sign-in/email": { status: 401, body: { code: "INVALID_EMAIL_OR_PASSWORD", message: "Invalid" } } });
     const onSignedIn = vi.fn();
-    render(<SignIn onSignedIn={onSignedIn} />);
+    renderWithProviders(<SignIn onSignedIn={onSignedIn} />);
     await signIn("wrong password!");
     expect(screen.getByRole("alert")).toHaveTextContent("Wrong e-mail or password.");
     expect(screen.getByRole("alert")).toHaveFocus();

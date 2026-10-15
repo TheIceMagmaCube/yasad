@@ -1,0 +1,50 @@
+/* Dusk theme: warm creams and terracotta, to show that a theme can be swapped. */
+[data-theme="dusk"] {
+  --background: oklch(0.985 0.012 75);
+  --foreground: oklch(0.25 0.03 40);
+  --card: oklch(0.995 0.008 75);
+  --card-foreground: oklch(0.25 0.03 40);
+  --popover: oklch(0.995 0.008 75);
+  --popover-foreground: oklch(0.25 0.03 40);
+  --primary: oklch(0.47 0.13 35);
+  --primary-foreground: oklch(0.985 0.012 75);
+  --secondary: oklch(0.94 0.025 70);
+  --secondary-foreground: oklch(0.3 0.05 40);
+  --muted: oklch(0.94 0.025 70);
+  --muted-foreground: oklch(0.47 0.04 45);
+  --accent: oklch(0.92 0.04 65);
+  --accent-foreground: oklch(0.25 0.03 40);
+  --destructive: oklch(0.5 0.19 27);
+  --border: oklch(0.88 0.03 70);
+  --input: oklch(0.6 0.05 50);
+  --ring: oklch(0.47 0.13 35);
+  --header: oklch(0.32 0.07 35);
+  --header-foreground: oklch(0.985 0.012 75);
+  --header-muted: oklch(0.85 0.03 70);
+  --radius: 0.875rem;
+  --font-body: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+}
+
+[data-theme="dusk"][data-mode="dark"] {
+  --background: oklch(0.2 0.025 40);
+  --foreground: oklch(0.95 0.015 75);
+  --card: oklch(0.25 0.03 40);
+  --card-foreground: oklch(0.95 0.015 75);
+  --popover: oklch(0.25 0.03 40);
+  --popover-foreground: oklch(0.95 0.015 75);
+  --primary: oklch(0.8 0.12 65);
+  --primary-foreground: oklch(0.22 0.03 40);
+  --secondary: oklch(0.3 0.03 40);
+  --secondary-foreground: oklch(0.95 0.015 75);
+  --muted: oklch(0.3 0.03 40);
+  --muted-foreground: oklch(0.77 0.03 60);
+  --accent: oklch(0.34 0.04 40);
+  --accent-foreground: oklch(0.95 0.015 75);
+  --destructive: oklch(0.74 0.16 25);
+  --border: oklch(0.36 0.03 40);
+  --input: oklch(0.6 0.04 50);
+  --ring: oklch(0.8 0.12 65);
+  --header: oklch(0.15 0.02 40);
+  --header-foreground: oklch(0.95 0.015 75);
+  --header-muted: oklch(0.8 0.03 60);
+}

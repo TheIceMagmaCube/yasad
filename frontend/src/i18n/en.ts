@@ -1,12 +1,31 @@
-export const strings = {
-  appName: "YASAD",
+export const en = {
   tagline: "One clean screen with the links each person is allowed to see.",
   loading: "Loading…",
   back: "Back",
+  skipToContent: "Skip to content",
   errors: {
     generic: "Something went wrong. Try again.",
     unreachable: "YASAD cannot reach its server. Try again in a moment.",
     rateLimited: "Too many attempts. Try again later.",
+  },
+  fieldErrors: {
+    invalid_name: "Enter a name of 1 to 100 characters.",
+    invalid_email: "Enter a valid e-mail address.",
+    invalid_password: "Use 12 to 128 characters.",
+    password_mismatch: "The passwords do not match.",
+    email_taken: "This e-mail address is already used by another account.",
+  },
+  preferences: {
+    language: "Language",
+    appearance: "Appearance",
+    modes: { system: "System", light: "Light", dark: "Dark" },
+    theme: "Theme (dev only)",
+  },
+  languages: { en: "English", fr: "Français" },
+  roles: { admin: "Administrator", user: "User" },
+  userMenu: {
+    open: (name: string) => `Account menu for ${name}`,
+    signOut: "Sign out",
   },
   setup: {
     title: "Set up YASAD",
@@ -44,6 +63,7 @@ export const strings = {
     title: "Welcome",
     signedInAs: (name: string) => `Signed in as ${name}.`,
     placeholder: "Your links will appear here.",
-    signOut: "Sign out",
   },
 };
+
+export type Messages = typeof en;
