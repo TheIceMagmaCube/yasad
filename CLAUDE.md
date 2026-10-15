@@ -24,7 +24,7 @@ GitHub issues describe the need and the acceptance criteria, not the solution. T
 - `npm test`: the API tests in `backend/test/api/` run twice, on libSQL (`test:node`) and inside workerd on D1 (`test:workers`). Write API tests against `testApp(env)` from `#harness` (fresh database, cookie jar, config overrides), never against a specific driver. Node-only tests live in `backend/test/server/` (real `server.ts` process) and `backend/test/unit/`; frontend tests (Vitest, Testing Library) next to the components.
 - `npm run db:generate --workspace backend` after any change to `backend/src/schema.ts`; commit the migration (CI fails otherwise).
 - `npm run build:worker --workspace backend`: Worker bundle dry run.
-- `docker compose up --build`: production image on :3000.
+- `AUTH_SECRET=... SETUP_CODE=... docker compose up --build`: production image on :3000.
 
 ## Rules that must hold
 
