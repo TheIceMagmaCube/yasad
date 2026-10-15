@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -16,6 +16,12 @@ const databaseUrl = process.env.DATABASE_URL ?? "file:data/yasad.db";
 const migrationsDir = process.env.MIGRATIONS_DIR ?? "drizzle";
 const staticDir = process.env.STATIC_DIR ?? "../frontend/dist";
 const port = Number(process.env.PORT ?? 3000);
+
+// libSQL does not create missing parent directories (SQLite error 14 on a fresh clone).
+// Strip the scheme by hand: new URL("file:data/x.db") would turn the relative path absolute.
+if (databaseUrl.startsWith("file:")) {
+  await mkdir(dirname(databaseUrl.slice("file:".length).split("?")[0]!), { recursive: true });
+}
 
 const db = drizzle(createClient({ url: databaseUrl }), { schema });
 await migrate(db, { migrationsFolder: migrationsDir });
