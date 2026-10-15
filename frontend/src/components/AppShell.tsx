@@ -19,10 +19,10 @@ export function AppShell({ user, onSignOut, children }: { user: User; onSignOut:
         {m.skipToContent}
       </a>
       <header className="flex items-center justify-between gap-4 bg-header px-4 py-2 text-header-foreground">
-        <span className="flex min-w-0 items-center gap-2 font-bold">
+        <a href="/" className="flex min-w-0 items-center gap-2 rounded-md font-bold outline-none focus-visible:ring-2 focus-visible:ring-header-foreground">
           <InstanceLogo className="size-6 shrink-0" />
           <span className="truncate">{title}</span>
-        </span>
+        </a>
         <UserMenu user={user} onSignOut={onSignOut} />
       </header>
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl p-4 outline-none sm:p-8">

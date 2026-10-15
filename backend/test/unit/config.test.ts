@@ -27,6 +27,7 @@ describe("loadConfig", () => {
       sessionMaxAge: 604800,
       defaultLanguage: "en",
       passwordSignIn: true,
+      catalogFile: null,
     });
   });
 

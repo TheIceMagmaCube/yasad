@@ -7,11 +7,15 @@ import { BASE_ENV, client, type TestApp, type TestEnv } from "./shared";
 export { BASE_ENV, TEST_IP } from "./shared";
 export const target = "workers";
 
-const TABLES = ["session", "account", "verification", "user", "setting", "rate_limit"];
+const TABLES = ["link_group", "category_group", "link", "category", "session", "account", "verification", "user", "setting", "rate_limit"];
 
 /** Return a client on the D1 database, emptied first. */
 export async function testApp(overrides: TestEnv = {}): Promise<TestApp> {
-  await env.DB.batch(TABLES.map((table) => env.DB.prepare(`delete from "${table}"`)));
+  await env.DB.batch([
+    ...TABLES.map((table) => env.DB.prepare(`delete from "${table}"`)),
+    // System groups come from a migration and must survive the reset.
+    env.DB.prepare(`delete from "group" where source <> 'system'`),
+  ]);
   const bindings = { DB: env.DB, ...BASE_ENV, ...overrides };
   return client(
     async (req) => worker.fetch(req, bindings),

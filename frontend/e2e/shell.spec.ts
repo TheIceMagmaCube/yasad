@@ -73,6 +73,23 @@ for (const theme of THEMES) {
   }
 }
 
+test("the catalog page previews and imports a file, accessibly", async ({ page }) => {
+  await signIn(page);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      const csp = watchCsp(page);
+      await open(page, "/admin/catalog", theme, mode, 320);
+      await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
+      await page.getByLabel("Catalog file").setInputFiles("../docs/catalog.example.yaml");
+      await expect(page.getByRole("button", { name: "Import" })).toBeVisible();
+      await expectAccessible(page, `catalog preview (${theme}, ${mode})`);
+      expect(csp).toEqual([]);
+    }
+  }
+  await page.getByRole("button", { name: "Import" }).click();
+  await expect(page.getByRole("status")).toHaveText("Catalog imported.");
+});
+
 test("the temporary password screen is accessible", async ({ page }) => {
   await addTemporaryUser();
   const res = await page.request.post("/api/auth/sign-in/email", { data: TEMPORARY });
@@ -97,6 +114,8 @@ test("the account menu works with the keyboard", async ({ page }) => {
 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("banner").getByRole("link", { name: "YASAD" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(trigger).toBeFocused();
   await page.keyboard.press("Enter");

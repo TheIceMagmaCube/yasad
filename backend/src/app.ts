@@ -8,6 +8,7 @@ import type { AppEnv } from "./context";
 import type { DB } from "./db";
 import { apiError } from "./errors";
 import { accountRoutes } from "./routes/account";
+import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { authRoutes } from "./routes/auth";
 import { instance } from "./routes/instance";
 import { setup } from "./routes/setup";
@@ -53,13 +54,11 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
   });
 
   app.use("*", sameOriginOnly);
-  app.use(
-    "*",
-    bodyLimit({
-      maxSize: MAX_BODY,
-      onError: (c) => apiError(c, 413, "payload_too_large", "The request body is too large."),
-    }),
-  );
+  const tooLarge = (c: Context) => apiError(c, 413, "payload_too_large", "The request body is too large.");
+  const catalogLimit = bodyLimit({ maxSize: MAX_CATALOG_BODY, onError: tooLarge });
+  const defaultLimit = bodyLimit({ maxSize: MAX_BODY, onError: tooLarge });
+  // Catalog files can be larger than any other request body.
+  app.use("*", (c, next) => (c.req.path === "/api/admin/catalog" ? catalogLimit : defaultLimit)(c, next));
 
   // While a temporary password is set, only these routes answer; the rest of the API is refused.
   app.use("*", async (c, next) => {
@@ -89,6 +88,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
   app.route("/instance", instance);
   app.route("/setup", setup);
   app.route("/account", accountRoutes);
+  app.route("/admin/catalog", adminCatalog);
   app.route("/auth", authRoutes);
 
   return app;

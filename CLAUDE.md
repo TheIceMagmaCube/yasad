@@ -17,6 +17,7 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
   - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`). `routes/auth.ts` is the allow-list of Better Auth routes (sign-in limits, `PASSWORD_SIGN_IN`); any other `/api/auth/*` path answers 404. Add a Better Auth route there only when the app uses it.
   - `src/server.ts`: Docker/Node entry (libSQL file, runs migrations at startup, serves `frontend/dist`).
   - `src/worker.ts`: Cloudflare Workers entry (D1 binding, static assets from `frontend/dist`).
+  - `src/catalog/`: catalog file format (`format.ts`, YAML and zod), groups by (source, name) (`groups.ts`, `findOrCreateGroup` is also for OIDC sign-in) and the diff and single-batch apply (`sync.ts`). Example in `docs/catalog.example.yaml`, checked by a test.
   - `drizzle/`: generated SQL migrations, one set for both targets.
 - `frontend/`: React, Vite, Tailwind, shadcn/ui. In dev, Vite proxies `/api` to the backend on :3000.
   - `src/theme/themes/<id>.css`: one file per preset theme, defining the tokens (shadcn variables plus `--header*`) in light and dark. Its id must also be in `backend/src/themes.ts`, `src/preferences.ts` and `public/theme-init.js` (tests check all four).
