@@ -5,6 +5,8 @@ export type TestApp = {
   request(path: string, init?: RequestInit): Promise<Response>;
   /** Run one SQL statement directly on the database. */
   exec(sql: string): Promise<void>;
+  /** Run one SQL query directly on the database and return its rows. */
+  query(sql: string): Promise<Record<string, unknown>[]>;
 };
 
 export const BASE_ENV = {
@@ -15,7 +17,11 @@ export const BASE_ENV = {
 export const TEST_IP = "203.0.113.10";
 
 /** Return a test client that keeps cookies between requests, like a browser. */
-export function client(fetch: (req: Request) => Promise<Response>, exec: (sql: string) => Promise<void>): TestApp {
+export function client(
+  fetch: (req: Request) => Promise<Response>,
+  exec: (sql: string) => Promise<void>,
+  query: (sql: string) => Promise<Record<string, unknown>[]>,
+): TestApp {
   const jar = new Map<string, string>();
   return {
     async request(path, init = {}) {
@@ -36,5 +42,6 @@ export function client(fetch: (req: Request) => Promise<Response>, exec: (sql: s
       return res;
     },
     exec,
+    query,
   };
 }

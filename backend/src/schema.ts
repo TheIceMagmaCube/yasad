@@ -24,6 +24,7 @@ export const user = sqliteTable("user", {
   emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
   image: text("image"),
   role: text("role").notNull().default("user"),
+  mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

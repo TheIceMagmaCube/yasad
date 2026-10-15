@@ -7,6 +7,8 @@ import { type Config, loadConfig, type RawConfig } from "./config";
 import type { AppEnv } from "./context";
 import type { DB } from "./db";
 import { apiError } from "./errors";
+import { accountRoutes } from "./routes/account";
+import { authRoutes } from "./routes/auth";
 import { instance } from "./routes/instance";
 import { setup } from "./routes/setup";
 import { sameOriginOnly, withSecurityHeaders } from "./security";
@@ -15,6 +17,13 @@ import { version } from "./version";
 export type { AppEnv } from "./context";
 
 const MAX_BODY = 16 * 1024;
+const OPEN_WITH_TEMPORARY_PASSWORD = new Set([
+  "GET /api/auth/get-session",
+  "POST /api/auth/sign-out",
+  "GET /api/instance",
+  "GET /api/health",
+  "POST /api/account/password",
+]);
 
 /** Runtime services each entry (server.ts, worker.ts) provides. */
 export type AppDeps = {
@@ -52,6 +61,16 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     }),
   );
 
+  // While a temporary password is set, only these routes answer; the rest of the API is refused.
+  app.use("*", async (c, next) => {
+    if (OPEN_WITH_TEMPORARY_PASSWORD.has(`${c.req.method} ${c.req.path}`) || !c.req.header("cookie")) return next();
+    const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+    if (current?.user.mustChangePassword) {
+      return apiError(c, 403, "password_change_required", "Choose a new password before going on.");
+    }
+    await next();
+  });
+
   app.get("/health", async (c) => {
     let database = true;
     try {
@@ -69,7 +88,8 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
 
   app.route("/instance", instance);
   app.route("/setup", setup);
-  app.on(["GET", "POST"], "/auth/*", (c) => authFor(c).handler(c.req.raw));
+  app.route("/account", accountRoutes);
+  app.route("/auth", authRoutes);
 
   return app;
 }

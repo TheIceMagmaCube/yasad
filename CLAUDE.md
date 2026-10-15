@@ -14,7 +14,7 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
   - `src/app.ts`: runtime-agnostic app. Everything shared goes here or below. Each entry passes `getDb`, `getRawConfig` and `getClientIp`.
   - `src/config.ts`: environment validation, shared by both entries. `src/auth.ts`: Better Auth, mounted on `/api/auth/*`, public sign-up disabled.
   - `src/security.ts`: security headers (CSP and others) and the same-origin check on state-changing requests. `frontend/public/_headers` is generated from it for the Worker's static assets; a test fails when they drift.
-  - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`).
+  - `src/routes/`: YASAD routes; errors use `apiError()` (`{ error: { code, message } }`). `routes/auth.ts` is the allow-list of Better Auth routes (sign-in limits, `PASSWORD_SIGN_IN`); any other `/api/auth/*` path answers 404. Add a Better Auth route there only when the app uses it.
   - `src/server.ts`: Docker/Node entry (libSQL file, runs migrations at startup, serves `frontend/dist`).
   - `src/worker.ts`: Cloudflare Workers entry (D1 binding, static assets from `frontend/dist`).
   - `drizzle/`: generated SQL migrations, one set for both targets.
@@ -46,6 +46,7 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
 - WCAG 2.2 AA; keyboard navigation must work everywhere.
 - Components use theme tokens only (`bg-background`, `text-primary`, `border-input`...), never raw Tailwind colors, so a theme can be swapped without touching them. A new theme must pass the E2E axe run in both modes.
 - The API returns error codes, never sentences meant for display; the frontend translates them.
+- A user with `must_change_password` gets 403 `password_change_required` on every API route outside the short list in `app.ts`. New routes are covered automatically; do not add to that list without a reason.
 - Radix components that inject `<style>` (modal menus, Select, Dialog scroll lock) break the CSP: use non-modal variants or native elements. The E2E fails on any CSP violation.
 
 ## Conventions

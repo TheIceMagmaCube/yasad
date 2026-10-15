@@ -18,6 +18,7 @@ export async function testApp(overrides: TestEnv = {}): Promise<TestApp> {
     async (sql) => {
       await env.DB.prepare(sql).run();
     },
+    async (sql) => (await env.DB.prepare(sql).all<Record<string, unknown>>()).results,
   );
 }
 

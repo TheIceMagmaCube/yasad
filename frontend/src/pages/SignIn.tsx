@@ -5,10 +5,16 @@ import { AuthLayout } from "../components/AuthLayout";
 import { Field, SubmitButton } from "../components/Field";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
+import { useInstance } from "../instance";
 
-export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+/**
+ * Sign-in screen. With password sign-in off, the default path only says so; `local` (the
+ * /sign-in/local path) still shows the form, which the server accepts for local admins only.
+ */
+export function SignIn({ onSignedIn, local = false }: { onSignedIn: () => void; local?: boolean }) {
   const m = useStrings();
   const s = m.signIn;
+  const { passwordSignIn } = useInstance();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +39,19 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     }
   }
 
+  if (!passwordSignIn && !local) {
+    return (
+      <AuthLayout>
+        <h1 className="text-2xl font-bold">{s.disabledTitle}</h1>
+        <p className="mt-4 text-sm">{s.disabled}</p>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout>
       <h1 className="text-2xl font-bold">{s.title}</h1>
+      {!passwordSignIn && <p className="mt-2 text-sm text-muted-foreground">{s.adminsOnly}</p>}
       {error && (
         <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-destructive p-3 text-sm text-destructive outline-none">
           {error}

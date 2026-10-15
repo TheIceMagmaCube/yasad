@@ -163,7 +163,7 @@ describe("authentication", () => {
   it("refuses public sign-up", async () => {
     const app = await testApp({ SETUP_CODE: CODE });
     const res = await post(app, "/api/auth/sign-up/email", { name: "Eve", email: "eve@example.org", password: "password-of-eve" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
     expect(await setupState(app)).toEqual({ open: true });
   });
 

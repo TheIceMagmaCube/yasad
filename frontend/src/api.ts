@@ -17,7 +17,7 @@ export class ApiError extends Error {
 }
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
-export type User = { name: string; email: string; role: string };
+export type User = { name: string; email: string; role: string; mustChangePassword?: boolean };
 export type AdminInput = { name: string; email: string; password: string; passwordConfirm: string };
 
 /**
@@ -48,4 +48,6 @@ export const api = {
   session: async () => (await call<{ user: User } | null>("/api/auth/get-session"))?.user ?? null,
   signIn: (email: string, password: string) => call<unknown>("/api/auth/sign-in/email", post({ email, password })),
   signOut: () => call<unknown>("/api/auth/sign-out", post({})),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    call<void>("/api/account/password", post({ currentPassword, newPassword })),
 };

@@ -27,6 +27,7 @@ export function createAuth(db: DB, config: Config) {
     user: {
       additionalFields: {
         role: { type: "string", required: false, defaultValue: "user", input: false },
+        mustChangePassword: { type: "boolean", required: false, defaultValue: false, input: false },
       },
     },
     session: { expiresIn: config.sessionMaxAge },

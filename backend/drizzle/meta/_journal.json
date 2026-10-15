@@ -15,6 +15,13 @@
       "when": 1792049160360,
       "tag": "0001_solid_the_anarchist",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792056511847,
+      "tag": "0002_lovely_turbo",
+      "breakpoints": true
     }
   ]
 }
