@@ -269,8 +269,30 @@ describe("AdminUsers", () => {
     await userEv.click(screen.getByRole("button", { name: "Create the account" }));
     await userEv.click(screen.getByRole("button", { name: "Cancel" }));
     release(new Response(JSON.stringify({ error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } }), { status: 422 }));
+    // Read once, as the alert appears: not announced a second time.
     expect(await screen.findByRole("alert")).toHaveTextContent("This e-mail address is already used by another account.");
-    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("This e-mail address is already used by another account."));
+    expect(getAnnouncer()).not.toHaveTextContent("already used");
+    expect(fetchMock.mock.calls.filter((c) => c[1]?.method === "POST")).toHaveLength(1);
+  });
+
+  it("shows a creation error under the toolbar when the form was closed and opened again, leaving the new form alone", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": list(ADA) });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Ada", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "New user" }));
+    await userEv.type(screen.getByLabelText("Name"), "Bob");
+    await userEv.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Create the account" }));
+    await userEv.keyboard("{Escape}");
+    await userEv.click(screen.getByRole("button", { name: "New user" }));
+    await userEv.type(screen.getByLabelText("Name"), "Zoe");
+    release(new Response(JSON.stringify({ error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } }), { status: 422 }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This e-mail address is already used by another account.");
+    expect(screen.getByLabelText("Name")).toHaveValue("Zoe");
+    expect(screen.queryByRole("group", { name: "Check the highlighted fields." })).toBeNull();
   });
 
   it("selects the secret for Ctrl+C when the clipboard is not available", async () => {
@@ -290,7 +312,7 @@ describe("AdminUsers", () => {
     expect(field).toHaveAccessibleDescription(/press Ctrl\+C/);
   });
 
-  it("creates an account, shows its secret in the new row, and focuses its Edit button once noted", async () => {
+  it("creates an account, shows its secret in the new row though the filter hides it, and focuses its Edit button once noted", async () => {
     const { fetchMock, userEv } = await renderPage({
       "GET /api/admin/users": [list(ADA), list(ADA, BOB)],
       "POST /api/admin/users": { status: 201, body: { user: BOB, temporaryPassword: "abcdefghijkmnopqrstu" } },
@@ -307,8 +329,8 @@ describe("AdminUsers", () => {
     const secret = await within(row("Bob")).findByRole("region", { name: "Temporary password for Bob" });
     expect(secret).toHaveFocus();
     expect(sentBody(fetchMock, 1)).toEqual({ name: "Bob", email: "bob@example.invalid", role: "user" });
-    // The filter hid the new account: it was cleared.
-    expect(screen.getByLabelText("Filter by name or e-mail")).toHaveValue("");
+    // The filter would hide the new account: its secret keeps the row, and the filter stays as typed.
+    expect(screen.getByLabelText("Filter by name or e-mail")).toHaveValue("ada");
     expect(add).toHaveAttribute("aria-expanded", "false");
     await userEv.click(within(secret).getByRole("button", { name: "I have noted it" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Edit Bob" })).toHaveFocus());

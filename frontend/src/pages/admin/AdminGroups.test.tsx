@@ -1,4 +1,4 @@
-import { cleanup, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -185,15 +185,29 @@ describe("AdminGroups", () => {
   });
 
   it("replaces a group deleted elsewhere by a focused message when a member change finds it gone", async () => {
-    const { userEv } = await renderPage(
+    const { fetchMock, userEv } = await renderPage(
       routes({
         "GET /api/admin/groups": [groups(CONTRACTORS, STAFF), groups(CONTRACTORS)],
         "PUT /api/admin/groups/g2/members/bob": { status: 404, body: { error: { code: "not_found", message: "" } } },
       }),
     );
+    // Hold the reload that follows the not_found, to see what shows meanwhile.
+    let reload!: () => void;
+    const held = new Promise<void>((resolve) => (reload = resolve));
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/admin/groups" && (init?.method ?? "GET") === "GET") await held;
+      return answer(path, init);
+    });
     await userEv.click(screen.getByRole("button", { name: "Members (0) of Staff" }));
     await userEv.click(within(row("Staff")).getByRole("button", { name: "Add Bob to Staff" }));
-    expect(await screen.findByRole("group", { name: "This item no longer exists." })).toHaveFocus();
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[0] === "/api/admin/groups")).toHaveLength(2));
+    // Nothing is said before the reload tells whether the group is gone: the message is read once.
+    expect(screen.queryByRole("group", { name: "This item no longer exists." })).toBeNull();
+    expect(within(row("Staff")).getByRole("button", { name: "Add Bob to Staff" })).toHaveAttribute("aria-disabled", "true");
+    reload();
+    await waitFor(() => expect(document.activeElement?.closest('[data-slot="tombstone"]')).not.toBeNull());
+    expect(screen.getAllByRole("group", { name: "This item no longer exists." })).toHaveLength(1);
     expect(screen.queryByText("Staff", { selector: "p[id$='-title']" })).toBeNull();
   });
 
@@ -232,6 +246,27 @@ describe("AdminGroups", () => {
     expect(await within(row("Staff")).findByRole("group", { name: "Check the highlighted fields." })).toHaveFocus();
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAccessibleDescription(/already has this name/);
+  });
+
+  it("keeps a new group shown under a filter that hides it, the filter kept and its count not read over the success", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const created: AdminGroup = { id: "g3", name: "Reviewers", source: "local", memberIds: [], categories: 0, links: 0 };
+      const { userEv } = await renderPage(
+        routes({ "GET /api/admin/groups": [groups(CONTRACTORS), groups(CONTRACTORS, created)], "POST /api/admin/groups": { status: 201, body: { group: created } } }),
+      );
+      await userEv.type(screen.getByLabelText("Filter groups"), "contr");
+      await act(() => vi.advanceTimersByTimeAsync(600));
+      await userEv.click(screen.getByRole("button", { name: "New group" }));
+      await userEv.type(screen.getByLabelText("Name"), "Reviewers");
+      await userEv.click(screen.getByRole("button", { name: "Create the group" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Members (0) of Reviewers" })).toHaveFocus());
+      expect(screen.getByLabelText("Filter groups")).toHaveValue("contr");
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(getAnnouncer()).toHaveTextContent("Group Reviewers created.");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("creates a group and focuses its Members button", async () => {

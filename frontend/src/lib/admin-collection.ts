@@ -15,7 +15,10 @@ export type AdminCollection<T> = {
   retrying: boolean;
   /** Load again after a failed load. */
   retry: () => void;
-  /** Reload while the list stays shown; resolve with the new data once shown, or null when it failed or was overtaken. */
+  /**
+   * Reload while the list stays shown; resolve with the new data once applied (before it renders), or null when it
+   * failed or was overtaken.
+   */
   refresh: () => Promise<T | null>;
   /** Number of failed refreshes in a row, 0 after a successful one: the list shown may be out of date. */
   refreshFailures: number;

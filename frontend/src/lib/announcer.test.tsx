@@ -164,6 +164,34 @@ describe("useDebouncedStatus", () => {
     expect(region()).toHaveTextContent("");
   });
 
+  it("stays silent when an action changes the text before the delay ends", () => {
+    function Typed() {
+      const [query, setQuery] = useState("");
+      const [n, setN] = useState(1);
+      useDebouncedStatus(query, `${n} people match`);
+      return (
+        <>
+          <button type="button" onClick={() => setQuery("ken")}>
+            Type
+          </button>
+          <button type="button" onClick={() => setN(0)}>
+            Add
+          </button>
+        </>
+      );
+    }
+    render(
+      <AnnouncerProvider>
+        <Typed />
+      </AnnouncerProvider>,
+    );
+    act(() => screen.getByRole("button", { name: "Type" }).click());
+    act(() => vi.advanceTimersByTime(300));
+    act(() => screen.getByRole("button", { name: "Add" }).click());
+    act(() => vi.advanceTimersByTime(1000));
+    expect(region()).toHaveTextContent("");
+  });
+
   it("announces only the count that stays for 500 ms", () => {
     render(
       <AnnouncerProvider>

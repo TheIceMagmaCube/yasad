@@ -21,7 +21,7 @@ import { Label } from "../../components/ui/label";
 import type { Messages } from "../../i18n/en";
 import { useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
-import { rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { focusIsLost, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce, useDebouncedStatus } from "../../lib/announcer";
 import { matchesFilter, prepareFilter } from "../../lib/filter";
 import { claimFocus, focusById } from "../../lib/focus";
@@ -99,9 +99,12 @@ export function AdminGroups() {
     panel.toggle(key);
   };
 
-  /** After a success: close the panel that ran it and focus `focusId` (its trigger by default), or only say it. */
-  const succeed = (key: string, text: string, focusId = groupTrigger(key)) => {
-    const open = panel.stillOpen(key);
+  /**
+   * After a success: close the panel that ran it and focus `focusId`; if the person moved on (`stillOpen` false),
+   * only say it.
+   */
+  const succeed = (stillOpen: () => boolean, text: string, focusId: string) => {
+    const open = stillOpen();
     if (open) panel.close();
     feedback.say(text, open ? focusById(focusId) : undefined);
     void collection.refresh();
@@ -109,12 +112,11 @@ export function AdminGroups() {
 
   /**
    * Replace the row of a group the server no longer has by a message, then reload. The message takes the focus when
-   * the panel that asked is still open, or when the focus is in the row anyway (Cancel pressed while it ran).
+   * the focus is in the row (its panel, or its buttons after Cancel) or lost; elsewhere it is only announced.
    */
-  const gone = (group: AdminGroup, key: string, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
-    const open = panel.stillOpen(key);
-    if (open) panel.close();
-    if (open || rowHasFocus(`group-${group.id}-title`)) {
+  const gone = (group: AdminGroup, stillOpen: () => boolean, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
+    if (stillOpen()) panel.close();
+    if (rowHasFocus(`group-${group.id}-title`) || focusIsLost()) {
       const section = shownRef.current.filter((g) => g.source === group.source);
       feedback.bury({ id: group.id, text, variant, section: group.source, index: Math.max(0, section.findIndex((g) => g.id === group.id)) });
     } else announce(text);
@@ -122,54 +124,56 @@ export function AdminGroups() {
     void collection.refresh();
   };
 
-  const failed = (group: AdminGroup, key: string, err: unknown) => {
-    if (isNotFound(err)) return gone(group, key);
-    if (panel.stillOpen(key)) throw err;
+  /** Report the failure of a row action: in its panel when still open (rethrown), else in the row. */
+  const failed = (group: AdminGroup, stillOpen: () => boolean, err: unknown) => {
+    if (isNotFound(err)) return gone(group, stillOpen);
+    if (stillOpen()) throw err;
     feedback.rowError(group.id, adminErrorText(err, m));
   };
 
   const replaceGroup = (group: AdminGroup) => collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? group : g)) }));
 
   async function create(name: string) {
+    const stillOpen = panel.claim(NEW);
     let group: AdminGroup;
     try {
       ({ group } = await api.createGroup(name));
     } catch (err) {
-      if (panel.stillOpen(NEW)) throw err;
-      // The form is gone: say it under the toolbar, where it was.
-      const text = adminErrorText(err, m);
-      feedback.rowError(NEW, text);
-      announce(text);
+      if (stillOpen()) throw err;
+      // The form is gone: say it under the toolbar, where it was; the alert is read as it appears.
+      feedback.rowError(NEW, adminErrorText(err, m));
       return;
     }
     collection.setData((d) => ({ ...d, groups: [...d.groups, group] }));
-    if (!matchesFilter(query, group.name)) changeQuery("");
-    succeed(NEW, s.created(group.name), `group-${group.id}-members`);
+    // Shown whatever the filter, which stays as typed.
+    feedback.pin(group.id);
+    succeed(stillOpen, s.created(group.name), `group-${group.id}-members`);
   }
 
   async function rename(group: AdminGroup, name: string) {
     const key = `rename:${group.id}`;
     if (name.trim() === group.name) return panel.cancel();
+    const stillOpen = panel.claim(key);
     try {
       const { group: renamed } = await api.renameGroup(group.id, name);
       replaceGroup(renamed);
       feedback.pin(renamed.id);
       invalidateHome();
-      succeed(key, s.renamed(renamed.name));
+      succeed(stillOpen, s.renamed(renamed.name), groupTrigger(key));
     } catch (err) {
-      failed(group, key, err);
+      failed(group, stillOpen, err);
     }
   }
 
   async function remove(group: AdminGroup) {
-    const key = `delete:${group.id}`;
+    const stillOpen = panel.claim(`delete:${group.id}`);
     try {
       await api.deleteGroup(group.id);
     } catch (err) {
-      return failed(group, key, err);
+      return failed(group, stillOpen, err);
     }
     invalidateHome();
-    gone(group, key, s.deleted(group.name), "success");
+    gone(group, stillOpen, s.deleted(group.name), "success");
   }
 
   const setPair = (pair: string, on: boolean) =>
@@ -189,55 +193,54 @@ export function AdminGroups() {
     });
 
   /**
-   * Show the error of a member change in the members panel, focused, or in the row when the panel was closed. A
-   * not_found reloads: when the group itself is gone, its row becomes a message; otherwise the person was.
+   * Report a failed member change. A not_found first reloads: when the group itself is gone, its row becomes a
+   * message, and nothing else is shown. Otherwise the error goes in the members panel, focused, or in the row when
+   * the panel was closed.
    */
-  const memberFailed = async (group: AdminGroup, err: unknown) => {
-    const key = `members:${group.id}`;
+  const memberFailed = async (group: AdminGroup, stillOpen: () => boolean, err: unknown) => {
+    if (isNotFound(err)) {
+      // Resolves before the reload renders, so the row, its place and the focus in it can still be read.
+      const fresh = await collection.refresh();
+      if (fresh && !fresh.groups.some((g) => g.id === group.id)) return gone(group, stillOpen);
+    }
     const text = adminErrorText(err, m);
-    if (panel.stillOpen(key)) setMemberErrors((prev) => ({ ...prev, [group.id]: { text, n: (prev[group.id]?.n ?? 0) + 1 } }));
+    if (stillOpen()) setMemberErrors((prev) => ({ ...prev, [group.id]: { text, n: (prev[group.id]?.n ?? 0) + 1 } }));
     else feedback.rowError(group.id, text);
-    if (!isNotFound(err)) return;
-    const fresh = await collection.refresh();
-    if (fresh && !fresh.groups.some((g) => g.id === group.id)) gone(group, key);
   };
 
-  async function addMember(group: AdminGroup, user: AdminUser) {
+  /** Run a member change with its button pending until the outcome is shown; return whether it succeeded. */
+  async function changeMember(group: AdminGroup, user: AdminUser, stillOpen: () => boolean, request: () => Promise<void>): Promise<boolean> {
     const pair = `${group.id}:${user.id}`;
     setPair(pair, true);
     feedback.clear();
     clearMemberError(group.id);
     try {
-      await api.addMember(group.id, user.id);
+      await request();
+      return true;
     } catch (err) {
-      return memberFailed(group, err);
+      await memberFailed(group, stillOpen, err);
+      return false;
     } finally {
       setPair(pair, false);
     }
+  }
+
+  async function addMember(group: AdminGroup, user: AdminUser) {
+    const stillOpen = panel.claim(`members:${group.id}`);
+    if (!(await changeMember(group, user, stillOpen, () => api.addMember(group.id, user.id)))) return;
     invalidateHome();
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: [...g.memberIds.filter((id) => id !== user.id), user.id] } : g)) }));
-    const open = panel.stillOpen(`members:${group.id}`);
-    feedback.say(s.added(user.name, group.name), open ? focusById(pickerId(group.id)) : undefined);
+    feedback.say(s.added(user.name, group.name), stillOpen() ? focusById(pickerId(group.id)) : undefined);
     void collection.refresh();
   }
 
   async function removeMember(group: AdminGroup, user: AdminUser, neighbours: { next?: string; previous?: string }) {
-    const pair = `${group.id}:${user.id}`;
-    setPair(pair, true);
-    feedback.clear();
-    clearMemberError(group.id);
-    try {
-      await api.removeMember(group.id, user.id);
-    } catch (err) {
-      return memberFailed(group, err);
-    } finally {
-      setPair(pair, false);
-    }
+    const stillOpen = panel.claim(`members:${group.id}`);
+    if (!(await changeMember(group, user, stillOpen, () => api.removeMember(group.id, user.id)))) return;
     invalidateHome();
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: g.memberIds.filter((id) => id !== user.id) } : g)) }));
-    const open = panel.stillOpen(`members:${group.id}`);
     const target = neighbours.next ?? neighbours.previous;
-    const focused = open ? focusById(target ? removeButtonId(group.id, target) : pickerId(group.id)) : undefined;
+    const focused = stillOpen() ? focusById(target ? removeButtonId(group.id, target) : pickerId(group.id)) : undefined;
     feedback.say(s.removed(user.name, group.name), focused);
     void collection.refresh();
   }
@@ -698,7 +701,7 @@ function GroupNameForm({ id, label, submitLabel, pendingLabel, initial, onSubmit
           <SubmitButton pending={pending} pendingLabel={pendingLabel}>
             {submitLabel}
           </SubmitButton>
-          <Button variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel}>
             {m.admin.cancel}
           </Button>
         </FormActions>

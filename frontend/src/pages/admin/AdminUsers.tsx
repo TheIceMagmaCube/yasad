@@ -21,9 +21,9 @@ import { Button } from "../../components/ui/button";
 import { CheckboxField } from "../../components/ui/checkbox";
 import { useLocale, useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
-import { rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { focusIsLost, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce } from "../../lib/announcer";
-import { matchesFilter, prepareFilter } from "../../lib/filter";
+import { prepareFilter } from "../../lib/filter";
 import { focusById } from "../../lib/focus";
 import { useFormErrors } from "../../lib/form-errors";
 import { AdminPageHeader } from "./AdminLayout";
@@ -82,9 +82,12 @@ export function AdminUsers({ me }: { me: User }) {
     panel.toggle(key);
   };
 
-  /** After a success: close the panel that ran it and focus its trigger; if the person moved on, only say it. */
-  const succeed = (key: string, text: string) => {
-    const open = panel.stillOpen(key);
+  /**
+   * After a success: close the panel that ran it and focus its trigger; if the person moved on (`stillOpen` false),
+   * only say it.
+   */
+  const succeed = (stillOpen: () => boolean, key: string, text: string) => {
+    const open = stillOpen();
     if (open) panel.close();
     feedback.say(text, open ? focusById(userTrigger(key)) : undefined);
     void collection.refresh();
@@ -100,12 +103,11 @@ export function AdminUsers({ me }: { me: User }) {
 
   /**
    * Replace the row of a user the server no longer has by a message, then reload. The message takes the focus when
-   * the panel that asked is still open, or when the focus is in the row anyway (Cancel pressed while it ran).
+   * the focus is in the row (its panel, or its buttons after Cancel) or lost; elsewhere it is only announced.
    */
-  const gone = (user: AdminUser, key: string, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
-    const open = panel.stillOpen(key);
-    if (open) panel.close();
-    if (open || rowHasFocus(`user-${user.id}-title`)) {
+  const gone = (user: AdminUser, stillOpen: () => boolean, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
+    if (stillOpen()) panel.close();
+    if (rowHasFocus(`user-${user.id}-title`) || focusIsLost()) {
       feedback.bury({ id: user.id, text, variant, index: Math.max(0, shownRef.current.findIndex((u) => u.id === user.id)) });
     } else announce(text);
     dropSecret(user.id);
@@ -114,42 +116,42 @@ export function AdminUsers({ me }: { me: User }) {
   };
 
   /** Report the failure of a row action: in its panel when still open (rethrown), else in the row. */
-  const failed = (user: AdminUser, key: string, err: unknown) => {
-    if (isNotFound(err)) return gone(user, key);
-    if (panel.stillOpen(key)) throw err;
+  const failed = (user: AdminUser, stillOpen: () => boolean, err: unknown) => {
+    if (isNotFound(err)) return gone(user, stillOpen);
+    if (stillOpen()) throw err;
     feedback.rowError(user.id, adminErrorText(err, m));
   };
 
   async function save(user: AdminUser, changes: UserChanges) {
     const key = `edit:${user.id}`;
     if (Object.keys(changes).length === 0) return panel.cancel();
+    const stillOpen = panel.claim(key);
     try {
       const { user: updated } = await api.updateUser(user.id, changes);
       collection.setData((list) => list.map((u) => (u.id === updated.id ? updated : u)));
       feedback.pin(updated.id);
-      succeed(key, s.edited(updated.name));
+      succeed(stillOpen, key, s.edited(updated.name));
     } catch (err) {
-      failed(user, key, err);
+      failed(user, stillOpen, err);
     }
   }
 
   async function create(input: { name: string; email: string; role: Role }) {
+    const stillOpen = panel.claim(NEW);
     let created: Awaited<ReturnType<typeof api.createUser>>;
     try {
       created = await api.createUser(input);
     } catch (err) {
-      if (panel.stillOpen(NEW)) throw err;
-      // The form is gone: say it under the toolbar, where it was.
-      const text = adminErrorText(err, m);
-      feedback.rowError(NEW, text);
-      announce(text);
+      if (stillOpen()) throw err;
+      // The form is gone: say it under the toolbar, where it was; the alert is read as it appears.
+      feedback.rowError(NEW, adminErrorText(err, m));
       return;
     }
     const { user, temporaryPassword } = created;
-    const open = panel.stillOpen(NEW);
+    const open = stillOpen();
     if (open) panel.close();
+    // Its temporary password keeps the new row shown, whatever the filter.
     collection.setData((list) => [...list.filter((u) => u.id !== user.id), user]);
-    if (!matchesFilter(query, user.name, user.email)) changeQuery("");
     putSecret({ userId: user.id, password: temporaryPassword, then: "edit", focus: open });
     feedback.note(s.created(user.name));
     if (!open) announce(s.created(user.name));
@@ -157,31 +159,33 @@ export function AdminUsers({ me }: { me: User }) {
   }
 
   async function reset(user: AdminUser) {
-    const key = `reset:${user.id}`;
+    const stillOpen = panel.claim(`reset:${user.id}`);
     try {
       const { temporaryPassword } = await api.resetPassword(user.id);
-      const open = panel.stillOpen(key);
+      const open = stillOpen();
       if (open) panel.close();
       putSecret({ userId: user.id, password: temporaryPassword, then: "reset", focus: open });
       if (!open) announce(m.admin.temporaryPassword(user.name));
       void collection.refresh();
     } catch (err) {
-      failed(user, key, err);
+      failed(user, stillOpen, err);
     }
   }
 
   async function remove(user: AdminUser) {
-    const key = `delete:${user.id}`;
+    const stillOpen = panel.claim(`delete:${user.id}`);
     try {
       await api.deleteUser(user.id);
     } catch (err) {
-      return failed(user, key, err);
+      return failed(user, stillOpen, err);
     }
-    gone(user, key, s.deleted(user.name), "success");
+    gone(user, stillOpen, s.deleted(user.name), "success");
   }
 
   const noted = (done: Secret) => {
     dropSecret(done.userId);
+    // Kept shown until the filter changes, so its button can take the focus.
+    feedback.pin(done.userId);
     void focusById(`user-${done.userId}-${done.then}`);
   };
 
@@ -493,7 +497,7 @@ function UserForm(props: UserFormProps) {
           <SubmitButton pending={pending} pendingLabel={edited ? m.admin.saving : s.creating}>
             {edited ? m.admin.save : s.create}
           </SubmitButton>
-          <Button variant="outline" onClick={props.onCancel}>
+          <Button type="button" variant="outline" onClick={props.onCancel}>
             {m.admin.cancel}
           </Button>
         </FormActions>

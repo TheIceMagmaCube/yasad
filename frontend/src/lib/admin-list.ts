@@ -11,8 +11,12 @@ export type RowPanel = {
   close: () => void;
   /** Close the open panel and give the focus back to its trigger: Cancel, or Escape. */
   cancel: () => void;
-  /** Return whether `key` is still the open panel, when the request it started ends. */
-  stillOpen: (key: string) => boolean;
+  /**
+   * Take hold of this opening of panel `key` when its request starts; the function returned says, when the
+   * request ends, whether that same opening is still there. A panel closed then opened again is another opening:
+   * its form is a new one, which never saw the request.
+   */
+  claim: (key: string) => () => boolean;
   /** Close the open panel on an Escape that nothing inside handled; put it on the page. */
   onKeyDown: (event: KeyboardEvent) => void;
 };
@@ -23,27 +27,32 @@ export type RowPanel = {
  */
 export function useRowPanel(triggerOf: (key: string) => string): RowPanel {
   const [open, setOpen] = useState<string | null>(null);
-  // Read when a request ends, after renders that the closure of its start did not see.
-  const current = useRef<string | null>(null);
+  // Read when a request ends, after renders that the closure of its start did not see. `opening` counts every
+  // change, so two openings of the same panel differ.
+  const current = useRef<{ key: string | null; opening: number }>({ key: null, opening: 0 });
 
   return useMemo<RowPanel>(() => {
     const set = (key: string | null) => {
-      current.current = key;
+      current.current = { key, opening: current.current.opening + 1 };
       setOpen(key);
     };
     const cancel = () => {
-      const key = current.current;
+      const { key } = current.current;
       set(null);
       if (key) void focusById(triggerOf(key));
     };
     return {
       isOpen: (key) => open === key,
-      toggle: (key) => set(current.current === key ? null : key),
+      toggle: (key) => set(current.current.key === key ? null : key),
       close: () => set(null),
       cancel,
-      stillOpen: (key) => current.current === key,
+      claim: (key) => {
+        const held = current.current;
+        if (held.key !== key) return () => false;
+        return () => current.current === held;
+      },
       onKeyDown: (event) => {
-        if (event.key !== "Escape" || event.defaultPrevented || current.current === null) return;
+        if (event.key !== "Escape" || event.defaultPrevented || current.current.key === null) return;
         event.preventDefault();
         cancel();
       },
@@ -141,4 +150,9 @@ export function withTombstones<T extends { id: string }>(items: readonly T[], to
 export function rowHasFocus(titleId: string): boolean {
   const row = document.getElementById(titleId)?.closest("li");
   return !!row && row.contains(document.activeElement);
+}
+
+/** Return whether nothing holds the focus (it fell to the body when its element was removed). */
+export function focusIsLost(): boolean {
+  return document.activeElement === null || document.activeElement === document.body;
 }

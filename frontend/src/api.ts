@@ -30,7 +30,7 @@ export type CatalogDiff = {
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
   warnings: CatalogWarning[];
-  /** Titles of the categories and links the diff lists, and of the categories holding those links. */
+  /** Titles of the categories and links the diff lists or a warning names, with each link's category, and of the categories holding them. */
   labels: { categories: Record<string, string>; links: Record<string, { title: string; categoryId: string }> };
 };
 export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
