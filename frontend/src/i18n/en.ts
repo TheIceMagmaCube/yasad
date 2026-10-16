@@ -5,6 +5,7 @@ export const en = {
   loading: "Loading…",
   back: "Back",
   skipToContent: "Skip to content",
+  pending: "Please wait…",
   errors: {
     generic: "Something went wrong. Try again.",
     unreachable: "YASAD cannot reach its server. Try again in a moment.",
