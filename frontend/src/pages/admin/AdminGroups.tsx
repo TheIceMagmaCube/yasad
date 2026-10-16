@@ -1,13 +1,14 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { type AdminGroup, type AdminUser, api, ApiError } from "../../api";
-import { Field } from "../../components/Field";
+import { Field } from "../../components/form/Field";
+import { NativeSelect } from "../../components/ui/native-select";
 import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { fieldErrorMessage } from "../../i18n/errors";
 import { useStrings } from "../../i18n/LocaleProvider";
 import { invalidateHome } from "../../lib/home-store";
-import { adminErrorText, ConfirmAction, NoticeBox, selectClass, useNotice } from "./shared";
+import { adminErrorText, ConfirmAction, NoticeBox, useNotice } from "./shared";
 
 /** Admin page: list every group, manage local ones and their members; OIDC and built-in groups are read-only. */
 export function AdminGroups() {
@@ -187,14 +188,14 @@ function AddMember({ group, candidates, busy, onAdd }: { group: AdminGroup; cand
         <Label htmlFor={`${id}-user`} className="sr-only">
           {s.memberToAdd(group.name)}
         </Label>
-        <select id={`${id}-user`} className={`${selectClass} mt-0 h-9 py-1`} value={userId} onChange={(e) => setUserId(e.target.value)}>
+        <NativeSelect id={`${id}-user`} controlSize="sm" value={userId} onChange={(e) => setUserId(e.target.value)}>
           <option value="">{s.addMember}</option>
           {candidates.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} ({u.email})
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <Button type="submit" size="sm" variant="outline" disabled={busy || !userId} aria-label={s.addMemberTo(group.name)}>
         {s.addMember}
@@ -232,7 +233,7 @@ function GroupName({ title, submitLabel, initial, onCancel, onSubmit }: {
 
   return (
     <form onSubmit={submit} noValidate aria-label={title} className="mt-4 max-w-md rounded-md border border-border p-4">
-      <Field id={`${id}-name`} label={m.groups.name} required autoComplete="off" autoFocus value={name} onChange={(e) => setName(e.target.value)} error={error} />
+      <Field className="mt-4" id={`${id}-name`} label={m.groups.name} required autoComplete="off" autoFocus value={name} onChange={(e) => setName(e.target.value)} error={error} />
       <div className="mt-4 flex flex-wrap gap-3">
         <Button type="submit" disabled={busy}>
           {submitLabel}

@@ -32,9 +32,17 @@ export function sentBody(fetchMock: ReturnType<typeof mockApi>, n: number): unkn
   return JSON.parse(String(fetchMock.mock.calls[n]![1]!.body));
 }
 
-/** Render inside the language, theme and announcer providers, as the app does. */
+/** Wrap a tree in the language, theme and announcer providers, as the app does. */
+function Providers({ children }: { children: ReactNode }) {
+  return createElement(LocaleProvider, {
+    defaultLanguage: "en",
+    children: createElement(ThemeProvider, { instanceTheme: "default", children: createElement(AnnouncerProvider, { children }) }),
+  });
+}
+
+/** Render inside the language, theme and announcer providers, which `rerender` keeps. */
 export function renderWithProviders(ui: ReactNode) {
-  return render(createElement(LocaleProvider, { defaultLanguage: "en", children: createElement(ThemeProvider, { instanceTheme: "default", children: createElement(AnnouncerProvider, { children: ui }) }) }));
+  return render(ui, { wrapper: Providers });
 }
 
 /** Return the one status region of the component under test, the app's announcer left out. */

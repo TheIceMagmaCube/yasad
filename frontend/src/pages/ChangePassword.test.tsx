@@ -19,11 +19,13 @@ async function fill(current: string, next: string, confirm = next) {
 }
 
 describe("ChangePassword", () => {
-  it("checks length and confirmation before calling the API", async () => {
+  it("checks length and confirmation in one pass before calling the API", async () => {
     const fetchMock = mockApi({});
     renderWithProviders(<ChangePassword onChanged={vi.fn()} />);
-    await fill("temporary password", "short");
-    expect(screen.getByLabelText("New password")).toHaveAccessibleDescription(/Use at least 12 characters./);
+    await fill("temporary password", "short", "other");
+    expect(screen.getByLabelText("New password")).toHaveAccessibleDescription(/Use 12 to 128 characters./);
+    expect(screen.getByLabelText("Confirm new password")).toHaveAccessibleDescription(/The passwords do not match./);
+    expect(screen.getByRole("group", { name: "Check the highlighted fields." })).toHaveFocus();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -32,8 +34,10 @@ describe("ChangePassword", () => {
     const onChanged = vi.fn();
     renderWithProviders(<ChangePassword onChanged={onChanged} />);
     await fill("wrong password!", "a brand new passphrase");
-    expect(screen.getByRole("alert")).toHaveTextContent("The current password is not correct.");
-    expect(screen.getByRole("alert")).toHaveFocus();
+    const summary = screen.getByRole("group", { name: "Check the highlighted fields." });
+    expect(summary).toHaveFocus();
+    expect(summary).toHaveTextContent("The current password is not correct.");
+    expect(screen.getByLabelText("Current password")).toHaveAccessibleDescription("Error: The current password is not correct.");
     expect(onChanged).not.toHaveBeenCalled();
   });
 
