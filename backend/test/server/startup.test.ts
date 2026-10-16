@@ -1,7 +1,7 @@
 // Node-only: starts the real Docker entry (src/server.ts) as a child process.
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -136,6 +136,23 @@ describe("server startup", () => {
       expect(res.headers.get("content-security-policy")).toContain("default-src 'self'");
       expect(res.headers.get("x-frame-options")).toBe("DENY");
     }
+  }, 20_000);
+
+  it("serves icon files as immutable JSON, and a missing one as 404", async () => {
+    const staticDir = await mkdtemp(join(tmpdir(), "yasad-static-"));
+    tmpDirs.push(staticDir);
+    await writeFile(join(staticDir, "index.html"), "<!doctype html><title>YASAD</title>");
+    await mkdir(join(staticDir, "icons", "abc123", "si"), { recursive: true });
+    await writeFile(join(staticDir, "icons", "abc123", "si", "github.json"), '{"path":"M0 0"}');
+    const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${await tmpDb()}`, STATIC_DIR: staticDir });
+    await waitForHealth(server);
+    const icon = await fetch(`${server.url}/icons/abc123/si/github.json`);
+    expect(icon.status).toBe(200);
+    expect(icon.headers.get("content-type")).toContain("application/json");
+    expect(icon.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(icon.headers.get("content-security-policy")).toContain("default-src 'self'");
+    expect((await fetch(`${server.url}/icons/abc123/si/missing.json`)).status).toBe(404);
+    expect((await fetch(`${server.url}/index.html`)).headers.get("cache-control") ?? "").not.toContain("immutable");
   }, 20_000);
 
   it("applies CATALOG_FILE on every start, and refuses to start on an invalid one", async () => {

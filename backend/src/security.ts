@@ -30,10 +30,20 @@ export function securityHeaders(https: boolean): Record<string, string> {
   };
 }
 
+/** Cache policy of the generated icon files: their directory is named after a hash of their content. */
+export const ICONS_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 /** Return the Cloudflare `_headers` file applying the same headers to the Worker's static assets. */
 export function headersFile(): string {
   const lines = Object.entries(securityHeaders(true)).map(([name, value]) => `  ${name}: ${value}`);
-  return ["# Generated from backend/src/security.ts (checked by backend/test/unit/security.test.ts).", "/*", ...lines, ""].join("\n");
+  return [
+    "# Generated from backend/src/security.ts (checked by backend/test/unit/security.test.ts).",
+    "/*",
+    ...lines,
+    "/icons/*",
+    `  Cache-Control: ${ICONS_CACHE_CONTROL}`,
+    "",
+  ].join("\n");
 }
 
 /** Return a middleware adding the security headers to the response, decided by `isHttps`. */
