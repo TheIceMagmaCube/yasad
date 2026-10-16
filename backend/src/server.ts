@@ -15,7 +15,7 @@ import { forwardedClientIp } from "./client-ip";
 import { type Config, ConfigError, loadConfig } from "./config";
 import type { DB } from "./db";
 import * as schema from "./schema";
-import { withSecurityHeaders } from "./security";
+import { ICONS_CACHE_CONTROL, withSecurityHeaders } from "./security";
 import { hasLocalAdmin, SETUP_CODE_STILL_SET } from "./setup-state";
 
 let config: Config;
@@ -82,10 +82,18 @@ server.route(
   "/",
   createApp({ getDb: () => db as unknown as DB, getRawConfig: () => process.env, getClientIp: clientIp }),
 );
-server.use("/*", serveStatic({ root: staticDir }));
-// Single-page app: unknown paths outside /api get index.html.
+server.use(
+  "/*",
+  serveStatic({
+    root: staticDir,
+    onFound: (_path, c) => {
+      if (c.req.path.startsWith("/icons/")) c.header("Cache-Control", ICONS_CACHE_CONTROL);
+    },
+  }),
+);
+// Single-page app: unknown paths outside /api and /icons get index.html.
 server.get("*", async (c) => {
-  if (c.req.path.startsWith("/api/")) return c.notFound();
+  if (c.req.path.startsWith("/api/") || c.req.path.startsWith("/icons/")) return c.notFound();
   try {
     return c.html(await readFile(join(staticDir, "index.html"), "utf8"));
   } catch {

@@ -3,6 +3,7 @@
 **/dist-worker
 **/.wrangler
 **/data
+frontend/public/icons
 .git
 .github
 *.md

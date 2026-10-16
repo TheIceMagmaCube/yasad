@@ -212,6 +212,23 @@ describe("catalog import and export", () => {
     expect(warnings).toContainEqual({ code: "groups_differ_by_case", groups: ["oidc:Developers", "oidc:developers"] });
   });
 
+  it("warns about unknown icons and keeps them as written", async () => {
+    const app = await adminApp();
+    const file = CATALOG.replace("icon: si:jira", "icon: si:backstage_casting").replace("icon: lucide:mail", "icon: lucide:no-such-icon");
+    const { warnings } = (await send(app, file, true)).body.diff;
+    expect(warnings.filter((w) => w.code === "unknown_icon")).toEqual([{ code: "unknown_icon", kind: "link", id: "mail" }]);
+
+    const excluded = file.replace("icon: si:backstage_casting", "icon: si:cocoapods");
+    expect((await send(app, excluded, true)).body.diff.warnings.filter((w) => w.code === "unknown_icon")).toEqual([
+      { code: "unknown_icon", kind: "link", id: "jira" },
+      { code: "unknown_icon", kind: "link", id: "mail" },
+    ]);
+    expect((await importFile(app, excluded)).status).toBe(200);
+    const exported = parse(await (await app.request("/api/admin/catalog")).text()) as { categories: { links: { icon?: string }[] }[] };
+    expect(exported.categories.flatMap((c) => c.links.map((l) => l.icon))).toEqual(["si:cocoapods", undefined, "lucide:no-such-icon"]);
+    expect((await send(app, CATALOG, true)).body.diff.warnings.filter((w) => w.code === "unknown_icon")).toEqual([]);
+  });
+
   it("is refused to non-admins and without a session", async () => {
     const anonymous = await testApp();
     expect((await anonymous.request("/api/admin/catalog")).status).toBe(401);

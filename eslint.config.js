@@ -4,7 +4,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/dist/", "**/dist-worker/", "**/.wrangler/", "**/node_modules/", "backend/drizzle/"] },
+  { ignores: ["**/dist/", "**/dist-worker/", "**/.wrangler/", "**/node_modules/", "backend/drizzle/", "backend/src/icons/names.ts", "frontend/public/icons/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -27,7 +27,7 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["backend/**/*.{ts,mjs}"],
+    files: ["backend/**/*.{ts,mjs}", "scripts/**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
 );

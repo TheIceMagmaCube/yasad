@@ -1,12 +1,16 @@
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import type { DB } from "../db";
+import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, setting } from "../schema";
 import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog } from "./format";
 import { groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 
 /** A point the admin should check before applying, as a code the interface translates. */
-export type CatalogWarning = { code: "no_group"; kind: "category" | "link"; id: string } | { code: "groups_differ_by_case"; groups: string[] };
+export type CatalogWarning =
+  | { code: "no_group"; kind: "category" | "link"; id: string }
+  | { code: "unknown_icon"; kind: "link"; id: string }
+  | { code: "groups_differ_by_case"; groups: string[] };
 
 export type CatalogDiff = {
   added: { categories: string[]; links: string[] };
@@ -142,7 +146,11 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
 
   for (const cat of nxt.categories) {
     if (cat.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "category", id: cat.id });
-    for (const lnk of cat.links) if (lnk.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "link", id: lnk.id });
+    for (const lnk of cat.links) {
+      if (lnk.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "link", id: lnk.id });
+      // Kept as written: the file may target another icon version.
+      if (lnk.icon && !resolveIcon(lnk.icon)) diff.warnings.push({ code: "unknown_icon", kind: "link", id: lnk.id });
+    }
   }
   const byLowerCase = new Map<string, Set<string>>();
   for (const ref of new Set([...refs, ...existing])) {
