@@ -28,6 +28,23 @@ export const fr = {
   },
   languages: { en: "English", fr: "Français" },
   roles: { admin: "Administrateur", user: "Utilisateur" },
+  nav: {
+    label: "Principale",
+    home: "Mes liens",
+    homeShort: "Liens",
+    admin: "Administration",
+    adminShort: "Admin",
+  },
+  notFound: {
+    title: "Page introuvable",
+    body: "Cette adresse ne correspond à aucune page.",
+    home: "Retour à mes liens",
+  },
+  forbidden: {
+    title: "Réservé aux administrateurs",
+    body: "Seuls les administrateurs peuvent ouvrir cette page.",
+    home: "Retour à mes liens",
+  },
   userMenu: {
     open: (name: string) => `Menu du compte de ${name}`,
     signOut: "Se déconnecter",
@@ -109,7 +126,6 @@ export const fr = {
     applied: "Catalogue importé.",
   },
   admin: {
-    menu: "Administration",
     title: "Administration",
     tabs: { users: "Utilisateurs", groups: "Groupes", catalog: "Catalogue" },
     errors: {

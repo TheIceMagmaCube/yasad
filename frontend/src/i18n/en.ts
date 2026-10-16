@@ -28,6 +28,23 @@ export const en = {
   },
   languages: { en: "English", fr: "Français" },
   roles: { admin: "Administrator", user: "User" },
+  nav: {
+    label: "Main",
+    home: "My links",
+    homeShort: "Links",
+    admin: "Administration",
+    adminShort: "Admin",
+  },
+  notFound: {
+    title: "Page not found",
+    body: "This address does not match any page.",
+    home: "Back to my links",
+  },
+  forbidden: {
+    title: "Admins only",
+    body: "Only administrators can open this page.",
+    home: "Back to my links",
+  },
   userMenu: {
     open: (name: string) => `Account menu for ${name}`,
     signOut: "Sign out",
@@ -107,7 +124,6 @@ export const en = {
     applied: "Catalog imported.",
   },
   admin: {
-    menu: "Administration",
     title: "Administration",
     tabs: { users: "Users", groups: "Groups", catalog: "Catalog" },
     errors: {

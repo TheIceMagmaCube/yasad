@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
+import { Link } from "../../components/Link";
 import { useStrings } from "../../i18n/LocaleProvider";
+import { useDocumentTitle } from "../../lib/page";
 
 export const ADMIN_TABS = ["users", "groups", "catalog"] as const;
 export type AdminTab = (typeof ADMIN_TABS)[number];
@@ -14,20 +16,23 @@ export function adminTab(path: string): AdminTab | null {
 /** Frame of the administration pages: title and one link per page, the current one marked. */
 export function AdminLayout({ tab, children }: { tab: AdminTab; children: ReactNode }) {
   const m = useStrings();
+  useDocumentTitle(m.admin.tabs[tab], m.admin.title);
   return (
     <div>
-      <h1 className="text-2xl font-bold">{m.admin.title}</h1>
+      <h1 tabIndex={-1} className="text-2xl font-bold outline-none">
+        {m.admin.title}
+      </h1>
       <nav aria-label={m.admin.title} className="mt-4 border-b border-border">
         <ul className="flex flex-wrap gap-1">
           {ADMIN_TABS.map((t) => (
             <li key={t}>
-              <a
+              <Link
                 href={`/admin/${t}`}
                 aria-current={t === tab ? "page" : undefined}
                 className="-mb-px inline-block rounded-t-md border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:border-primary aria-[current=page]:text-foreground"
               >
                 {m.admin.tabs[t]}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
