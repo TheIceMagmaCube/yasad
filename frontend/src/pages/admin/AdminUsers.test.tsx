@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminUser } from "../../api";
-import { mockApi, renderWithProviders, sentBody } from "../../test-utils";
+import { findStatus, mockApi, renderWithProviders, sentBody } from "../../test-utils";
 import { AdminUsers } from "./AdminUsers";
 
 afterEach(() => {
@@ -93,7 +93,7 @@ describe("AdminUsers", () => {
     await userEv.selectOptions(screen.getByLabelText("Role"), "Always administrator");
     await userEv.click(screen.getByLabelText("Disabled"));
     await userEv.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Carol updated.");
+    expect(await findStatus()).toHaveTextContent("Carol updated.");
     expect(sentBody(fetchMock, 1)).toEqual({ roleOverride: "admin", disabled: true });
   });
 

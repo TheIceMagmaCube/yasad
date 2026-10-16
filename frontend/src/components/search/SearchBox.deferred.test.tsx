@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import type { HomeData } from "@/api";
 import { primeHome, resetHomeStore } from "@/lib/home-store";
-import { mockApi, renderWithProviders } from "@/test-utils";
+import { getStatus, mockApi, renderWithProviders } from "@/test-utils";
 
 import { SearchBox, STATUS_DELAY } from "./SearchBox";
 
@@ -38,12 +38,12 @@ it("says nothing about matches while the results are still for an older query", 
   fireEvent.change(input, { target: { value: "m" } });
   act(() => vi.advanceTimersByTime(STATUS_DELAY + 10));
   expect(screen.queryByText(/No link matches/)).toBeNull();
-  expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  expect(getStatus()).toBeEmptyDOMElement();
   expect(screen.getByRole("listbox", { hidden: true }).parentElement).not.toBeVisible();
 
   lag.value = null;
   fireEvent.change(input, { target: { value: "ma" } });
   expect(screen.getByRole("option", { name: /^Mail/ })).toBeInTheDocument();
   act(() => vi.advanceTimersByTime(STATUS_DELAY + 10));
-  expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
+  expect(getStatus()).not.toBeEmptyDOMElement();
 });

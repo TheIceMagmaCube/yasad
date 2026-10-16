@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminGroup, AdminUser } from "../../api";
 import { primeHome, useHomeEntry } from "../../lib/home-store";
-import { mockApi, renderWithProviders, sentBody } from "../../test-utils";
+import { findStatus, mockApi, renderWithProviders, sentBody } from "../../test-utils";
 import { AdminGroups } from "./AdminGroups";
 
 afterEach(() => {
@@ -109,7 +109,7 @@ describe("AdminGroups", () => {
     await user.click(await screen.findByRole("button", { name: "Delete Contractors" }));
     expect(screen.getByText("The catalog uses it on 1 category and 2 links: they lose this group.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete for good" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Group Contractors deleted.");
+    expect(await findStatus()).toHaveTextContent("Group Contractors deleted.");
     expect(cached.current).toBeNull();
   });
 });

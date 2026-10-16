@@ -2,6 +2,7 @@ import { cva } from "class-variance-authority";
 import { CircleAlert, CircleCheck, Info, type LucideIcon, TriangleAlert } from "lucide-react";
 import { type ComponentProps, type ReactNode, useEffect, useId, useRef } from "react";
 
+import { claimFocus } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 
 type AlertVariant = "info" | "success" | "warning" | "destructive";
@@ -33,6 +34,7 @@ type AlertProps = Omit<ComponentProps<"div">, "title" | "ref"> & {
   /**
    * Focus the alert when it mounts (error summaries). Give it a new `key` to focus it again.
    * The focus announces it, so it becomes a labelled group instead of a live region, which would be read twice.
+   * It claims the focus, so a view change in the same commit leaves it there.
    */
   autoFocus?: boolean;
 };
@@ -49,7 +51,9 @@ function Alert({ variant = "info", title, titleId: givenTitleId, autoFocus = fal
   const titleId = title ? (givenTitleId ?? `${id}-title`) : undefined;
   const bodyId = children ? `${id}-body` : undefined;
   useEffect(() => {
-    if (autoFocus) ref.current?.focus();
+    if (!autoFocus) return;
+    ref.current?.focus();
+    claimFocus();
   }, [autoFocus]);
   const { icon: Icon, className: iconClassName } = ICONS[variant];
   return (

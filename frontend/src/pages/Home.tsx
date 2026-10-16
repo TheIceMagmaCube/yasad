@@ -10,7 +10,8 @@ import { Button } from "../components/ui/button";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
 import { homeKey, type HomeState, loadHome, useHomeEntry } from "../lib/home-store";
-import { focusPage, useDocumentTitle } from "../lib/page";
+import { focusPage } from "../lib/focus";
+import { useDocumentTitle } from "../lib/page";
 
 const LOADING: HomeState = { status: "loading" };
 

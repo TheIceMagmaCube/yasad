@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData } from "../api";
 import { invalidateHome, onViewerChanged, primeHome } from "../lib/home-store";
-import { mockApi, renderWithProviders } from "../test-utils";
+import { getStatus, mockApi, renderWithProviders } from "../test-utils";
 import { Home } from "./Home";
 
 const ADA = { id: "ada", name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
@@ -34,10 +34,10 @@ describe("Home", () => {
       vi.fn(() => new Promise<Response>(() => {})),
     );
     const { container } = renderWithProviders(<Home user={ADA} />);
-    const status = screen.getByRole("status");
+    const status = getStatus();
     expect(status).toBeEmptyDOMElement();
     await vi.waitFor(() => expect(status).toHaveTextContent("Loading your links"));
-    expect(screen.getByRole("status")).toBe(status);
+    expect(getStatus()).toBe(status);
     expect(container.querySelector("[data-slot=home-skeleton] [role=status]")).toBeNull();
   });
 
@@ -50,7 +50,7 @@ describe("Home", () => {
     const first = screen.getByRole("region", { name: "Second in the catalog" });
     expect(within(first).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["https://zeta.example.invalid", "https://alpha.example.invalid"]);
     await waitFor(() => expect(document.title).toBe("My links - YASAD"));
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(getStatus()).toBeEmptyDOMElement();
   });
 
   it("shows an error with a retry button that stays in place, then the links", async () => {
@@ -150,7 +150,7 @@ describe("Home", () => {
     renderWithProviders(<Home user={null} />);
     expect(screen.getByRole("heading", { level: 1, name: "Links" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(getStatus()).toBeEmptyDOMElement();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

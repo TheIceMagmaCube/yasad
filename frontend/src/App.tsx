@@ -5,7 +5,9 @@ import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
 import { invalidateHome, onViewerChanged, primeHome } from "./lib/home-store";
-import { useDocumentTitle, useFocusOnNavigation } from "./lib/page";
+import { AnnouncerProvider } from "./lib/announcer";
+import { useFocusOnNavigation } from "./lib/focus";
+import { useDocumentTitle } from "./lib/page";
 import { navigate, normalizePath, usePath } from "./lib/router";
 import { AdminCatalog } from "./pages/AdminCatalog";
 import { AdminGroups } from "./pages/admin/AdminGroups";
@@ -141,7 +143,9 @@ export function App() {
     <InstanceContext value={instance}>
       <LocaleProvider defaultLanguage={instance.defaultLanguage}>
         <ThemeProvider instanceTheme={instance.theme}>
-          <Screen view={view} refresh={refresh} />
+          <AnnouncerProvider>
+            <Screen view={view} refresh={refresh} />
+          </AnnouncerProvider>
         </ThemeProvider>
       </LocaleProvider>
     </InstanceContext>

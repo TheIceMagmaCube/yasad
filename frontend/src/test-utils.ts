@@ -1,8 +1,9 @@
-import { render } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { vi } from "vitest";
 
 import { LocaleProvider } from "./i18n/LocaleProvider";
+import { AnnouncerProvider } from "./lib/announcer";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 type Route = { status: number; body?: unknown };
@@ -31,7 +32,24 @@ export function sentBody(fetchMock: ReturnType<typeof mockApi>, n: number): unkn
   return JSON.parse(String(fetchMock.mock.calls[n]![1]!.body));
 }
 
-/** Render inside the language and theme providers, as the app does. */
+/** Render inside the language, theme and announcer providers, as the app does. */
 export function renderWithProviders(ui: ReactNode) {
-  return render(createElement(LocaleProvider, { defaultLanguage: "en", children: createElement(ThemeProvider, { instanceTheme: "default", children: ui }) }));
+  return render(createElement(LocaleProvider, { defaultLanguage: "en", children: createElement(ThemeProvider, { instanceTheme: "default", children: createElement(AnnouncerProvider, { children: ui }) }) }));
+}
+
+/** Return the one status region of the component under test, the app's announcer left out. */
+export function getStatus(): HTMLElement {
+  const regions = screen.getAllByRole("status").filter((el) => el.dataset.slot !== "announcer");
+  if (regions.length !== 1) throw new Error(`Expected one status region, found ${regions.length}`);
+  return regions[0]!;
+}
+
+/** Wait for the one status region of the component under test, the app's announcer left out. */
+export function findStatus(): Promise<HTMLElement> {
+  return waitFor(getStatus);
+}
+
+/** Return the app's announcer region. */
+export function getAnnouncer(): HTMLElement {
+  return document.querySelector<HTMLElement>('[data-slot="announcer"]')!;
 }
