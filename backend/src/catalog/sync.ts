@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, setting } from "../schema";
-import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog } from "./format";
+import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog, parseKeywords } from "./format";
 import { groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 
 /** A point the admin should check before applying, as a code the interface translates. */
@@ -77,7 +77,7 @@ export async function readCatalog(db: DB): Promise<Catalog> {
           url: lnk.url,
           description: lnk.description || undefined,
           icon: lnk.icon ?? undefined,
-          keywords: (JSON.parse(lnk.keywords) as string[]).length ? (JSON.parse(lnk.keywords) as string[]) : undefined,
+          keywords: parseKeywords(lnk.keywords).length ? parseKeywords(lnk.keywords) : undefined,
           groups: lnkGroups.get(lnk.id) ?? [],
           active: lnk.active ? undefined : false,
         })),

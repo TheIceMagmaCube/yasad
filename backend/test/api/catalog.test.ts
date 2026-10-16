@@ -103,6 +103,16 @@ describe("catalog import and export", () => {
     expect((await send(app, CATALOG, true)).body.diff.updated).toEqual({ categories: [], links: [] });
   });
 
+  it("exports a link whose stored keywords are malformed without them, instead of failing", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    await app.exec(`update link set keywords = 'not json' where id = 'jira'`);
+    const res = await app.request("/api/admin/catalog");
+    expect(res.status).toBe(200);
+    const exported = parse(await res.text()) as { categories: { links: { id: string; keywords?: string[] }[] }[] };
+    expect(exported.categories[0]!.links.find((l) => l.id === "jira")?.keywords).toBeUndefined();
+  });
+
   it("removes what the file no longer has, but keeps groups", async () => {
     const app = await adminApp();
     await importFile(app, CATALOG);

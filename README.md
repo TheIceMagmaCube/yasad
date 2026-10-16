@@ -100,6 +100,8 @@ Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](do
 
 A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
 
+Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
+
 ### Development
 
 ```sh

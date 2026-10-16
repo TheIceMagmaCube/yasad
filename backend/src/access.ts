@@ -1,6 +1,7 @@
 import { and, asc, eq, exists, inArray, ne, sql, type SQLWrapper } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/sqlite-core";
 
+import { parseKeywords } from "./catalog/format";
 import type { DB } from "./db";
 import { type Icon, resolveIcon } from "./icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, userGroup } from "./schema";
@@ -8,7 +9,8 @@ import { category, categoryGroup, group, link, linkGroup, userGroup } from "./sc
 /** Who is asking: nobody signed in, or a signed-in person with their role. */
 export type Viewer = { kind: "anonymous" } | { kind: "user"; userId: string; role: "admin" | "user" };
 
-export type HomeLink = { id: string; title: string; description: string; url: string; icon: Icon | null };
+/** A visible link as sent to the browser. `keywords` are sent as stored, for the search in the header. */
+export type HomeLink = { id: string; title: string; description: string; url: string; icon: Icon | null; keywords: string[] };
 export type HomeCategory = { id: string; title: string; links: HomeLink[] };
 /** Why the home page is empty, for a signed-in viewer. */
 export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";
@@ -59,6 +61,7 @@ export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCatego
       description: link.description,
       url: link.url,
       icon: link.icon,
+      keywords: link.keywords,
     })
     .from(category)
     .innerJoin(link, eq(link.categoryId, category.id))
@@ -78,7 +81,10 @@ export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCatego
       current = { id: row.categoryId, title: row.categoryTitle, links: [] };
       categories.push(current);
     }
-    current.links.push({ id: row.id, title: row.title, description: row.description ?? "", url: row.url, icon: resolveIcon(row.icon) });
+    current.links.push({
+      id: row.id, title: row.title, description: row.description ?? "", url: row.url, icon: resolveIcon(row.icon),
+      keywords: parseKeywords(row.keywords),
+    });
   }
   return categories;
 }
