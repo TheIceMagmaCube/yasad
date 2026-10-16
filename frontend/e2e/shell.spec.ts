@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 
 import { ICONS_BASE } from "../src/icons-base";
-import { addTemporaryUser, ADMIN, expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -371,6 +371,18 @@ test("the temporary password screen is accessible, with field errors too", async
       }
     }
   }
+
+  // Saved after the accessibility loop, which needs the step to stay: the app opens with the heading focused,
+  // and the notice is shown and announced.
+  await open(page, "/", "default", "light", 1280);
+  await page.getByLabel("Temporary password", { exact: true }).fill(TEMPORARY.password);
+  await page.getByLabel("New password", { exact: true }).fill("a brand new passphrase");
+  await page.getByLabel("Confirm new password", { exact: true }).fill("a brand new passphrase");
+  await page.getByRole("button", { name: "Save password" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "My links" })).toBeFocused();
+  await expect(page.getByRole("note")).toHaveText(/Password saved\./);
+  await expect(announcer(page)).toHaveText("Password saved.");
+  await expectAccessible(page, "home after the temporary password, with the notice");
 });
 
 test("the account menu works with the keyboard", async ({ page }) => {
@@ -396,9 +408,11 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
-  await expect(menu.getByRole("menuitemradio", { name: "English" })).toBeFocused();
+  await expect(menu.getByRole("menuitem", { name: "My account" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Administration" })).toBeFocused();
 
-  for (const name of ["Français", "System", "Light", "Dark"]) {
+  for (const name of ["English", "Français", "System", "Light", "Dark"]) {
     await page.keyboard.press("ArrowDown");
     await expect(menu.getByRole("menuitemradio", { name })).toBeFocused();
   }
@@ -422,7 +436,7 @@ test("the account menu works with the keyboard", async ({ page }) => {
 test("the language follows the person's choice", async ({ page }) => {
   setInstanceTheme("default");
   await page.goto("/sign-in");
-  await page.getByLabel("Language").selectOption("fr");
+  await page.getByRole("group", { name: "Preferences" }).getByLabel("Language / Langue").selectOption("fr");
   await expect(page.getByRole("heading", { name: "Connexion" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
   await page.reload();

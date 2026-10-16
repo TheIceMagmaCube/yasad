@@ -10,15 +10,16 @@ import { invalidateHome, onViewerChanged, primeHome } from "./lib/home-store";
 import { AnnouncerProvider } from "./lib/announcer";
 import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
 import { navigate, normalizePath, useNavigations, usePath } from "./lib/router";
+import { Account } from "./pages/Account";
 import { AdminCatalog } from "./pages/AdminCatalog";
 import { AdminGroups } from "./pages/admin/AdminGroups";
 import { adminTab, AdminLayout } from "./pages/admin/AdminLayout";
 import { AdminUsers } from "./pages/admin/AdminUsers";
-import { ChangePassword } from "./pages/ChangePassword";
 import { Forbidden, NotFound } from "./pages/ErrorViews";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
 import { SignIn } from "./pages/SignIn";
+import { TemporaryPassword } from "./pages/TemporaryPassword";
 import { Unreachable } from "./pages/Unreachable";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
@@ -172,6 +173,12 @@ export function App() {
     };
   }, []);
 
+  /** Say on the next page that the password was saved, then open the app. */
+  const passwordSaved = useCallback(() => {
+    setNotice({ kind: "passwordSaved", navigations: navigationsRef.current });
+    void refresh();
+  }, [refresh]);
+
   const shownNotice = notice && notice.navigations === navigations ? notice : null;
   const expired = expiredAt === navigations;
   const dismissNotice = () => {
@@ -184,7 +191,7 @@ export function App() {
         <ThemeProvider instanceTheme={instance.theme}>
           <AnnouncerProvider>
             <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: dismissNotice }}>
-              <Screen view={view} refresh={refresh} expired={expired} />
+              <Screen view={view} refresh={refresh} expired={expired} onPasswordSaved={passwordSaved} />
             </ShellNoticeProvider>
           </AnnouncerProvider>
         </ThemeProvider>
@@ -199,9 +206,10 @@ function canonicalPath(path: string): string {
   return normalized === "/admin" ? "/admin/users" : normalized;
 }
 
-/** Return the page of a signed-in user for a canonical path. */
-function SignedInPage({ user, path }: { user: User; path: string }) {
+/** Return the page of a signed-in user for a canonical path; `onProfileChanged` reloads the session. */
+function SignedInPage({ user, path, onProfileChanged }: { user: User; path: string; onProfileChanged: () => Promise<unknown> }) {
   if (path === "/") return <Home user={user} />;
+  if (path === "/account") return <Account user={user} onProfileChanged={onProfileChanged} />;
   if (path === "/admin" || path.startsWith("/admin/")) {
     if (user.role !== "admin") return <Forbidden />;
     const tab = adminTab(path);
@@ -224,7 +232,15 @@ function viewKeyOf(view: View): string {
   return view.user.mustChangePassword ? "temporary" : `home:${view.user.id}:${view.user.role}`;
 }
 
-function Screen({ view, refresh, expired }: { view: View; refresh: () => Promise<View>; expired: boolean }) {
+type ScreenProps = {
+  view: View;
+  refresh: () => Promise<View>;
+  expired: boolean;
+  /** The temporary password was replaced. */
+  onPasswordSaved: () => void;
+};
+
+function Screen({ view, refresh, expired, onPasswordSaved }: ScreenProps) {
   const { passwordSignIn } = useInstance();
   const rawPath = usePath();
   const path = canonicalPath(rawPath);
@@ -264,11 +280,14 @@ function Screen({ view, refresh, expired }: { view: View; refresh: () => Promise
       return signIn;
     case "signIn":
       return signIn;
-    case "home":
+    case "home": {
+      const signOut = () => void api.signOut().finally(reload);
+      if (view.user.mustChangePassword) return <TemporaryPassword user={view.user} onDone={onPasswordSaved} onSignOut={signOut} />;
       return (
-        <AppShell user={view.user} path={target} minimal={view.user.mustChangePassword} onSignOut={() => void api.signOut().finally(reload)}>
-          {view.user.mustChangePassword ? <ChangePassword onChanged={reload} /> : <SignedInPage user={view.user} path={target} />}
+        <AppShell user={view.user} path={target} onSignOut={signOut}>
+          <SignedInPage user={view.user} path={target} onProfileChanged={refresh} />
         </AppShell>
       );
+    }
   }
 }

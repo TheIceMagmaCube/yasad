@@ -1,7 +1,12 @@
+import { ChevronDown } from "lucide-react";
+import { useRef } from "react";
+
 import type { User } from "../api";
 import { useLocale, useStrings } from "../i18n/LocaleProvider";
-import { LANGUAGES, MODES, THEMES } from "../preferences";
+import { focusPage } from "../lib/focus";
+import { LANGUAGES, MODES } from "../preferences";
 import { useTheme } from "../theme/ThemeProvider";
+import { Link } from "./Link";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -29,36 +34,55 @@ function initials(name: string): string {
 }
 
 /**
- * Account menu: identity, language, appearance and sign-out.
+ * Account menu: identity, the account page, administration for admins, language and appearance shortcuts, and
+ * sign-out. `path` is the current path, to mark the account page entry when it is open.
  *
  * Not modal: in modal mode Radix injects a <style> element to lock scrolling, which the CSP blocks.
  */
-export function UserMenu({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+export function UserMenu({ user, path, onSignOut }: { user: User; path: string; onSignOut: () => void }) {
   const m = useStrings();
   const { language, setLanguage } = useLocale();
-  const { mode, setMode, devTheme, setDevTheme } = useTheme();
+  const { mode, setMode } = useTheme();
+  // A page opened from the menu takes the focus, instead of the trigger the menu would give it back to.
+  const navigated = useRef(false);
+  const page = (href: string, label: string, current: boolean) => (
+    <DropdownMenuItem asChild>
+      <Link href={href} aria-current={current ? "page" : undefined} onClick={() => (navigated.current = true)}>
+        {label}
+      </Link>
+    </DropdownMenuItem>
+  );
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          aria-label={m.userMenu.open(user.name)}
-          className={`max-w-48 ${HEADER_BUTTON}`}
-        >
-          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full border border-current text-xs">
+        <Button variant="ghost" aria-label={m.userMenu.open(user.name)} className={`max-w-48 gap-1.5 px-1.5 sm:px-2 ${HEADER_BUTTON}`}>
+          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
             {initials(user.name)}
           </span>
           <span aria-hidden="true" className="hidden truncate sm:inline">
             {user.name}
           </span>
+          <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" collisionPadding={8} className="w-64">
+      <DropdownMenuContent
+        align="end"
+        collisionPadding={8}
+        className="w-64"
+        onCloseAutoFocus={(e) => {
+          if (!navigated.current) return;
+          navigated.current = false;
+          e.preventDefault();
+          focusPage();
+        }}
+      >
         <DropdownMenuLabel>
-          <span className="block truncate font-semibold">{user.name}</span>
-          <span className="block truncate text-muted-foreground">{user.email}</span>
-          <span className="block text-muted-foreground">{(m.roles as Record<string, string>)[user.role] ?? user.role}</span>
+          <span className="block font-semibold wrap-anywhere">{user.name}</span>
+          <span className="block text-muted-foreground wrap-anywhere">{user.email}</span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {page("/account", m.userMenu.account, path === "/account")}
+        {user.role === "admin" && page("/admin/users", m.userMenu.admin, false)}
         <DropdownMenuSeparator />
         <DropdownMenuLabel id="menu-language" className="text-xs text-muted-foreground">
           {m.preferences.language}
@@ -85,22 +109,6 @@ export function UserMenu({ user, onSignOut }: { user: User; onSignOut: () => voi
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-        {import.meta.env.DEV && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel id="menu-theme" className="text-xs text-muted-foreground">
-              {m.preferences.theme}
-            </DropdownMenuLabel>
-            <DropdownMenuRadioGroup aria-labelledby="menu-theme" value={devTheme ?? ""} onValueChange={(v) => setDevTheme(THEMES.find((t) => t === v) ?? null)}>
-              <DropdownMenuRadioItem value="">-</DropdownMenuRadioItem>
-              {THEMES.map((t) => (
-                <DropdownMenuRadioItem key={t} value={t}>
-                  {t}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </>
-        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSignOut}>{m.userMenu.signOut}</DropdownMenuItem>
       </DropdownMenuContent>

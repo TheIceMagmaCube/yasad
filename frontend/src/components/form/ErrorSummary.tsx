@@ -2,6 +2,7 @@ import type { MouseEvent } from "react";
 
 import { Alert } from "@/components/ui/alert";
 
+import { useStrings } from "../../i18n/LocaleProvider";
 import type { FormErrors } from "../../lib/form-errors";
 
 /** Focus a field from the summary: scroll it into view, and select its text when it asks for it. */
@@ -18,12 +19,31 @@ function goToField(event: MouseEvent<HTMLAnchorElement>, id: string): void {
  * Render the error summary of a form: a focused alert titled with the problem, then a link to each field in
  * display order and the problems that belong to no field. Place it inside the form, before the first field.
  *
- * It takes the focus on every failure, even with the same text, since each one gives it a new key.
+ * It takes the focus on every failure, even with the same text, since each one gives it a new key. With `labels`,
+ * each field problem starts with the label of its field, so two links with the same problem still say where they
+ * go.
  */
-export function ErrorSummary<F extends string>({ errors, className }: { errors: FormErrors<F>; className?: string }) {
+export function ErrorSummary<F extends string>({
+  errors,
+  labels,
+  className,
+}: {
+  errors: FormErrors<F>;
+  labels?: Partial<Record<F, string>>;
+  className?: string;
+}) {
+  const m = useStrings();
   const { state, titleId, fieldId } = errors;
   if (!state) return null;
-  const linked = [...state.order.flatMap((f) => (state.fields[f] ? [{ field: f, message: state.fields[f] }] : [])), ...state.links];
+  const linked = [
+    ...state.order.flatMap((f) => {
+      const message = state.fields[f];
+      if (!message) return [];
+      return [{ field: f, message: labels?.[f] ? m.forms.fieldProblem(labels[f], message) : message }];
+    }),
+    // A link of its own already says which field it goes to.
+    ...state.links,
+  ];
   const hasItems = linked.length > 0 || state.extra.length > 0;
   return (
     <Alert key={state.key} variant="destructive" autoFocus title={state.title} titleId={titleId} className={className}>

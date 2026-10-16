@@ -177,7 +177,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
       {step === "admin" && (
         <form onSubmit={submitAdmin} noValidate className="mt-6">
           <FormStack>
-            <ErrorSummary errors={adminErrors} />
+            <ErrorSummary errors={adminErrors} labels={{ name: s.name, email: s.email, password: s.password, passwordConfirm: s.passwordConfirm }} />
             <Field label={s.name} autoComplete="name" required value={admin.name} onChange={update("name")} {...adminErrors.field("name")} />
             <Field label={s.email} type="email" autoComplete="email" required value={admin.email} onChange={update("email")} {...adminErrors.field("email")} />
             <PasswordField

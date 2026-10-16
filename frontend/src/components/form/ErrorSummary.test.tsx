@@ -9,21 +9,23 @@ import { Field } from "./Field";
 
 afterEach(cleanup);
 
-function Form({ onReady }: { onReady: (errors: ReturnType<typeof useFormErrors<"name" | "code">>) => void }) {
+type Errors = ReturnType<typeof useFormErrors<"name" | "code">>;
+
+function Form({ onReady, labels }: { onReady: (errors: Errors) => void; labels?: { name?: string } }) {
   const errors = useFormErrors(["name", "code"] as const, "f");
   onReady(errors);
   return (
     <form noValidate>
-      <ErrorSummary errors={errors} />
+      <ErrorSummary errors={errors} labels={labels} />
       <Field label="Name" defaultValue="" {...errors.field("name")} />
       <Field label="Code" defaultValue="wrong-code" data-select-on-error="" {...errors.field("code")} />
     </form>
   );
 }
 
-function setup() {
-  let errors!: ReturnType<typeof useFormErrors<"name" | "code">>;
-  const view = renderWithProviders(<Form onReady={(e) => (errors = e)} />);
+function setup(labels?: { name?: string }) {
+  let errors!: Errors;
+  const view = renderWithProviders(<Form onReady={(e) => (errors = e)} labels={labels} />);
   return { view, errors: () => errors };
 }
 
@@ -40,6 +42,21 @@ describe("ErrorSummary", () => {
     expect(summary).toHaveFocus();
     expect(within(summary).getAllByRole("link").map((a) => a.textContent)).toEqual(["Required.", "Bad code."]);
     expect(within(summary).getAllByRole("link")[0]).toHaveAttribute("href", "#f-name");
+  });
+
+  it("starts each field problem with the label it is given, but not a link of its own", () => {
+    const { errors } = setup({ name: "Name" });
+    act(() => errors().fail("Check.", { name: "Required.", code: "Required." }, { links: [{ field: "name", message: "Type the name again." }] }));
+    expect(within(screen.getByRole("group")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Name: Required.", "Required.", "Type the name again."]);
+  });
+
+  it("drops a field from the summary, and the summary once nothing is left", () => {
+    const { errors } = setup();
+    act(() => errors().fail("Check.", { name: "Required.", code: "Bad code." }));
+    act(() => errors().clear("code"));
+    expect(within(screen.getByRole("group")).getAllByRole("link").map((a) => a.textContent)).toEqual(["Required."]);
+    act(() => errors().clear("name"));
+    expect(screen.queryByRole("group")).toBeNull();
   });
 
   it("focuses the field from its link and selects the text of a field that asks for it", async () => {

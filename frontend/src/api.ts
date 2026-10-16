@@ -113,6 +113,9 @@ export const api = {
   signOut: () => call<unknown>("/api/auth/sign-out", post({})),
   previewCatalog: (yaml: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: true })),
   applyCatalog: (yaml: string, baseVersion: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: false, baseVersion })),
+  account: () => call<{ origin: "local" | "oidc" }>("/api/account"),
+  updateProfile: (changes: { name?: string; email?: string; currentPassword?: string }) =>
+    call<{ user: { id: string; name: string; email: string } }>("/api/account", send("PATCH", changes)),
   changePassword: (currentPassword: string, newPassword: string) =>
     call<void>("/api/account/password", post({ currentPassword, newPassword })),
   users: async () => (await call<{ users: AdminUser[] }>("/api/admin/users")).users,

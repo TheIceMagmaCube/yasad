@@ -26,16 +26,23 @@ export function setInstanceTheme(theme: string): void {
 
 export const TEMPORARY = { email: "bob@example.invalid", password: "temporary password" };
 
-/** Insert a user who must replace a temporary password, with a known one. */
-export async function addTemporaryUser(): Promise<void> {
-  const hash = await hashPassword(TEMPORARY.password);
+type LocalUser = { id: string; name: string; email: string; password: string; mustChangePassword?: boolean };
+
+/** Insert a local user with a known password straight into the database. */
+export async function addLocalUser({ id, name, email, password, mustChangePassword = false }: LocalUser): Promise<void> {
+  const hash = await hashPassword(password);
   const db = new DatabaseSync(E2E_DB);
   try {
-    db.prepare(`insert into "user" (id, name, email, must_change_password) values ('bob', 'Bob', ?, 1)`).run(TEMPORARY.email);
-    db.prepare(`insert into account (id, account_id, provider_id, user_id, password) values ('acc-bob', 'bob', 'credential', 'bob', ?)`).run(hash);
+    db.prepare(`insert into "user" (id, name, email, must_change_password) values (?, ?, ?, ?)`).run(id, name, email, mustChangePassword ? 1 : 0);
+    db.prepare(`insert into account (id, account_id, provider_id, user_id, password) values (?, ?, 'credential', ?, ?)`).run(`acc-${id}`, id, id, hash);
   } finally {
     db.close();
   }
+}
+
+/** Insert a user who must replace a temporary password, with a known one. */
+export async function addTemporaryUser(): Promise<void> {
+  await addLocalUser({ id: "bob", name: "Bob", email: TEMPORARY.email, password: TEMPORARY.password, mustChangePassword: true });
 }
 
 /** Collect the CSP violations the page reports, to assert none happened. */

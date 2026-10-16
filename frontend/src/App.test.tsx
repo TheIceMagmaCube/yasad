@@ -106,8 +106,11 @@ describe("App", () => {
     await user.selectOptions(await screen.findByLabelText("Appearance"), "dark");
     expect(document.documentElement).toHaveAttribute("data-mode", "dark");
     expect(localStorage.getItem("yasad.mode")).toBe("dark");
-    await user.selectOptions(screen.getByLabelText("Language"), "fr");
+    const preferences = screen.getByRole("group", { name: "Preferences" });
+    expect(preferences.compareDocumentPosition(screen.getByRole("main")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.selectOptions(within(preferences).getByLabelText("Language / Langue"), "fr");
     expect(screen.getByRole("heading", { name: "Connexion" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Préférences" })).getByLabelText("Language / Langue")).toHaveValue("fr");
     expect(localStorage.getItem("yasad.language")).toBe("fr");
   });
 
@@ -129,7 +132,17 @@ describe("App", () => {
     await user.click(await screen.findByRole("button", { name: "Account menu for Ada Lovelace" }));
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent("ada@example.invalid");
-    expect(menu).toHaveTextContent("Administrator");
+    expect(menu).not.toHaveTextContent("Administrator");
+    expect([...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual([
+      "My account",
+      "Administration",
+      "English",
+      "Français",
+      "System",
+      "Light",
+      "Dark",
+      "Sign out",
+    ]);
     await user.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/auth/sign-out")).toBe(true);
@@ -149,11 +162,14 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/home")).toBe(false);
-    await user.type(screen.getByLabelText("Current password"), "temporary password");
+    expect(within(screen.getByRole("group", { name: "Preferences" })).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
+    await user.type(screen.getByLabelText("Temporary password"), "temporary password");
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
     await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
     await user.click(screen.getByRole("button", { name: "Save password" }));
-    expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toHaveFocus();
+    expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
     const call = fetchMock.mock.calls.find(([path]) => path === "/api/account/password")!;
     expect(JSON.parse(String(call[1]!.body))).toEqual({ currentPassword: "temporary password", newPassword: "a brand new passphrase" });
   });
@@ -169,6 +185,12 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Password sign-in is off" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Password")).toBeNull();
+    await waitFor(() => expect(document.title).toBe("Password sign-in is off - YASAD"));
+    const adminLink = screen.getByRole("link", { name: "Administrator? Sign in with a password" });
+    expect(adminLink).toHaveAttribute("href", "/sign-in/local");
+    await userEvent.setup().click(adminLink);
+    expect(await screen.findByRole("heading", { name: "Administrator sign-in" })).toHaveFocus();
+    expect(location.pathname).toBe("/sign-in/local");
     cleanup();
 
     history.replaceState(null, "", "/sign-in/local");
@@ -804,5 +826,93 @@ describe("App, views and focus", () => {
     );
     await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
     expect(screen.getByRole("heading", { level: 1, name: "Administration, Groups" })).toHaveFocus();
+  });
+});
+
+describe("App, temporary password and account", () => {
+  const required = { status: 403, body: { error: { code: "password_change_required", message: "" } } };
+
+  it("replaces the temporary password in the sign-in layout, then opens the asked page with a notice", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      ...signedIn({ ...ADA, id: "ada" }),
+      "GET /api/setup": [required, { status: 200, body: { open: false } }],
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...ADA, id: "ada", mustChangePassword: true }, session: {} } },
+        { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } },
+      ],
+      "POST /api/account/password": { status: 204 },
+    });
+    renderAt("/admin/users");
+    expect(await screen.findByRole("heading", { level: 1, name: "Choose your password" })).toBeInTheDocument();
+    expect(screen.queryByRole("banner")?.querySelector("nav")).toBeFalsy();
+    expect(screen.getByText("Signed in as Ada Lovelace (ada@example.invalid).")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Temporary password"), "temporary password");
+    await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
+    await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
+    await user.click(screen.getByRole("button", { name: "Save password" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Administration, Users" })).toHaveFocus();
+    expect(location.pathname).toBe("/admin/users");
+    expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
+    await waitFor(() => expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Password saved."));
+
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("signs out from the temporary password step", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi({
+      ...signedIn({ ...ADA, id: "ada" }),
+      ...NO_PUBLIC_LINKS,
+      "GET /api/setup": [required, { status: 200, body: { open: false } }],
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...ADA, id: "ada", mustChangePassword: true }, session: {} } },
+        { status: 200, body: null },
+      ],
+      "POST /api/auth/sign-out": { status: 200, body: {} },
+    });
+    renderAt("/");
+    await user.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toHaveFocus();
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/auth/sign-out")).toBe(true);
+  });
+
+  it("opens the account page from the menu, marked as the current page", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...signedIn({ ...ADA, id: "ada" }), "GET /api/account": { status: 200, body: { origin: "local" } } });
+    renderAt("/");
+    await screen.findByRole("heading", { level: 1, name: "My links" });
+    await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My account" }));
+    expect(location.pathname).toBe("/account");
+    expect(await screen.findByRole("heading", { level: 1, name: "My account" })).toHaveFocus();
+    await waitFor(() => expect(document.title).toBe("My account - YASAD"));
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(within(nav).queryAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page")).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
+    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows the saved name everywhere once the profile is changed", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      ...signedIn({ ...ADA, id: "ada" }),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } },
+        { status: 200, body: { user: { ...ADA, id: "ada", name: "Augusta Ada King" }, session: {} } },
+      ],
+      "GET /api/account": { status: 200, body: { origin: "local" } },
+      "PATCH /api/account": { status: 200, body: { user: { id: "ada", name: "Augusta Ada King", email: ADA.email } } },
+    });
+    renderAt("/account");
+    await user.click(await screen.findByRole("button", { name: "Edit profile" }));
+    const name = screen.getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Augusta Ada King");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(await screen.findByRole("button", { name: "Account menu for Augusta Ada King" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit profile" })).toHaveFocus());
+    expect(screen.getByText("Profile saved.")).toBeInTheDocument();
   });
 });

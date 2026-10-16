@@ -108,7 +108,7 @@ export function SignIn({ onSignedIn, local = false, expired = false, publicHome 
               {s.expired}
             </Alert>
           )}
-          <ErrorSummary errors={errors} />
+          <ErrorSummary errors={errors} labels={{ email: s.email, password: s.password }} />
           <Field label={s.email} type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} {...errors.field("email")} />
           <PasswordField
             label={s.password}

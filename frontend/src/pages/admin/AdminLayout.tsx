@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Link } from "../../components/Link";
+import { ShellNotice } from "../../components/ShellNotice";
 import { useStrings } from "../../i18n/LocaleProvider";
 import { useDocumentTitle } from "../../lib/page";
 
@@ -14,7 +15,7 @@ export function adminTab(path: string): AdminTab | null {
 }
 
 /**
- * Frame of the administration pages: title and one link per page, the current one marked.
+ * Frame of the administration pages: title, one link per page with the current one marked, then the app shell notice.
  * The heading, focused after each tab switch, also names the tab to screen readers.
  */
 export function AdminLayout({ tab, children }: { tab: AdminTab; children: ReactNode }) {
@@ -41,7 +42,10 @@ export function AdminLayout({ tab, children }: { tab: AdminTab; children: ReactN
           ))}
         </ul>
       </nav>
-      <div className="mt-6">{children}</div>
+      <div className="mt-6">
+        <ShellNotice />
+        {children}
+      </div>
     </div>
   );
 }

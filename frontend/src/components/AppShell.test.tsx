@@ -34,16 +34,6 @@ describe("AppShell", () => {
     expect(within(screen.getByRole("banner")).getByRole("combobox", { name: "Search links" })).toBeInTheDocument();
   });
 
-  it("has no search while the section links are hidden (temporary password)", () => {
-    renderWithProviders(
-      <AppShell user={{ id: "ada", name: "Ada", email: "ada@example.invalid", role: "user" }} path="/" minimal onSignOut={() => {}}>
-        <p>content</p>
-      </AppShell>,
-    );
-    expect(screen.queryByRole("search")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
-  });
-
   it("puts the toggle before the field and the field before the account menu in focus order", () => {
     renderWithProviders(
       <AppShell user={{ id: "ada", name: "Ada", email: "ada@example.invalid", role: "user" }} path="/" onSignOut={() => {}}>
@@ -64,6 +54,7 @@ describe("AppShell", () => {
     const banner = screen.getByRole("banner");
     expect(within(banner).getAllByRole("link").map((a) => a.textContent)).toEqual(["YASAD"]);
     expect(within(banner).queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("search")).toBeNull();
     expect(screen.queryByRole("contentinfo")).toBeNull();
   });
 });
