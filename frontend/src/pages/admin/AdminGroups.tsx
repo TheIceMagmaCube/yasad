@@ -58,6 +58,9 @@ const addButtonId = (groupId: string, userId: string) => `candidate-${groupId}-$
 /** Return whether the focus is still on the button that ran a change, or lost: only then may its outcome move it. */
 const focusOnButton = (id: string) => document.activeElement?.id === id || focusIsLost();
 
+/** Members around a removed one, nearest first: those after it, then those before it. */
+type Neighbours = { after: string[]; before: string[] };
+
 /** Return whether the focus is in the row of the group, or lost: an outcome may take it there. */
 const focusInRow = (groupId: string) => rowHasFocus(`group-${groupId}-title`) || focusIsLost();
 const pickerId = (groupId: string) => `group-${groupId}-picker`;
@@ -247,15 +250,15 @@ export function AdminGroups() {
     void collection.refresh();
   }
 
-  async function removeMember(group: AdminGroup, user: AdminUser, neighbours: { next?: string; previous?: string }) {
+  async function removeMember(group: AdminGroup, user: AdminUser, neighbours: Neighbours) {
     const stillOpen = panel.claim(`members:${group.id}`);
     if (!(await changeMember(group, user, stillOpen, () => api.removeMember(group.id, user.id)))) return;
     invalidateHome();
     // Taken from the Remove button only: a space typed in a field must never land on the next Remove button.
     const move = stillOpen() && focusOnButton(removeButtonId(group.id, user.id));
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: g.memberIds.filter((id) => id !== user.id) } : g)) }));
-    // The neighbours still there once rendered: another removal may have taken one meanwhile.
-    const targets = [neighbours.next, neighbours.previous].filter((id): id is string => !!id).map((id) => removeButtonId(group.id, id));
+    // The first neighbour still there once rendered: another removal may have taken some meanwhile.
+    const targets = [...neighbours.after, ...neighbours.before].map((id) => removeButtonId(group.id, id));
     feedback.say(s.removed(user.name, group.name), move ? focusById([...targets, pickerId(group.id)]) : undefined);
     if (!move) focusIfLost(pickerId(group.id));
     void collection.refresh();
@@ -374,7 +377,7 @@ type GroupRowProps = {
   onRename: (group: AdminGroup, name: string) => Promise<void>;
   onDelete: (group: AdminGroup) => Promise<void>;
   onAdd: (group: AdminGroup, user: AdminUser) => Promise<void>;
-  onRemove: (group: AdminGroup, user: AdminUser, neighbours: { next?: string; previous?: string }) => Promise<void>;
+  onRemove: (group: AdminGroup, user: AdminUser, neighbours: Neighbours) => Promise<void>;
 };
 
 function GroupRow({ group, data, panel, error, memberError, pending, onToggle, onRename, onDelete, onAdd, onRemove }: GroupRowProps) {
@@ -575,7 +578,7 @@ function MembersPanel({ group, users, error, pending, onAdd, onRemove }: Members
                       aria-label={s.removeMember(user.name, group.name)}
                       pending={pending.has(`${group.id}:${user.id}`)}
                       pendingLabel={s.removing}
-                      onClick={() => void onRemove(group, user, { next: shown[i + 1]?.id, previous: shown[i - 1]?.id })}
+                      onClick={() => void onRemove(group, user, { after: shown.slice(i + 1).map((u) => u.id), before: shown.slice(0, i).reverse().map((u) => u.id) })}
                     >
                       <UserMinus aria-hidden="true" />
                     </PendingButton>

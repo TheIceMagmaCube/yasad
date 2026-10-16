@@ -298,6 +298,35 @@ describe("AdminGroups", () => {
     await waitFor(() => expect(within(row("Contractors")).getByRole("button", { name: "Remove Bob from Contractors" })).toHaveFocus());
   });
 
+  it("sends the focus to the nearest Remove button still there when the neighbour was removed too", async () => {
+    const without = (...gone: string[]) => groups(EVERYONE, { ...CONTRACTORS, memberIds: CONTRACTORS.memberIds.filter((id) => !gone.includes(id)) });
+    const { fetchMock, userEv } = await renderPage(
+      routes({
+        "GET /api/admin/groups": [groups(EVERYONE, CONTRACTORS), without("carol"), without("carol", "dan")],
+        "DELETE /api/admin/groups/g1/members/carol": { status: 204 },
+        "DELETE /api/admin/groups/g1/members/dan": { status: 204 },
+      }),
+    );
+    const release: Record<string, () => void> = {};
+    const held: Record<string, Promise<void>> = {};
+    for (const id of ["carol", "dan"]) held[id] = new Promise<void>((resolve) => (release[id] = resolve));
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (path: string, init?: RequestInit) => {
+      const id = /members\/(carol|dan)$/.exec(path)?.[1];
+      if (id) await held[id];
+      return answer(path, init);
+    });
+    await userEv.click(screen.getByRole("button", { name: "Members (3) of Contractors" }));
+    // Both run together; Dan's only neighbour when clicked is Carol, whose answer comes first.
+    await userEv.click(within(row("Contractors")).getByRole("button", { name: "Remove Carol from Contractors" }));
+    await userEv.click(within(row("Contractors")).getByRole("button", { name: "Remove Dan from Contractors" }));
+    release.carol!();
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Carol removed from Contractors."));
+    expect(within(row("Contractors")).getByRole("button", { name: "Remove Dan from Contractors" })).toHaveFocus();
+    release.dan!();
+    await waitFor(() => expect(within(row("Contractors")).getByRole("button", { name: "Remove Bob from Contractors" })).toHaveFocus());
+  });
+
   it("renames in the row, the name selected, and focuses Rename after saving", async () => {
     const renamed = { ...STAFF, name: "Team" };
     const { userEv } = await renderPage(
