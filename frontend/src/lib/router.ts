@@ -12,7 +12,8 @@ function update(counted: boolean): void {
   for (const listener of listeners) listener();
 }
 
-const onPopState = () => update(true);
+// A fragment change also fires popstate: count only a change of page.
+const onPopState = () => update(location.pathname !== state.path);
 
 /** Subscribe to location changes; listen to the browser history while at least one subscriber exists. */
 function subscribe(listener: () => void): () => void {

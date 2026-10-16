@@ -13,7 +13,10 @@ export function adminTab(path: string): AdminTab | null {
   return ADMIN_TABS.find((tab) => path === `/admin/${tab}`) ?? null;
 }
 
-/** Frame of the administration pages: title and one link per page, the current one marked. */
+/**
+ * Frame of the administration pages: title and one link per page, the current one marked.
+ * The heading, focused after each tab switch, also names the tab to screen readers.
+ */
 export function AdminLayout({ tab, children }: { tab: AdminTab; children: ReactNode }) {
   const m = useStrings();
   useDocumentTitle(m.admin.tabs[tab], m.admin.title);
@@ -21,6 +24,7 @@ export function AdminLayout({ tab, children }: { tab: AdminTab; children: ReactN
     <div>
       <h1 tabIndex={-1} className="text-2xl font-bold outline-none">
         {m.admin.title}
+        <span className="sr-only">, {m.admin.tabs[tab]}</span>
       </h1>
       <nav aria-label={m.admin.title} className="mt-4 border-b border-border">
         <ul className="flex flex-wrap gap-1">

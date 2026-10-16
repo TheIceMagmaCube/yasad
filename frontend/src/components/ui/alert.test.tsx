@@ -44,14 +44,24 @@ describe("Alert", () => {
     expect(screen.getByRole("alert")).not.toHaveFocus();
   });
 
-  it("takes focus on mount with autoFocus", () => {
+  it("takes focus on mount with autoFocus, as a labelled group rather than a live region", () => {
     render(
       <Alert tone="destructive" title="Check the highlighted fields." autoFocus>
         Two fields need attention.
       </Alert>,
     );
-    const alert = screen.getByRole("alert");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const alert = screen.getByRole("group", { name: "Check the highlighted fields.", description: "Two fields need attention." });
     expect(alert).toHaveAttribute("tabindex", "-1");
     expect(alert).toHaveFocus();
+  });
+
+  it("names a focused alert without a title after its body", () => {
+    render(
+      <Alert tone="warning" autoFocus>
+        The server did not answer.
+      </Alert>,
+    );
+    expect(screen.getByRole("group", { name: "The server did not answer." })).toHaveFocus();
   });
 });

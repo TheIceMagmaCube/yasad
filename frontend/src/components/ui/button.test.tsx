@@ -3,9 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { Link } from "../Link";
+
 import { Button } from "./button";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  history.replaceState(null, "", "/");
+});
 
 describe("Button", () => {
   it("renders the destructive variants with their tokens", () => {
@@ -57,6 +62,35 @@ describe("Button", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Go" }));
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Go" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("blocks a slotted link while pending, from the mouse and the keyboard", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <Button asChild pending>
+        <Link href="/admin/users" onClick={onClick}>
+          Users
+        </Link>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Users" });
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    await user.click(link);
+    link.focus();
+    await user.keyboard("{Enter}");
+    expect(onClick).not.toHaveBeenCalled();
+    expect(location.pathname).toBe("/");
+  });
+
+  it("lets a slotted link navigate when not pending", async () => {
+    render(
+      <Button asChild>
+        <Link href="/admin/users">Users</Link>
+      </Button>,
+    );
+    await userEvent.setup().click(screen.getByRole("link", { name: "Users" }));
+    expect(location.pathname).toBe("/admin/users");
   });
 
   it("keeps the children while pending without a label", () => {

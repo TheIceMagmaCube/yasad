@@ -31,7 +31,10 @@ const buttonVariants = cva(
 type ButtonProps = ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
-    /** Mark the action as running: the button keeps focus but ignores clicks and form submission. */
+    /**
+     * Mark the action as running: the button keeps focus but ignores clicks and form submission. With
+     * `asChild`, the child's own click handler is blocked too, and the children stay in place of `pendingLabel`.
+     */
     pending?: boolean;
     /** Text shown with a spinner in place of the children while pending. */
     pendingLabel?: string;
@@ -42,22 +45,24 @@ type ButtonProps = ComponentProps<"button"> &
  *
  * While `pending`, it carries aria-disabled instead of disabled, so focus stays on it.
  */
-function Button({ className, variant, size, asChild = false, pending = false, pendingLabel, onClick, children, ...props }: ButtonProps) {
+function Button({ className, variant, size, asChild = false, pending = false, pendingLabel, onClickCapture, children, ...props }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+  // Stopped in the capture phase, so neither the onClick handlers (a slotted child's included) nor the default action run.
+  const handleClickCapture = (event: MouseEvent<HTMLButtonElement>) => {
     if (pending) {
       event.preventDefault();
+      event.stopPropagation();
       return;
     }
-    onClick?.(event);
+    onClickCapture?.(event);
   };
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       aria-disabled={pending || undefined}
-      onClick={handleClick}
       {...props}
+      onClickCapture={handleClickCapture}
     >
       {pending && pendingLabel && !asChild ? (
         <>

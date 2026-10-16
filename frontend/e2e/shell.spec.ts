@@ -149,7 +149,7 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await page.keyboard.press("Tab");
   await expect(page.getByRole("banner").getByRole("link", { name: "YASAD" })).toBeFocused();
   const nav = page.getByRole("navigation", { name: "Main" });
-  for (const name of ["My links", "Administration"]) {
+  for (const name of ["My links", "Admin"]) {
     await page.keyboard.press("Tab");
     await expect(nav.getByRole("link", { name })).toBeFocused();
   }

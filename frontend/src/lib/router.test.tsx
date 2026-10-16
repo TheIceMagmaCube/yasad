@@ -52,6 +52,23 @@ describe("router", () => {
     expect(probe()).toEqual(["/elsewhere", before + 1]);
   });
 
+  it("does not count a fragment change as a navigation", () => {
+    render(<Probe />);
+    const [, before] = probe();
+    act(() => {
+      history.pushState(null, "", "/#content");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(probe()).toEqual(["/", before]);
+    act(() => {
+      history.back();
+    });
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(probe()).toEqual(["/", before]);
+  });
+
   it("removes trailing slashes but keeps the root", () => {
     expect(normalizePath("/admin/users/")).toBe("/admin/users");
     expect(normalizePath("/admin//")).toBe("/admin");

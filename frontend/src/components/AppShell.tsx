@@ -16,18 +16,27 @@ function sectionOf(path: string): Section | null {
   return null;
 }
 
-/** Header link to a section; on small screens it shows the short label, the full one staying its accessible name. */
-function NavLink({ href, current, label, short }: { href: string; current: boolean; label: string; short: string }) {
+/**
+ * Header link to a section. With `short`, small screens show it instead of the label, which stays the
+ * accessible name: `short` must be a whole word of `label` (WCAG 2.5.3, speech input matches words).
+ */
+function NavLink({ href, current, label, short }: { href: string; current: boolean; label: string; short?: string }) {
   return (
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
       className="flex h-full min-w-6 items-center border-y-2 border-transparent px-2 text-sm font-semibold whitespace-nowrap text-header-muted outline-none hover:text-header-foreground focus-visible:ring-2 focus-visible:ring-header-foreground focus-visible:ring-inset aria-[current=page]:border-b-header-active aria-[current=page]:text-header-foreground"
     >
-      <span aria-hidden="true" className="sm:hidden">
-        {short}
-      </span>
-      <span className="sr-only sm:not-sr-only">{label}</span>
+      {short ? (
+        <>
+          <span aria-hidden="true" className="sm:hidden">
+            {short}
+          </span>
+          <span className="sr-only sm:not-sr-only">{label}</span>
+        </>
+      ) : (
+        label
+      )}
     </Link>
   );
 }
@@ -65,7 +74,7 @@ export function AppShell({
                 </li>
                 {user.role === "admin" && (
                   <li className="h-full">
-                    <NavLink href="/admin/users" current={section === "admin"} label={m.nav.admin} short={m.nav.adminShort} />
+                    <NavLink href="/admin/users" current={section === "admin"} label={m.nav.admin} />
                   </li>
                 )}
               </ul>

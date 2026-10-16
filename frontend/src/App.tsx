@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, ApiError, type SetupState, type User } from "./api";
+import { api, ApiError, onStaleSession, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
@@ -54,7 +54,33 @@ export function App() {
   const [instance, setInstance] = useState(cachedInstance);
   const [view, setView] = useState<View>({ name: "loading" });
 
-  const refresh = useCallback(() => void loadView().then(setView), []);
+  const viewRef = useRef(view);
+  const pending = useRef(0);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  const refresh = useCallback(() => {
+    pending.current += 1;
+    void loadView()
+      .then(setView)
+      .finally(() => {
+        pending.current -= 1;
+      });
+  }, []);
+
+  // Client-side navigation keeps the session loaded at start: reload it when the API says it changed
+  // (signed out, password reset by an admin, admin rights removed), so the right screen replaces the stale one.
+  useEffect(
+    () =>
+      onStaleSession((code) => {
+        const current = viewRef.current;
+        if (current.name !== "home" || pending.current > 0) return;
+        if (code === "password_change_required" && current.user.mustChangePassword) return;
+        refresh();
+      }),
+    [refresh],
+  );
 
   useEffect(() => {
     let active = true;
@@ -135,10 +161,7 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
       return (
         <SignIn
           local={path === LOCAL_SIGN_IN}
-          onSignedIn={() => {
-            if (location.pathname === LOCAL_SIGN_IN) navigate("/", { replace: true });
-            refresh();
-          }}
+          onSignedIn={refresh}
         />
       );
     case "home":

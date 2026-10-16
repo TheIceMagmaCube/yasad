@@ -33,8 +33,7 @@ export const fr = {
     label: "Principale",
     home: "Mes liens",
     homeShort: "Liens",
-    admin: "Administration",
-    adminShort: "Admin",
+    admin: "Admin",
   },
   notFound: {
     title: "Page introuvable",

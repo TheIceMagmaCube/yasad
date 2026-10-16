@@ -33,8 +33,7 @@ export const en = {
     label: "Main",
     home: "My links",
     homeShort: "Links",
-    admin: "Administration",
-    adminShort: "Admin",
+    admin: "Admin",
   },
   notFound: {
     title: "Page not found",

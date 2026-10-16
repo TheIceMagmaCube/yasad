@@ -169,17 +169,17 @@ describe("App", () => {
       renderAt("/");
       const nav = await screen.findByRole("navigation", { name: "Main" });
       expect(within(nav).getByRole("link", { name: "My links" })).toHaveAttribute("aria-current", "page");
-      expect(within(nav).getByRole("link", { name: "Administration" })).not.toHaveAttribute("aria-current");
+      expect(within(nav).getByRole("link", { name: "Admin" })).not.toHaveAttribute("aria-current");
       await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
-      expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: "Administration" })).toBeNull();
+      expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: "Admin" })).toBeNull();
     });
 
-    it("hides the Administration link from a user", async () => {
+    it("hides the Admin link from a user", async () => {
       mockApi(signedIn(BOB));
       renderAt("/");
       const nav = await screen.findByRole("navigation", { name: "Main" });
       expect(within(nav).getByRole("link", { name: "My links" })).toBeInTheDocument();
-      expect(within(nav).queryByRole("link", { name: "Administration" })).toBeNull();
+      expect(within(nav).queryByRole("link", { name: "Admin" })).toBeNull();
     });
 
     it("moves between pages without reloading the session, then focuses the page heading", async () => {
@@ -190,12 +190,12 @@ describe("App", () => {
       expect(document.activeElement).toBe(document.body);
       expect(document.title).toBe("My links - YASAD");
 
-      await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Administration" }));
-      const heading = await screen.findByRole("heading", { name: "Administration", level: 1 });
+      await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" }));
+      const heading = await screen.findByRole("heading", { name: "Administration, Users", level: 1 });
       expect(location.pathname).toBe("/admin/users");
       expect(heading).toHaveFocus();
       expect(document.title).toBe("Users - Administration - YASAD");
-      expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Administration" })).toHaveAttribute(
+      expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" })).toHaveAttribute(
         "aria-current",
         "page",
       );
@@ -203,7 +203,7 @@ describe("App", () => {
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
       expect(location.pathname).toBe("/admin/groups");
       expect(document.title).toBe("Groups - Administration - YASAD");
-      expect(screen.getByRole("heading", { name: "Administration", level: 1 })).toHaveFocus();
+      expect(screen.getByRole("heading", { name: "Administration, Groups", level: 1 })).toHaveFocus();
 
       act(() => {
         history.back();
@@ -281,6 +281,79 @@ describe("App", () => {
       renderAt("/");
       await screen.findByRole("heading", { name: "Set up YASAD" });
       expect(document.title).toBe("Setup code - Set up YASAD - YASAD");
+    });
+
+    it("shows the password change when the API says an admin reset the password since the page loaded", async () => {
+      const user = userEvent.setup();
+      mockApi(signedIn(ADA));
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+      const required = { status: 403, body: { error: { code: "password_change_required", message: "" } } };
+      mockApi({
+        ...signedIn({ ...ADA, mustChangePassword: true }),
+        "GET /api/setup": required,
+        "GET /api/admin/users": required,
+        "GET /api/admin/groups": required,
+      });
+      await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" }));
+      expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+    });
+
+    it("shows the sign-in screen when the API says the session ended", async () => {
+      const user = userEvent.setup();
+      mockApi(signedIn(ADA));
+      renderAt("/admin/users");
+      await screen.findByRole("heading", { name: "Administration, Users" });
+      const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
+      mockApi({
+        "GET /api/setup": { status: 200, body: { open: false } },
+        "GET /api/auth/get-session": { status: 200, body: null },
+        "GET /api/admin/users": unauthenticated,
+        "GET /api/admin/groups": unauthenticated,
+      });
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    });
+
+    it("tells a demoted admin that administration pages are for admins only", async () => {
+      const user = userEvent.setup();
+      mockApi(signedIn(ADA));
+      renderAt("/admin/users");
+      await screen.findByRole("heading", { name: "Administration, Users" });
+      const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
+      mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden });
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+      expect(await screen.findByRole("heading", { name: "Admins only" })).toBeInTheDocument();
+      expect(within(screen.getByRole("navigation", { name: "Main" })).queryByRole("link", { name: "Admin" })).toBeNull();
+    });
+
+    it("signs a local admin in from /sign-in/local without showing the password sign-in off screen", async () => {
+      const user = userEvent.setup();
+      mockApi({
+        "GET /api/instance": { status: 200, body: { title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: false } },
+        "GET /api/setup": { status: 200, body: { open: false } },
+        "GET /api/auth/get-session": [
+          { status: 200, body: null },
+          { status: 200, body: { user: ADA, session: {} } },
+        ],
+        "POST /api/auth/sign-in/email": { status: 200, body: {} },
+      });
+      renderAt("/sign-in/local");
+      await screen.findByRole("heading", { name: "Sign in" });
+      const seen: string[] = [];
+      const observer = new MutationObserver(() => {
+        const heading = document.querySelector("h1")?.textContent;
+        if (heading) seen.push(heading);
+      });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+      await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
+      await user.type(screen.getByLabelText("Password"), "a long enough password");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+      observer.disconnect();
+      expect(seen).not.toContain("Password sign-in is off");
+      expect(location.pathname).toBe("/");
     });
 
     it("sends a signed-in user away from /sign-in/local", async () => {
