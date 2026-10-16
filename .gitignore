@@ -41,5 +41,5 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/.vitest/
 
-# Design specs live in Outline, never in the repo.
+# Design specs live outside the repo.
 docs/superpowers/
