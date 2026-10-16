@@ -1,10 +1,10 @@
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData } from "../api";
 import { invalidateHome, onViewerChanged, primeHome } from "../lib/home-store";
-import { getStatus, mockApi, renderWithProviders } from "../test-utils";
+import { getAnnouncer, mockApi, renderWithProviders } from "../test-utils";
 import { Home } from "./Home";
 
 const ADA = { id: "ada", name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
@@ -28,17 +28,23 @@ afterEach(() => {
 });
 
 describe("Home", () => {
-  it("mounts the status region empty and fills it afterwards, so it is announced", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => new Promise<Response>(() => {})),
-    );
-    const { container } = renderWithProviders(<Home user={ADA} />);
-    const status = getStatus();
-    expect(status).toBeEmptyDOMElement();
-    await vi.waitFor(() => expect(status).toHaveTextContent("Loading your links"));
-    expect(getStatus()).toBe(status);
-    expect(container.querySelector("[data-slot=home-skeleton] [role=status]")).toBeNull();
+  it("announces the loading through the app announcer only once it lasts 300 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => new Promise<Response>(() => {})),
+      );
+      const { container } = renderWithProviders(<Home user={ADA} />);
+      act(() => vi.advanceTimersByTime(299));
+      expect(getAnnouncer()).toHaveTextContent("");
+      act(() => vi.advanceTimersByTime(1));
+      expect(getAnnouncer()).toHaveTextContent("Loading your links");
+      expect(container.querySelector("[data-slot=page-skeleton]")).toHaveClass("appear-delayed");
+      expect(container.querySelector("[data-slot=page-skeleton] [role=status]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the heading and a loading status, then the categories and links in API order", async () => {
@@ -50,7 +56,7 @@ describe("Home", () => {
     const first = screen.getByRole("region", { name: "Second in the catalog" });
     expect(within(first).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["https://zeta.example.invalid", "https://alpha.example.invalid"]);
     await waitFor(() => expect(document.title).toBe("My links - YASAD"));
-    expect(getStatus()).toBeEmptyDOMElement();
+    expect(getAnnouncer()).toBeEmptyDOMElement();
   });
 
   it("shows an error with a retry button that stays in place, then the links", async () => {
@@ -150,7 +156,7 @@ describe("Home", () => {
     renderWithProviders(<Home user={null} />);
     expect(screen.getByRole("heading", { level: 1, name: "Links" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
-    expect(getStatus()).toBeEmptyDOMElement();
+    expect(getAnnouncer()).toBeEmptyDOMElement();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -160,7 +166,7 @@ describe("Home", () => {
     const stop = onViewerChanged(changed);
     const { container } = renderWithProviders(<Home user={ADA} />);
     await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
-    expect(container.querySelector("[data-slot=home-skeleton]")).not.toBeNull();
+    expect(container.querySelector("[data-slot=page-skeleton]")).not.toBeNull();
     expect(screen.queryByRole("region", { name: "Second in the catalog" })).toBeNull();
     stop();
   });
@@ -176,7 +182,7 @@ describe("Home", () => {
     const fetchMock = mockApi(home(DATA));
     primeHome("user:ada", DATA);
     const { container } = renderWithProviders(<Home user={ADA} />);
-    expect(container.querySelector("[data-slot=home-skeleton]")).not.toBeNull();
+    expect(container.querySelector("[data-slot=page-skeleton]")).not.toBeNull();
     expect(await screen.findByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

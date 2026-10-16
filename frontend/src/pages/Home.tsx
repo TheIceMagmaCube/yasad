@@ -1,16 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 
 import type { User } from "../api";
 import { CategorySection } from "../components/home/CategorySection";
 import { HomeEmptyState } from "../components/home/HomeEmptyState";
-import { HomeSkeleton } from "../components/home/HomeSkeleton";
+import { LoadError } from "../components/LoadError";
+import { Page } from "../components/Page";
 import { PageHeader } from "../components/PageHeader";
-import { Alert } from "../components/ui/alert";
-import { Button } from "../components/ui/button";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
 import { homeKey, type HomeState, loadHome, useHomeEntry } from "../lib/home-store";
-import { focusPage } from "../lib/focus";
+import { useAnnounceAfter } from "../lib/announcer";
 import { useDocumentTitle } from "../lib/page";
 
 const LOADING: HomeState = { status: "loading" };
@@ -40,42 +40,16 @@ export function Home({ user }: { user: User | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  /** Whether the status region has been registered: it is filled only after mount, so screen readers announce the change. */
-  const [statusReady, setStatusReady] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setStatusReady(true), 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  /** Whether to focus the page heading once a retry succeeds, since the focused button goes away. */
-  const focusAfterRetry = useRef(false);
-  const retryAndRefocus = () => {
-    focusAfterRetry.current = true;
-    loadHome(key);
-  };
-  useEffect(() => {
-    if (state.status === "error") return;
-    if (focusAfterRetry.current && state.status === "ready") focusPage();
-    focusAfterRetry.current = false;
-  }, [state]);
+  // Said only when the wait lasts, like the skeleton, which appears after the same delay.
+  useAnnounceAfter(loading, m.loading, 300);
 
   return (
-    <>
+    <Page width="list">
       <PageHeader title={title} />
-      <p role="status" className="sr-only">
-        {statusReady && loading ? m.loading : ""}
-      </p>
       {loading ? (
-        <HomeSkeleton />
+        <PageSkeleton />
       ) : state.status === "error" ? (
-        <div className="space-y-4">
-          <Alert key={state.attempt} variant="destructive">
-            {m.loadError} {errorMessage(state.error, strings)}
-          </Alert>
-          <Button variant="outline" pending={retrying} onClick={retryAndRefocus}>
-            {m.retry}
-          </Button>
-        </div>
+        <LoadError attempt={state.attempt} message={`${m.loadError} ${errorMessage(state.error, strings)}`} pending={retrying} onRetry={() => loadHome(key)} />
       ) : state.data.categories.length === 0 ? (
         <HomeEmptyState empty={state.data.empty} />
       ) : (
@@ -85,6 +59,6 @@ export function Home({ user }: { user: User | null }) {
           ))}
         </div>
       )}
-    </>
+    </Page>
   );
 }

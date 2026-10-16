@@ -36,7 +36,7 @@ describe("AppShell", () => {
 
   it("has no search while the section links are hidden (temporary password)", () => {
     renderWithProviders(
-      <AppShell user={{ id: "ada", name: "Ada", email: "ada@example.invalid", role: "user" }} path="/" nav={false} onSignOut={() => {}}>
+      <AppShell user={{ id: "ada", name: "Ada", email: "ada@example.invalid", role: "user" }} path="/" minimal onSignOut={() => {}}>
         <p>content</p>
       </AppShell>,
     );
@@ -53,5 +53,17 @@ describe("AppShell", () => {
     const banner = screen.getByRole("banner");
     const order = [...banner.querySelectorAll("a, button, input")].map((el) => el.getAttribute("aria-label") ?? el.textContent);
     expect(order.slice(-3)).toEqual(["Search", "Search links", "Account menu for Ada"]);
+  });
+
+  it("keeps the brand alone in minimal mode without a user (loading)", () => {
+    renderWithProviders(
+      <AppShell user={null} path="/" minimal>
+        <p>content</p>
+      </AppShell>,
+    );
+    const banner = screen.getByRole("banner");
+    expect(within(banner).getAllByRole("link").map((a) => a.textContent)).toEqual(["YASAD"]);
+    expect(within(banner).queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("contentinfo")).toBeNull();
   });
 });
