@@ -2,6 +2,8 @@ import "@testing-library/jest-dom/vitest";
 
 import { afterEach, vi } from "vitest";
 
+import { resetHomeStore } from "./lib/home-store";
+
 // jsdom has no matchMedia; tests run with a light system preference unless they stub it.
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -14,4 +16,10 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
-afterEach(() => localStorage.clear());
+// jsdom does not lay out, so it has no scrollIntoView; the search list calls it on every move.
+Element.prototype.scrollIntoView = vi.fn();
+
+afterEach(() => {
+  localStorage.clear();
+  resetHomeStore();
+});

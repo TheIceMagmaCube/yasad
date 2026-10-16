@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, ApiError, type HomeData, onStaleSession, type SetupState, type User } from "./api";
+import { api, ApiError, onStaleSession, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
+import { invalidateHome, primeHome } from "./lib/home-store";
 import { useDocumentTitle, useFocusOnNavigation } from "./lib/page";
 import { navigate, normalizePath, usePath } from "./lib/router";
 import { AdminCatalog } from "./pages/AdminCatalog";
@@ -28,7 +29,7 @@ type View =
   | { name: "setup" }
   | { name: "signIn" }
   /** Nobody signed in, and some links are open to everyone: "/" shows them. */
-  | { name: "public"; home: HomeData }
+  | { name: "public" }
   | { name: "home"; user: User };
 
 /** Treat the setup state as closed when the API waits for a temporary password to be replaced. */
@@ -37,13 +38,18 @@ function passwordChangePending(err: unknown): SetupState {
   throw err;
 }
 
-/** Return the public home when some links are open to everyone, else null; a failure also gives null, so sign-in stays reachable. */
-async function loadPublicHome(): Promise<HomeData | null> {
+/**
+ * Return whether some links are open to everyone, storing them in the home store for the anonymous home; a
+ * failure also gives false, so sign-in stays reachable.
+ */
+async function loadPublicHome(): Promise<boolean> {
   try {
     const home = await api.home();
-    return home.categories.length > 0 ? home : null;
+    if (home.categories.length === 0) return false;
+    primeHome("anonymous", home);
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -61,8 +67,7 @@ async function loadView(): Promise<View> {
   }
   if (setup.open && !user) return { name: "setup" };
   if (user) return { name: "home", user };
-  const home = await loadPublicHome();
-  return home ? { name: "public", home } : { name: "signIn" };
+  return (await loadPublicHome()) ? { name: "public" } : { name: "signIn" };
 }
 
 /** Return the instance settings, keeping the cached ones when the API does not answer. */
@@ -86,7 +91,10 @@ export function App() {
     viewRef.current = view;
   }, [view]);
 
+  // Every session change goes through here (expired session, sign-in, sign-out, password changed, setup done):
+  // the cached home data of the previous viewer is dropped before anything else is shown.
   const refresh = useCallback(() => {
+    invalidateHome();
     pending.current += 1;
     void loadView()
       .then(setView)
@@ -187,7 +195,7 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
       if (path === "/") {
         return (
           <AppShell user={null} path={path}>
-            <Home user={null} initial={view.home} />
+            <Home user={null} />
           </AppShell>
         );
       }

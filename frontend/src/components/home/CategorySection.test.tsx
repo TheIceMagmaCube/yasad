@@ -11,9 +11,9 @@ const CATEGORY = {
   id: "dev",
   title: "Developer tools",
   links: [
-    { id: "jira", title: "Jira", description: "", url: "https://jira.example.invalid", icon: null },
-    { id: "wiki", title: "Wiki", description: "", url: "https://wiki.example.invalid", icon: null },
-    { id: "ci", title: "CI", description: "", url: "https://ci.example.invalid", icon: null },
+    { id: "jira", title: "Jira", description: "", url: "https://jira.example.invalid", icon: null, keywords: [] },
+    { id: "wiki", title: "Wiki", description: "", url: "https://wiki.example.invalid", icon: null, keywords: [] },
+    { id: "ci", title: "CI", description: "", url: "https://ci.example.invalid", icon: null, keywords: [] },
   ],
 };
 
