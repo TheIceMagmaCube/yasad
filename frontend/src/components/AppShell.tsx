@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 
 import type { User } from "../api";
 import { useStrings } from "../i18n/LocaleProvider";
-import { useInstance } from "../instance";
-import { InstanceLogo } from "./InstanceLogo";
+import { Brand } from "./Brand";
 import { Link } from "./Link";
+import { SkipLink } from "./SkipLink";
 import { UserMenu } from "./UserMenu";
 
 type Section = "home" | "admin";
@@ -50,25 +50,13 @@ export function AppShell({
   children: ReactNode;
 }) {
   const m = useStrings();
-  const { title } = useInstance();
   const section = sectionOf(path);
   return (
     <div className="min-h-screen">
-      <a
-        href="#content"
-        className="sr-only rounded-md bg-background px-4 py-2 text-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:ring-2 focus:ring-ring"
-      >
-        {m.skipToContent}
-      </a>
+      <SkipLink />
       <header className="border-b border-header-border bg-header text-header-foreground">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-4 sm:gap-6 sm:px-8">
-          <Link
-            href="/"
-            className="flex min-w-0 items-center gap-2 rounded-md font-bold outline-none focus-visible:ring-2 focus-visible:ring-header-foreground"
-          >
-            <InstanceLogo className="size-6 shrink-0" />
-            <span className="truncate">{title}</span>
-          </Link>
+          <Brand />
           {nav && (
             <nav aria-label={m.nav.label} className="h-full">
               <ul className="flex h-full gap-1 sm:gap-2">

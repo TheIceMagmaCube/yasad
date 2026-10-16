@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { useInstance } from "../instance";
 import { InstanceLogo } from "./InstanceLogo";
+import { Link } from "./Link";
 
 const brandVariants = cva(
   "flex min-w-0 items-center rounded-md font-bold text-header-foreground outline-none focus-visible:ring-2 focus-visible:ring-header-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-header",
@@ -32,9 +33,9 @@ export function Brand({ size, href = "/", className }: BrandProps) {
   const { title } = useInstance();
   const key = size ?? "header";
   return (
-    <a href={href} data-slot="brand" className={cn(brandVariants({ size }), className)}>
+    <Link href={href} data-slot="brand" className={cn(brandVariants({ size }), className)}>
       <InstanceLogo className={cn("shrink-0", logoSizes[key])} />
       <span className={cn("truncate", titleSizes[key])}>{title}</span>
-    </a>
+    </Link>
   );
 }
