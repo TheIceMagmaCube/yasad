@@ -62,3 +62,14 @@ export function authFor(c: Context<AppEnv>): Auth {
   }
   return auth;
 }
+
+export type Session = Awaited<ReturnType<Auth["api"]["getSession"]>>;
+
+/** Return the request's session, or null; it is read once per request, then reused. */
+export async function sessionFor(c: Context<AppEnv>): Promise<Session | null> {
+  const known = c.get("session");
+  if (known !== undefined) return known;
+  const current = c.req.header("cookie") ? await authFor(c).api.getSession({ headers: c.req.raw.headers }) : null;
+  c.set("session", current);
+  return current;
+}

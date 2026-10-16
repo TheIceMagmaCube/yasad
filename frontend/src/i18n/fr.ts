@@ -106,6 +106,7 @@ export const fr = {
     links: "Liens",
     removalNotice: (n: number) => `${n} élément${n === 1 ? "" : "s"} ${n === 1 ? "sera supprimé" : "seront supprimés"}.`,
     noGroup: (kind, id) => `${kind === "category" ? "La catégorie" : "Le lien"} « ${id} » n'a aucun groupe : personne ne peut le voir.`,
+    unknownIcon: (id) => `Le lien « ${id} » a une icône que cette version ne connaît pas : sa première lettre s'affiche à la place.`,
     groupsDifferByCase: (groups) => `Groupes qui ne diffèrent que par la casse : ${groups.join(", ")}.`,
     errors: {
       invalid_id: () => "Utilisez des minuscules, des chiffres et des tirets.",
@@ -206,8 +207,35 @@ export const fr = {
     wrongCurrent: "Le mot de passe actuel est incorrect.",
   },
   home: {
-    title: "Bienvenue",
-    signedInAs: (name: string) => `Session ouverte : ${name}.`,
-    placeholder: "Vos liens apparaîtront ici.",
+    title: "Mes liens",
+    publicTitle: "Liens",
+    loading: "Chargement de vos liens",
+    loadError: "Impossible de charger vos liens.",
+    retry: "Réessayer",
+    empty: {
+      catalog: {
+        title: "Votre catalogue est vide",
+        body: "Trois étapes font apparaître des liens ici.",
+        accounts: "Une personne a besoin d'un compte pour rejoindre un groupe :",
+        users: "gérer les comptes",
+        import: "Importer le catalogue",
+        groups: "Créer les groupes",
+        members: "Ajouter des personnes aux groupes",
+      },
+      adminNoAccess: {
+        title: "Aucun lien ne vous est ouvert",
+        body: "Les administrateurs suivent aussi les groupes : un lien n'apparaît ici que si vous avez un groupe sur le lien et sur sa catégorie.",
+        manageGroups: "Gérer les groupes",
+        manageCatalog: "Gérer le catalogue",
+      },
+      noGroups: {
+        title: "Pas encore d'accès",
+        body: "Votre compte n'est dans aucun groupe. Contactez votre administrateur.",
+      },
+      nothingVisible: {
+        title: "Rien à afficher pour l'instant",
+        body: "Vos groupes n'ouvrent encore aucun lien. Si vous en attendiez, contactez votre administrateur.",
+      },
+    },
   },
 } satisfies Messages;

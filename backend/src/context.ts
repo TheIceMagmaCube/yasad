@@ -1,4 +1,4 @@
-import type { Auth } from "./auth";
+import type { Auth, Session } from "./auth";
 import type { Config } from "./config";
 import type { DB } from "./db";
 
@@ -9,5 +9,7 @@ export type AppEnv = {
     config: Config;
     clientIp: string;
     auth?: Auth;
+    /** The session read by `sessionFor`; unset until then. */
+    session?: Session | null;
   };
 };

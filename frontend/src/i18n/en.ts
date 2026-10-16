@@ -104,6 +104,7 @@ export const en = {
     links: "Links",
     removalNotice: (n: number) => `${n} item${n === 1 ? "" : "s"} will be deleted.`,
     noGroup: (kind: "category" | "link", id: string) => `${kind === "category" ? "Category" : "Link"} "${id}" has no group: nobody can see it.`,
+    unknownIcon: (id: string) => `Link "${id}" has an icon this version does not know: it shows its first letter instead.`,
     groupsDifferByCase: (groups: string[]) => `Groups differ only by case: ${groups.join(", ")}.`,
     errors: {
       invalid_id: () => "Use lower-case letters, digits and dashes.",
@@ -201,9 +202,36 @@ export const en = {
     wrongCurrent: "The current password is not correct.",
   },
   home: {
-    title: "Welcome",
-    signedInAs: (name: string) => `Signed in as ${name}.`,
-    placeholder: "Your links will appear here.",
+    title: "My links",
+    publicTitle: "Links",
+    loading: "Loading your links",
+    loadError: "Your links could not be loaded.",
+    retry: "Try again",
+    empty: {
+      catalog: {
+        title: "Your catalog is empty",
+        body: "Three steps make links appear here.",
+        accounts: "People need an account to join a group:",
+        users: "manage users",
+        import: "Import the catalog",
+        groups: "Create the groups",
+        members: "Add people to the groups",
+      },
+      adminNoAccess: {
+        title: "No link is open to you",
+        body: "Administrators follow the groups too: a link shows here only when you hold a group on the link and on its category.",
+        manageGroups: "Manage groups",
+        manageCatalog: "Manage the catalog",
+      },
+      noGroups: {
+        title: "No access yet",
+        body: "Your account is in no group. Contact your administrator.",
+      },
+      nothingVisible: {
+        title: "Nothing to show yet",
+        body: "Your groups do not open any link yet. If you expected some, contact your administrator.",
+      },
+    },
   },
 };
 

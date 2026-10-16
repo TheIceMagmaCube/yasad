@@ -8,12 +8,21 @@ import { mockApi, type Routes } from "./test-utils";
 
 const ADA = { name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
 const BOB = { name: "Bob", email: "bob@example.invalid", role: "user" };
+const CATEGORY = {
+  id: "everyday",
+  title: "Everyday",
+  links: [{ id: "mail", title: "Mail", description: "Company mailbox", url: "https://mail.example.invalid", icon: null }],
+};
+
+/** Home answer of an anonymous visitor on an instance with no public link. */
+const NO_PUBLIC_LINKS: Routes = { "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null } } };
 
 /** Return the API answers for a signed-in person, admin lists included. */
 function signedIn(user: object): Routes {
   return {
     "GET /api/setup": { status: 200, body: { open: false } },
     "GET /api/auth/get-session": { status: 200, body: { user, session: {} } },
+    "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
     "GET /api/admin/users": { status: 200, body: { users: [] } },
     "GET /api/admin/groups": { status: 200, body: { groups: [] } },
   };
@@ -35,13 +44,15 @@ afterEach(() => {
 
 describe("App", () => {
   it("shows the setup flow while setup is open and nobody is signed in", async () => {
-    mockApi({ "GET /api/setup": { status: 200, body: { open: true } }, "GET /api/auth/get-session": { status: 200, body: null } });
+    mockApi({ "GET /api/setup": { status: 200, body: { open: true } }, "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Set up YASAD" })).toBeInTheDocument();
   });
 
   it("shows the sign-in screen once setup is closed", async () => {
-    mockApi({ "GET /api/setup": { status: 200, body: { open: false } }, "GET /api/auth/get-session": { status: 200, body: null } });
+    mockApi({ "GET /api/setup": { status: 200, body: { open: false } }, "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
@@ -50,9 +61,11 @@ describe("App", () => {
     mockApi({
       "GET /api/setup": { status: 200, body: { open: false, setupCodeStillSet: false } },
       "GET /api/auth/get-session": { status: 200, body: { user: ADA, session: {} } },
+      "GET /api/home": { status: 200, body: { signedIn: true, categories: [CATEGORY], empty: null } },
     });
     render(<App />);
-    expect(await screen.findByText("Signed in as Ada Lovelace.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Mail" })).toHaveAttribute("href", "https://mail.example.invalid");
   });
 
   it("applies the instance title, theme and language, and caches them", async () => {
@@ -61,6 +74,7 @@ describe("App", () => {
       "GET /api/instance": { status: 200, body: { title: "Home lab", logo: null, theme: "dusk", defaultLanguage: "fr", passwordSignIn: true } },
       "GET /api/setup": { status: 200, body: { open: false } },
       "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS,
     });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Connexion" })).toBeInTheDocument();
@@ -77,6 +91,7 @@ describe("App", () => {
       "GET /api/instance": { status: 500, body: { error: { code: "internal_error", message: "" } } },
       "GET /api/setup": { status: 200, body: { open: false } },
       "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS,
     });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
@@ -84,7 +99,8 @@ describe("App", () => {
   });
 
   it("switches language and appearance from the signed-out screen", async () => {
-    mockApi({ "GET /api/setup": { status: 200, body: { open: false } }, "GET /api/auth/get-session": { status: 200, body: null } });
+    mockApi({ "GET /api/setup": { status: 200, body: { open: false } }, "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS });
     const user = userEvent.setup();
     render(<App />);
     await user.selectOptions(await screen.findByLabelText("Appearance"), "dark");
@@ -101,6 +117,10 @@ describe("App", () => {
       "GET /api/auth/get-session": [
         { status: 200, body: { user: ADA, session: {} } },
         { status: 200, body: null },
+      ],
+      "GET /api/home": [
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null } },
       ],
       "POST /api/auth/sign-out": { status: 200, body: {} },
     });
@@ -122,16 +142,18 @@ describe("App", () => {
         { status: 200, body: { user: { ...ADA, mustChangePassword: true }, session: {} } },
         { status: 200, body: { user: ADA, session: {} } },
       ],
+      "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
       "POST /api/account/password": { status: 204 },
     });
     const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/home")).toBe(false);
     await user.type(screen.getByLabelText("Current password"), "temporary password");
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
     await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
     await user.click(screen.getByRole("button", { name: "Save password" }));
-    expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
     const call = fetchMock.mock.calls.find(([path]) => path === "/api/account/password")!;
     expect(JSON.parse(String(call[1]!.body))).toEqual({ currentPassword: "temporary password", newPassword: "a brand new passphrase" });
   });
@@ -141,6 +163,7 @@ describe("App", () => {
       "GET /api/instance": { status: 200, body: { title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: false } },
       "GET /api/setup": { status: 200, body: { open: false } },
       "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS,
     };
     mockApi(routes);
     render(<App />);
@@ -160,6 +183,91 @@ describe("App", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     render(<App />);
     expect(await screen.findByRole("alert")).toHaveTextContent("cannot reach its server");
+  });
+
+  describe("anonymous visitor", () => {
+    const PUBLIC_HOME = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    const anonymous: Routes = {
+      "GET /api/setup": { status: 200, body: { open: false } },
+      "GET /api/auth/get-session": { status: 200, body: null },
+      "GET /api/home": PUBLIC_HOME,
+    };
+
+    it("sees the public links with a sign-in link and no section links", async () => {
+      const user = userEvent.setup();
+      const fetchMock = mockApi(anonymous);
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Links", level: 1 })).toBeInTheDocument();
+      expect(document.title).toBe("Links - YASAD");
+      const card = screen.getByRole("link", { name: "Mail" });
+      expect(card).toHaveAttribute("href", "https://mail.example.invalid");
+      expect(card).not.toHaveAttribute("target");
+      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
+      expect(within(screen.getByRole("contentinfo")).getByLabelText("Language")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.filter(([path]) => path === "/api/home")).toHaveLength(1);
+
+      await user.click(screen.getByRole("link", { name: "Sign in" }));
+      expect(location.pathname).toBe("/sign-in");
+      expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sign in", level: 1 })).toBeInTheDocument();
+    });
+
+    it("sees the sign-in screen on / when no link is public", async () => {
+      mockApi({ ...anonymous, "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null } } });
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
+      expect(location.pathname).toBe("/");
+    });
+
+    it("sees the sign-in screen when /api/home fails", async () => {
+      mockApi({ ...anonymous, "GET /api/home": { status: 500, body: { error: { code: "internal_error", message: "" } } } });
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("gets the sign-in form on /sign-in even with public links, then lands on / once signed in", async () => {
+      const user = userEvent.setup();
+      mockApi({
+        ...anonymous,
+        "GET /api/auth/get-session": [
+          { status: 200, body: null },
+          { status: 200, body: { user: BOB, session: {} } },
+        ],
+        "GET /api/home": [PUBLIC_HOME, { status: 200, body: { signedIn: true, categories: [CATEGORY], empty: null } }],
+        "POST /api/auth/sign-in/email": { status: 200, body: {} },
+      });
+      renderAt("/sign-in");
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      await user.type(screen.getByLabelText("E-mail"), "bob@example.invalid");
+      await user.type(screen.getByLabelText("Password"), "a long enough password");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
+      expect(location.pathname).toBe("/");
+      expect(await screen.findByRole("link", { name: "Mail" })).toBeInTheDocument();
+    });
+
+    it("gets the setup flow before the public links while setup is open", async () => {
+      const fetchMock = mockApi({ ...anonymous, "GET /api/setup": { status: 200, body: { open: true } } });
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Set up YASAD" })).toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(([path]) => path === "/api/home")).toBe(false);
+    });
+
+    it("reloads the session when the home answers as signed out", async () => {
+      mockApi({
+        ...anonymous,
+        "GET /api/auth/get-session": [
+          { status: 200, body: { user: BOB, session: {} } },
+          { status: 200, body: null },
+        ],
+        "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }],
+      });
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    });
   });
 
   describe("navigation", () => {
@@ -186,7 +294,7 @@ describe("App", () => {
       const user = userEvent.setup();
       const fetchMock = mockApi(signedIn(ADA));
       renderAt("/");
-      expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
       expect(document.activeElement).toBe(document.body);
       expect(document.title).toBe("My links - YASAD");
 
@@ -238,7 +346,7 @@ describe("App", () => {
       expect(document.title).toBe("Page not found - YASAD");
       await user.click(screen.getByRole("link", { name: "Back to my links" }));
       expect(location.pathname).toBe("/");
-      expect(await screen.findByRole("heading", { name: "Welcome" })).toHaveFocus();
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toHaveFocus();
     });
 
     it("shows an unknown administration page as not found to an admin", async () => {
@@ -277,7 +385,8 @@ describe("App", () => {
     });
 
     it("titles the setup steps", async () => {
-      mockApi({ "GET /api/setup": { status: 200, body: { open: true } }, "GET /api/auth/get-session": { status: 200, body: null } });
+      mockApi({ "GET /api/setup": { status: 200, body: { open: true } }, "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS });
       renderAt("/");
       await screen.findByRole("heading", { name: "Set up YASAD" });
       expect(document.title).toBe("Setup code - Set up YASAD - YASAD");
@@ -287,7 +396,7 @@ describe("App", () => {
       const user = userEvent.setup();
       mockApi(signedIn(ADA));
       renderAt("/");
-      expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
       const required = { status: 403, body: { error: { code: "password_change_required", message: "" } } };
       mockApi({
         ...signedIn({ ...ADA, mustChangePassword: true }),
@@ -309,6 +418,7 @@ describe("App", () => {
       mockApi({
         "GET /api/setup": { status: 200, body: { open: false } },
         "GET /api/auth/get-session": { status: 200, body: null },
+      ...NO_PUBLIC_LINKS,
         "GET /api/admin/users": unauthenticated,
         "GET /api/admin/groups": unauthenticated,
       });
@@ -337,6 +447,10 @@ describe("App", () => {
           { status: 200, body: null },
           { status: 200, body: { user: ADA, session: {} } },
         ],
+        "GET /api/home": [
+          { status: 200, body: { signedIn: false, categories: [], empty: null } },
+          { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
+        ],
         "POST /api/auth/sign-in/email": { status: 200, body: {} },
       });
       renderAt("/sign-in/local");
@@ -350,7 +464,7 @@ describe("App", () => {
       await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
       await user.type(screen.getByLabelText("Password"), "a long enough password");
       await user.click(screen.getByRole("button", { name: "Sign in" }));
-      expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
       observer.disconnect();
       expect(seen).not.toContain("Password sign-in is off");
       expect(location.pathname).toBe("/");
@@ -359,7 +473,7 @@ describe("App", () => {
     it("sends a signed-in user away from /sign-in/local", async () => {
       mockApi(signedIn(BOB));
       renderAt("/sign-in/local");
-      expect(await screen.findByRole("heading", { name: "Welcome" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
       expect(location.pathname).toBe("/");
     });
   });

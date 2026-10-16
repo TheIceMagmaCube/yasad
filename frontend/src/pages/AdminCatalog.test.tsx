@@ -27,7 +27,7 @@ describe("AdminCatalog", () => {
   it("previews the file, highlights deletions, then imports it", async () => {
     const fetchMock = mockApi({
       "POST /api/admin/catalog": [
-        preview({ added: { categories: ["tools"], links: ["mail"] }, removed: { categories: [], links: ["jira"] }, warnings: [{ code: "no_group", kind: "link", id: "x" }] }),
+        preview({ added: { categories: ["tools"], links: ["mail"] }, removed: { categories: [], links: ["jira"] }, warnings: [{ code: "no_group", kind: "link", id: "x" }, { code: "unknown_icon", kind: "link", id: "mail" }] }),
         { status: 200, body: { applied: true, baseVersion: "v1", diff: {} } },
       ],
     });
@@ -35,6 +35,7 @@ describe("AdminCatalog", () => {
     const user = await choose();
     expect(await screen.findByText("1 item will be deleted.")).toBeInTheDocument();
     expect(screen.getByText('Link "x" has no group: nobody can see it.')).toBeInTheDocument();
+    expect(screen.getByText('Link "mail" has an icon this version does not know: it shows its first letter instead.')).toBeInTheDocument();
     expect(sentBody(fetchMock, 0)).toEqual({ yaml: YAML, dryRun: true });
 
     await user.click(screen.getByRole("button", { name: "Import" }));

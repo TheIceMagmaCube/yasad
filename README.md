@@ -98,6 +98,8 @@ On Cloudflare Workers, set the same values as secrets (`wrangler secret put AUTH
 
 Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. Admins import and export it from the "Catalog" page (account menu); importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
 
+A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
+
 ### Development
 
 ```sh
@@ -115,3 +117,8 @@ Issues and ideas are welcome. Contribution guide to come.
 ## License
 
 GNU Affero General Public License v3.0 (AGPL-3.0).
+
+Catalog icons are generated at build time (`scripts/generate-icons.mjs`), with their licences in `icons/<hash>/NOTICE.txt` next to them:
+
+* [Lucide](https://lucide.dev): ISC, and MIT for the icons derived from Feather.
+* [Simple Icons](https://simpleicons.org): data under CC0-1.0. The logos are trademarks of their owners; showing one identifies the linked service and implies no endorsement (see the Simple Icons [disclaimer](https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md)). Only icons with no licence of their own, or under CC0, the Unlicense, CC-BY or CC-BY-SA, are included; those under CC-BY or CC-BY-SA are credited in the notice with their source. Icons under any other licence (MIT, BSD, Apache, GPL, MPL, non-commercial, no-derivatives, custom) are left out and show the link's initial instead.

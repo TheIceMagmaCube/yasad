@@ -17,7 +17,10 @@ export class ApiError extends Error {
   }
 }
 
-export type CatalogWarning = { code: "no_group"; kind: "category" | "link"; id: string } | { code: "groups_differ_by_case"; groups: string[] };
+export type CatalogWarning =
+  | { code: "no_group"; kind: "category" | "link"; id: string }
+  | { code: "unknown_icon"; kind: "link"; id: string }
+  | { code: "groups_differ_by_case"; groups: string[] };
 export type CatalogErrorParams = { id?: string; key?: string; fields?: string[]; max?: number; line?: number };
 export type CatalogError = { path: string; code: string; params: CatalogErrorParams };
 
@@ -51,6 +54,14 @@ export type AdminGroup = { id: string; name: string; source: GroupSource; member
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
 export type AdminInput = { name: string; email: string; password: string; passwordConfirm: string };
+
+/** Icon of a link: a Simple Icons slug or a canonical Lucide name, both known to the generated icon files. */
+export type HomeIcon = { set: "si" | "lucide"; name: string };
+export type HomeLink = { id: string; title: string; description: string; url: string; icon: HomeIcon | null };
+export type HomeCategory = { id: string; title: string; links: HomeLink[] };
+/** Why the home page is empty; set only when `categories` is empty and someone is signed in. */
+export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";
+export type HomeData = { signedIn: boolean; categories: HomeCategory[]; empty: HomeEmpty | null };
 
 /** Error codes saying the session the app holds is out of date: signed out, temporary password set, or no longer an admin. */
 const STALE_SESSION_CODES = new Set(["unauthenticated", "password_change_required", "forbidden"]);
@@ -95,6 +106,7 @@ export const api = {
   setupState: () => call<SetupState>("/api/setup"),
   verifyCode: (code: string) => call<void>("/api/setup/verify-code", post({ code })),
   completeSetup: (code: string, admin: AdminInput) => call<{ user: User }>("/api/setup", post({ code, ...admin })),
+  home: () => call<HomeData>("/api/home"),
   session: async () => (await call<{ user: User } | null>("/api/auth/get-session"))?.user ?? null,
   signIn: (email: string, password: string) => call<unknown>("/api/auth/sign-in/email", post({ email, password })),
   signOut: () => call<unknown>("/api/auth/sign-out", post({})),
