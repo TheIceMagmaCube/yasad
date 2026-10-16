@@ -2,11 +2,13 @@
 
 Self-hosted portal (Yet Another Simple Accessible Dashboard): each person sees one screen with the links their groups allow. Local accounts, OIDC, or both. AGPL-3.0.
 
-Product decisions live in Outline, page "Décisions en vigueur" (https://outline.fabiengilles.tf/doc/decisions-en-vigueur-ypSeFfhluJ), child of "YASAD" in the IT collection. It is the only up-to-date reference: read it before changing behaviour, and propose an update there when a decision changes. The sibling page "Journal et analyse (historique)" is history only (it still mentions Django, which was dropped); never take a decision from it.
+Product decisions live in the maintainer's private wiki, page "Décisions en vigueur", child of "YASAD". It is the only up-to-date reference: read it before changing behaviour, and propose an update there when a decision changes. The sibling page "Journal et analyse (historique)" is history only (it still mentions Django, which was dropped); never take a decision from it.
 
 GitHub issues describe the need and the acceptance criteria, not the solution. Technical choices come from the decisions page and from this file.
 
-Design specs (conception pages) are written in Outline, as children of "YASAD", never committed to the repo. Link them from the PR.
+Design specs (conception pages) are written in that wiki, as children of "YASAD", never committed to the repo.
+
+The repository is public: never put the wiki's address, a link to one of its pages, or its content in a commit, a PR, an issue, a comment or a committed file.
 
 ## Layout
 
@@ -61,8 +63,8 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
 
 ## Conventions
 
-- Code, comments, commits and the README in English. Outline docs in French.
+- Code, comments, commits and the README in English. Wiki pages in French.
 - Branches `type/issue-topic` (e.g. `feat/12-oidc-login`), PR to `beta`, squash merge. `beta` is promoted to `main` by a PR merged with a merge commit (never squashed: semantic-release must see every commit, and `beta` must stay an ancestor of `main`).
 - PR titles follow Conventional Commits (`feat:`, `fix:`, `chore:`...): semantic-release derives the version from them and publishes a git tag and a GitHub release (the release notes are the changelog). No version commit, no `CHANGELOG.md`: `package.json` stays at `0.0.0-development`, and the version is injected at build time (`APP_VERSION`).
-- Versions stay in 0.x for now: versioning starts from the `v0.0.0` tag, `feat` and `fix` bump the patch, a breaking change bumps the minor (`.releaserc.json`). The `beta` to `main` PR that closes a milestone is titled `release: <milestone>` (e.g. `release: v0.1 core`) and bumps the minor too. Work only on the active milestone (the oldest open one); the roadmap lives in Outline, page "Roadmap et milestones". Going to 1.0.0 is a deliberate change of those rules.
+- Versions stay in 0.x for now: versioning starts from the `v0.0.0` tag, `feat` and `fix` bump the patch, a breaking change bumps the minor (`.releaserc.json`). The `beta` to `main` PR that closes a milestone is titled `release: <milestone>` (e.g. `release: v0.1 core`) and bumps the minor too. Work only on the active milestone (the oldest open one); the roadmap lives in the wiki, page "Roadmap et milestones". Going to 1.0.0 is a deliberate change of those rules.
 - Node 24 (`.nvmrc`). TypeScript stays on 6.0.x until typescript-eslint supports 7.
