@@ -4,7 +4,7 @@
 export const LANGUAGES = ["en", "fr"] as const;
 export type Language = (typeof LANGUAGES)[number];
 
-export const THEMES = ["default", "dusk"] as const;
+export const THEMES = ["default", "dusk", "night"] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const MODES = ["system", "light", "dark"] as const;

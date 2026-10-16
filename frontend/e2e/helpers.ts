@@ -6,7 +6,7 @@ import { expect, type Page } from "@playwright/test";
 
 import { E2E_DB } from "../playwright.config";
 
-export const THEMES = ["default", "dusk"] as const;
+export const THEMES = ["default", "dusk", "night"] as const;
 export const MODES = ["light", "dark"] as const;
 export const WIDTHS = [320, 1280] as const;
 
