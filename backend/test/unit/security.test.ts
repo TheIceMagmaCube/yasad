@@ -9,4 +9,8 @@ describe("frontend/public/_headers", () => {
     const file = await readFile(new URL("../../../frontend/public/_headers", import.meta.url), "utf8");
     expect(file).toBe(headersFile());
   });
+
+  it("caches the icon files for a year, since their path changes with their content", () => {
+    expect(headersFile()).toContain("/icons/*\n  Cache-Control: public, max-age=31536000, immutable\n");
+  });
 });

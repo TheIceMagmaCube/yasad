@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 
 import { SETUP_CODE } from "../playwright.config";
+import { ICONS_BASE } from "../src/icons-base";
 import { addTemporaryUser, ADMIN, expectAccessible, MODES, setInstanceTheme, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
@@ -193,6 +194,15 @@ test("a link card opens its service in the same tab", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL("https://status.example.invalid/");
   expect(opened).toBe(0);
+});
+
+test("the server sends the icon files as JSON, cached for good", async ({ request }) => {
+  const icon = await request.get(`${ICONS_BASE}/si/github.json`);
+  expect(icon.status()).toBe(200);
+  expect(icon.headers()["content-type"]).toContain("application/json");
+  expect(icon.headers()["cache-control"]).toBe("public, max-age=31536000, immutable");
+  expect(((await icon.json()) as { path: string }).path).toMatch(/^M/);
+  expect((await request.get(`${ICONS_BASE}/si/no_such_brand.json`)).status()).toBe(404);
 });
 
 test("the users and groups pages create an account and a group, accessibly", async ({ page }) => {

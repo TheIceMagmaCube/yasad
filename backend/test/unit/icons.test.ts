@@ -77,6 +77,20 @@ describe("generated icon lists", () => {
   });
 });
 
+describe("generated icon files", () => {
+  /** Cloudflare Workers static asset limits: files per deployment and bytes per file. */
+  const MAX_ASSETS = 20_000;
+  const MAX_FILE_BYTES = 25 * 1024 * 1024;
+  /** Room left for the rest of frontend/dist (Vite chunks, fonts, public files). */
+  const OTHER_ASSETS = 500;
+
+  it("stay within the Workers static asset limits", () => {
+    expect(generated.files.size + OTHER_ASSETS).toBeLessThan(MAX_ASSETS);
+    const largest = Math.max(...[...generated.files.values()].map((content) => Buffer.byteLength(content)));
+    expect(largest).toBeLessThan(MAX_FILE_BYTES);
+  });
+});
+
 describe("resolveIcon", () => {
   it("returns known icons, the canonical name of an alias, and null otherwise", () => {
     expect(resolveIcon("si:github")).toEqual({ set: "si", name: "github" });
