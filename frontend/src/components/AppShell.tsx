@@ -48,7 +48,7 @@ function NavLink({ href, current, label, short }: { href: string; current: boole
 /**
  * Frame of the app screens: skip link, header with the instance title, the section links, the link search and the
  * user menu, main content. `path` is the current path. `minimal` keeps the brand alone, with the user menu when
- * someone is signed in (loading, temporary password). Without `user` (anonymous home), the header has no section
+ * someone is signed in (the loading screen). Without `user` (anonymous home), the header has no section
  * links and a sign-in link instead of the menu, and a footer holds the language and appearance choices.
  */
 export function AppShell({
@@ -98,7 +98,7 @@ export function AppShell({
           )}
           <div className="col-start-5 row-start-1">
             {user ? (
-              <UserMenu user={user} onSignOut={onSignOut ?? (() => {})} />
+              <UserMenu user={user} path={path} onSignOut={onSignOut ?? (() => {})} />
             ) : minimal ? null : (
               <Link href="/sign-in" className={buttonVariants({ variant: "ghost", size: "sm", className: HEADER_BUTTON })}>
                 {m.signIn.title}

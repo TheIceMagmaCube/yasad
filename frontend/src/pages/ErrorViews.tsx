@@ -1,5 +1,6 @@
 import { Link } from "../components/Link";
 import { Page } from "../components/Page";
+import { PageHeader } from "../components/PageHeader";
 import { buttonVariants } from "../components/ui/button";
 import { useStrings } from "../i18n/LocaleProvider";
 import { useDocumentTitle } from "../lib/page";
@@ -9,11 +10,8 @@ function ErrorView({ title, body, home }: { title: string; body: string; home: s
   useDocumentTitle(title);
   return (
     <Page width="reading">
-      <h1 tabIndex={-1} className="text-2xl font-bold outline-none">
-        {title}
-      </h1>
-      <p className="mt-2">{body}</p>
-      <Link href="/" className={buttonVariants({ variant: "outline", className: "mt-6" })}>
+      <PageHeader title={title} description={body} />
+      <Link href="/" className={buttonVariants({ variant: "outline" })}>
         {home}
       </Link>
     </Page>
