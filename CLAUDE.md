@@ -27,6 +27,8 @@ Design specs (conception pages) are written in Outline, as children of "YASAD", 
   - `src/i18n/`: `en.ts` defines the messages, `fr.ts` must satisfy the same type. `useStrings()` in components; no hard-coded interface text.
   - `src/lib/router.ts` and `src/components/Link.tsx`: client-side routing (no dependency). Internal links use `Link`; each page sets its title with `useDocumentTitle` and gets focus on navigation. An API answer `unauthenticated`, `password_change_required` or `forbidden` reloads the session (`onStaleSession` in `api.ts`).
   - Shared primitives: `PageHeader`, `SectionHeader`, `EmptyState`, `Brand`, `SkipLink`, `ui/alert`, `ui/badge`, `ui/button` (with `destructive`, `destructive-ghost` and `pending`). Use them rather than ad-hoc markup.
+  - `src/lib/home-store.ts`: the one cached `GET /api/home` answer, keyed by viewer, shared by the home page and the header search. `App.refresh()` calls `invalidateHome()` on every session change; never register a second `onStaleSession` listener (`api.ts` keeps one, a second replaces App's). Call `invalidateHome()` after any admin change that alters what someone sees.
+  - `src/lib/search.ts`: client-side matching (folding, word prefixes, hyphen joining, ranking) over the visible links and their keywords. `src/components/search/`: the header combobox, `/` and Ctrl/Cmd+K.
   - `src/components/ui/`: shadcn components, copied (`components.json`). `public/theme-init.js` sets theme, mode and language before the first paint.
   - `e2e/`: Playwright and axe against the built Docker entry, every theme in light and dark, at 320 px and 1280 px.
 

@@ -11,7 +11,7 @@ const BOB = { name: "Bob", email: "bob@example.invalid", role: "user" };
 const CATEGORY = {
   id: "everyday",
   title: "Everyday",
-  links: [{ id: "mail", title: "Mail", description: "Company mailbox", url: "https://mail.example.invalid", icon: null }],
+  links: [{ id: "mail", title: "Mail", description: "Company mailbox", url: "https://mail.example.invalid", icon: null, keywords: [] }],
 };
 
 /** Home answer of an anonymous visitor on an instance with no public link. */
@@ -475,6 +475,79 @@ describe("App", () => {
       renderAt("/sign-in/local");
       expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
       expect(location.pathname).toBe("/");
+    });
+  });
+
+  describe("search", () => {
+    const search = () => screen.queryByRole("combobox", { name: "Search links" });
+
+    it.each(["/", "/admin/users", "/nowhere"])("is in the header on %s for a signed-in admin", async (path) => {
+      mockApi(signedIn({ ...ADA, id: "ada" }));
+      renderAt(path);
+      await screen.findByRole("navigation", { name: "Main" });
+      expect(search()).toBeInTheDocument();
+    });
+
+    it("is on the anonymous home, and not on the sign-in or password screens", async () => {
+      mockApi({
+        "GET /api/setup": { status: 200, body: { open: false } },
+        "GET /api/auth/get-session": { status: 200, body: null },
+        "GET /api/home": { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } },
+      });
+      renderAt("/");
+      await screen.findByRole("heading", { name: "Links", level: 1 });
+      expect(search()).toBeInTheDocument();
+      cleanup();
+
+      renderAt("/sign-in");
+      await screen.findByRole("heading", { name: "Sign in" });
+      expect(search()).toBeNull();
+      cleanup();
+
+      mockApi({
+        ...signedIn({ ...ADA, id: "ada", mustChangePassword: true }),
+        "GET /api/setup": { status: 403, body: { error: { code: "password_change_required", message: "" } } },
+      });
+      renderAt("/");
+      await screen.findByRole("heading", { name: "Choose your password" });
+      expect(search()).toBeNull();
+    });
+
+    it("never shows the previous person's links after the session changed", async () => {
+      const adaHome = { signedIn: true, categories: [{ id: "c", title: "Private", links: [{ ...CATEGORY.links[0]!, id: "vault", title: "Ada vault" }] }], empty: null };
+      const bobHome = { signedIn: true, categories: [CATEGORY], empty: null };
+      let session: object = { ...ADA, id: "ada" };
+      let homeBody: object = adaHome;
+      const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (path: string) => {
+          if (path === "/api/setup") return answer(200, { open: false });
+          if (path === "/api/auth/get-session") return answer(200, { user: session, session: {} });
+          if (path === "/api/home") return answer(200, homeBody);
+          if (path === "/api/admin/users") return answer(401, { error: { code: "unauthenticated", message: "" } });
+          throw new Error(`Unexpected request: ${path}`);
+        }),
+      );
+      const user = userEvent.setup();
+      renderAt("/");
+      expect(await screen.findByRole("link", { name: "Ada vault" })).toBeInTheDocument();
+      await user.type(search()!, "vault");
+      expect(await screen.findByRole("option", { name: /^Ada vault/ })).toBeInTheDocument();
+
+      // Ada's session ends on the server and Bob signs in on the same browser.
+      session = { ...BOB, id: "bob" };
+      homeBody = bobHome;
+      act(() => navigate("/admin/users"));
+      expect(await screen.findByRole("heading", { name: "Admins only" })).toBeInTheDocument();
+      expect(screen.queryByRole("option")).toBeNull();
+      await user.type(search()!, "vault");
+      expect(screen.queryByRole("option", { name: /Ada vault/ })).toBeNull();
+      expect(await screen.findByText("No link matches vault")).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: /Ada vault/ })).toBeNull();
+      await user.clear(search()!);
+      await user.type(search()!, "mail");
+      expect(await screen.findByRole("option", { name: /^Mail/ })).toBeInTheDocument();
     });
   });
 });

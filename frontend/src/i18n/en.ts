@@ -233,6 +233,21 @@ export const en = {
       },
     },
   },
+  search: {
+    region: "Search links",
+    label: "Search links",
+    placeholder: "Search links",
+    open: "Search",
+    clear: "Clear search",
+    resultsLabel: "Results",
+    results: (n: number) => (n === 1 ? "1 result" : `${n} results`),
+    truncated: (shown: number, total: number) => `Showing ${shown} of ${total}. Type more to narrow down.`,
+    noResults: "No results",
+    noMatch: (query: string) => `No link matches ${query}`,
+    loading: "Loading links",
+    loadError: "Links could not be loaded. Press Enter or change the search to try again.",
+    keyword: "Keyword:",
+  },
 };
 
 export type Messages = typeof en;

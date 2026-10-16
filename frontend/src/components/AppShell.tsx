@@ -3,12 +3,13 @@ import type { ReactNode } from "react";
 import type { User } from "../api";
 import { useStrings } from "../i18n/LocaleProvider";
 import { Brand } from "./Brand";
+import { homeKey } from "../lib/home-store";
 import { Link } from "./Link";
 import { PreferenceSelects } from "./PreferenceSelects";
+import { SearchBox } from "./search/SearchBox";
 import { SkipLink } from "./SkipLink";
 import { buttonVariants } from "./ui/button";
 import { HEADER_BUTTON, UserMenu } from "./UserMenu";
-
 
 type Section = "home" | "admin";
 
@@ -45,8 +46,9 @@ function NavLink({ href, current, label, short }: { href: string; current: boole
 }
 
 /**
- * Frame of the app screens: skip link, header with the instance title, the section links and the user menu, main
- * content. `path` is the current path; `nav` hides the section links when false. Without `user` (anonymous home),
+ * Frame of the app screens: skip link, header with the instance title, the section links, the link search and the
+ * user menu, main content. `path` is the current path; `nav` hides the section links and the search when false
+ * (temporary password screen). Without `user` (anonymous home),
  * the header has no section links and a sign-in link instead of the menu, and a footer holds the language and
  * appearance choices.
  */
@@ -69,10 +71,12 @@ export function AppShell({
     <div className="min-h-screen">
       <SkipLink />
       <header className="border-b border-header-border bg-header text-header-foreground">
-        <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-4 sm:gap-6 sm:px-8">
-          <Brand />
+        {/* A grid, so the search field can sit in the 56 px row from sm up and on its own row below it on small
+            screens while staying one element, after the toggle and before the account menu in focus order. */}
+        <div className="mx-auto grid max-w-5xl grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)_auto_auto] grid-rows-[3.5rem_auto] items-center gap-x-2 px-4 sm:grid-rows-[3.5rem] sm:gap-x-6 sm:px-8">
+          <Brand className="col-start-1 row-start-1" />
           {nav && user && (
-            <nav aria-label={m.nav.label} className="h-full">
+            <nav aria-label={m.nav.label} className="col-start-2 row-start-1 h-full">
               <ul className="flex h-full gap-1 sm:gap-2">
                 <li className="h-full">
                   <NavLink href="/" current={section === "home"} label={m.nav.home} short={m.nav.homeShort} />
@@ -85,7 +89,15 @@ export function AppShell({
               </ul>
             </nav>
           )}
-          <div className="ml-auto">
+          {(user ? nav : true) && (
+            <SearchBox
+              key={homeKey(user)}
+              homeKey={homeKey(user)}
+              toggleClassName="col-start-4 row-start-1"
+              className="col-span-full row-start-2 pb-3 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:w-full sm:max-w-sm sm:justify-self-end sm:pb-0"
+            />
+          )}
+          <div className="col-start-5 row-start-1">
             {user ? (
               <UserMenu user={user} onSignOut={onSignOut ?? (() => {})} />
             ) : (
