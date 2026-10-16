@@ -53,3 +53,53 @@ export async function expectAccessible(page: Page, label: string): Promise<void>
   const summary = violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
   expect(summary, label).toEqual([]);
 }
+
+/** Open `path` with the instance theme, the system colour scheme and the width given. */
+export async function open(page: Page, path: string, theme: string, mode: string, width: number): Promise<void> {
+  setInstanceTheme(theme);
+  await page.emulateMedia({ colorScheme: mode as "light" | "dark" });
+  await page.setViewportSize({ width, height: 800 });
+  await page.goto(path);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  await expect(page.locator("html")).toHaveAttribute("data-mode", mode);
+}
+
+/** Sign the page's browser context in as the administrator, through the API. */
+export async function signInAsAdmin(page: Page): Promise<void> {
+  const res = await page.request.post("/api/auth/sign-in/email", { data: { email: ADMIN.email, password: ADMIN.password } });
+  expect(res.ok()).toBe(true);
+}
+
+/**
+ * Describe the focused element (tag, role, accessible name), or `body` when the focus is lost: comparing it
+ * in an assertion shows where the focus went.
+ */
+export async function focused(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return "body";
+    const name = el.getAttribute("aria-label") ?? (el as HTMLElement).innerText?.trim().slice(0, 60) ?? "";
+    return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${el.getAttribute("role") ? `[role=${el.getAttribute("role")}]` : ""} "${name}"`;
+  });
+}
+
+/** Assert that `action` leaves the focus on the element focused before it. */
+export async function expectFocusKept(page: Page, action: () => Promise<void>): Promise<void> {
+  const before = await focused(page);
+  expect(before).not.toBe("body");
+  await page.evaluate(() => document.activeElement?.setAttribute("data-focus-probe", ""));
+  await action();
+  await expect(page.locator("[data-focus-probe]")).toBeFocused();
+  await page.evaluate(() => document.querySelector("[data-focus-probe]")?.removeAttribute("data-focus-probe"));
+}
+
+/** Fail when the page scrolls sideways at the current width. */
+export async function expectNoHorizontalScroll(page: Page, label: string): Promise<void> {
+  const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
+  expect(scroll, `${label}: horizontal scroll`).toBeLessThanOrEqual(width);
+}
+
+/** Return the app's announcer region (the one status region read by screen readers). */
+export function announcer(page: Page) {
+  return page.locator('[data-slot="announcer"]');
+}
