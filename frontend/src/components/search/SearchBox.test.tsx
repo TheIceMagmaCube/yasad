@@ -529,6 +529,22 @@ describe("SearchBox, small screens", () => {
     await user.click(screen.getByRole("button", { name: "Before" }));
     expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
+
+  it("folds on a second press of the toggle when the field blurs towards nothing first, as in Safari", async () => {
+    const user = userEvent.setup();
+    const { input } = setup();
+    const toggle = screen.getByRole("button", { name: "Search" });
+    await user.click(toggle);
+    expect(input).toHaveFocus();
+    fireEvent.pointerDown(toggle);
+    // The press keeps the focus in the field; Safari, which never focuses a button, would blur towards nothing.
+    expect(fireEvent.mouseDown(toggle)).toBe(false);
+    fireEvent.focusOut(input, { relatedTarget: null });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+  });
 });
 
 describe("SearchBox, results", () => {

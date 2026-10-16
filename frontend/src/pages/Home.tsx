@@ -19,9 +19,9 @@ const LOADING: HomeState = { status: "loading" };
  *
  * The data comes from the shared home store. A signed-in person gets a fresh request on every visit, with the
  * skeleton meanwhile; an anonymous visitor gets the public links the app already stored (fetched only when
- * missing). `onSessionEnded` runs when the API answers as if nobody were signed in while `user` is set.
+ * missing). An answer for another viewer never reaches it: the store drops it and the app reloads the session.
  */
-export function Home({ user, onSessionEnded }: { user: User | null; onSessionEnded?: () => void }) {
+export function Home({ user }: { user: User | null }) {
   const strings = useStrings();
   const m = strings.home;
   const title = user ? m.title : m.publicTitle;
@@ -57,11 +57,6 @@ export function Home({ user, onSessionEnded }: { user: User | null; onSessionEnd
     if (focusAfterRetry.current && state.status === "ready") focusPage();
     focusAfterRetry.current = false;
   }, [state]);
-
-  const ended = user !== null && state.status === "ready" && !state.data.signedIn;
-  useEffect(() => {
-    if (ended) onSessionEnded?.();
-  }, [ended, onSessionEnded]);
 
   return (
     <>

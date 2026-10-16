@@ -4,7 +4,7 @@ import { api, ApiError, onStaleSession, type SetupState, type User } from "./api
 import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
-import { invalidateHome, primeHome } from "./lib/home-store";
+import { invalidateHome, onViewerChanged, primeHome } from "./lib/home-store";
 import { useDocumentTitle, useFocusOnNavigation } from "./lib/page";
 import { navigate, normalizePath, usePath } from "./lib/router";
 import { AdminCatalog } from "./pages/AdminCatalog";
@@ -40,14 +40,13 @@ function passwordChangePending(err: unknown): SetupState {
 
 /**
  * Return whether some links are open to everyone, storing them in the home store for the anonymous home; a
- * failure also gives false, so sign-in stays reachable.
+ * failure, or an answer for a session opened meanwhile, also gives false, so sign-in stays reachable.
  */
 async function loadPublicHome(): Promise<boolean> {
   try {
     const home = await api.home();
     if (home.categories.length === 0) return false;
-    primeHome("anonymous", home);
-    return true;
+    return primeHome("anonymous", home);
   } catch {
     return false;
   }
@@ -116,6 +115,16 @@ export function App() {
     [refresh],
   );
 
+  // The home store got an answer for another viewer (signed in or out in another tab, session expired): it
+  // dropped it, and the session is reloaded so the screen matches the cookie, whatever the current view.
+  useEffect(
+    () =>
+      onViewerChanged(() => {
+        if (pending.current === 0) refresh();
+      }),
+    [refresh],
+  );
+
   useEffect(() => {
     let active = true;
     void Promise.all([loadInstance(cachedInstance()), loadView()]).then(([nextInstance, nextView]) => {
@@ -156,8 +165,8 @@ function Status({ role, text }: { role: "status" | "alert"; text: string }) {
 }
 
 /** Return the page of a signed-in user for a canonical path. */
-function SignedInPage({ user, path, refresh }: { user: User; path: string; refresh: () => void }) {
-  if (path === "/") return <Home user={user} onSessionEnded={refresh} />;
+function SignedInPage({ user, path }: { user: User; path: string }) {
+  if (path === "/") return <Home user={user} />;
   if (path === "/admin" || path.startsWith("/admin/")) {
     if (user.role !== "admin") return <Forbidden />;
     const tab = adminTab(path);
@@ -205,7 +214,7 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
     case "home":
       return (
         <AppShell user={view.user} path={target} nav={!view.user.mustChangePassword} onSignOut={() => void api.signOut().finally(refresh)}>
-          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <SignedInPage user={view.user} path={target} refresh={refresh} />}
+          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <SignedInPage user={view.user} path={target} />}
         </AppShell>
       );
   }

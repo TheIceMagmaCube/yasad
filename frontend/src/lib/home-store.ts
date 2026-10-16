@@ -22,6 +22,7 @@ let generation = 0;
 let failures = 0;
 let inflight: { generation: number; promise: Promise<void> } | null = null;
 const listeners = new Set<() => void>();
+let viewerChangedListener: (() => void) | null = null;
 
 function set(next: HomeEntry | null): void {
   entry = next;
@@ -33,12 +34,35 @@ export function homeKey(user: { id: string } | null): string {
   return user ? `user:${user.id}` : "anonymous";
 }
 
+/** Return whether an answer of `/api/home` is for the viewer `key` stands for: signed in for `user:*`, anonymous otherwise. */
+function belongsTo(key: string, data: HomeData): boolean {
+  return data.signedIn === (key !== "anonymous");
+}
+
+/**
+ * Register the one listener told when an answer comes back for another viewer than the one requested (signed in
+ * or out in another tab, session expired): the answer is dropped and the app should reload the session.
+ * Return a function that unregisters it.
+ */
+export function onViewerChanged(listener: () => void): () => void {
+  viewerChangedListener = listener;
+  return () => {
+    if (viewerChangedListener === listener) viewerChangedListener = null;
+  };
+}
+
+/** Drop a mismatched answer and tell the app the viewer changed. */
+function viewerChanged(): void {
+  invalidateHome();
+  viewerChangedListener?.();
+}
+
 /**
  * Request the home data of `key`, unless a request for the same entry is already running.
  *
  * A different key replaces the entry. With `reset`, the entry goes back to loading first (the home page shows
  * its skeleton on every visit); otherwise the current data stays until the answer arrives. Answers for a
- * replaced or invalidated entry are ignored.
+ * replaced or invalidated entry are ignored; an answer for another viewer empties the store (see {@link onViewerChanged}).
  */
 export function loadHome(key: string, { reset = false }: { reset?: boolean } = {}): void {
   if (entry?.key !== key) {
@@ -56,7 +80,9 @@ export function loadHome(key: string, { reset = false }: { reset?: boolean } = {
   set({ ...current, pending: true });
   const promise = api.home().then(
     (data) => {
-      if (isCurrent()) set({ ...entry!, state: { status: "ready", data }, pending: false });
+      if (!isCurrent()) return;
+      if (belongsTo(key, data)) set({ ...entry!, state: { status: "ready", data }, pending: false });
+      else viewerChanged();
     },
     (error: unknown) => {
       if (!isCurrent()) return;
@@ -70,11 +96,16 @@ export function loadHome(key: string, { reset = false }: { reset?: boolean } = {
   });
 }
 
-/** Store an answer already fetched for `key` (the anonymous home, loaded by the app to choose its screen). */
-export function primeHome(key: string, data: HomeData): void {
+/**
+ * Store an answer already fetched for `key` (the anonymous home, loaded by the app to choose its screen). Return
+ * false, storing nothing, when the answer is for another viewer.
+ */
+export function primeHome(key: string, data: HomeData): boolean {
+  if (!belongsTo(key, data)) return false;
   generation += 1;
   inflight = null;
   set({ key, generation, state: { status: "ready", data }, pending: false });
+  return true;
 }
 
 /** Drop the cached answer and any request in flight: the next reader loads afresh. Call it whenever the session or what it may see changes. */
@@ -88,6 +119,7 @@ export function invalidateHome(): void {
 export function resetHomeStore(): void {
   invalidateHome();
   failures = 0;
+  viewerChangedListener = null;
 }
 
 function subscribe(listener: () => void): () => void {

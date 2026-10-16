@@ -66,6 +66,8 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
   /** Element focused before a shortcut moved the focus here, to go back to on Escape. */
   const returnTarget = useRef<HTMLElement | null>(null);
   const focusingFromShortcut = useRef(false);
+  /** Whether a press on the toggle is under way: the click that follows decides, so a blur meanwhile must not fold. */
+  const togglePressed = useRef(false);
   const queryRef = useRef(query);
   useEffect(() => {
     queryRef.current = query;
@@ -87,7 +89,11 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
   const activeIndex = options.length === 0 ? -1 : Math.max(0, options.findIndex((r) => r.link.id === activeId));
   const listShown = options.length > 0;
 
-  const statusText = !showPopup ? "" : loading ? m.loading : failed ? m.loadError : found.total === 0 ? m.noResults : found.total > SEARCH_LIMIT ? m.truncated(SEARCH_LIMIT, found.total) : m.results(found.total);
+  /** Whether `found` is for the query in the field; until then, the texts about it wait (no "no match" flash). */
+  const settled = deferredQuery === query;
+  const counted = settled && data !== null;
+
+  const statusText = !showPopup ? "" : loading ? m.loading : failed ? m.loadError : !counted ? "" : found.total === 0 ? m.noResults : found.total > SEARCH_LIMIT ? m.truncated(SEARCH_LIMIT, found.total) : m.results(found.total);
   useEffect(() => {
     if (!statusText) return;
     const timer = setTimeout(() => setAnnounced({ query, text: statusText }), STATUS_DELAY);
@@ -203,7 +209,21 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
     const next = e.relatedTarget;
     if (next instanceof Node && (zoneRef.current?.contains(next) || toggleRef.current?.contains(next))) return;
     setOpen(false);
+    // Safari does not focus a pressed button, so the field blurs towards nothing: leave the folding to the toggle.
+    if (togglePressed.current) return;
     if (queryRef.current.trim() === "") setExpanded(false);
+  };
+
+  /** Fold the small-screen row onto the toggle, or show it and focus the field. */
+  const toggle = () => {
+    togglePressed.current = false;
+    if (!expanded) {
+      focusField();
+      return;
+    }
+    setOpen(false);
+    flushSync(() => setExpanded(false));
+    toggleRef.current?.focus();
   };
 
   const onOptionClick = (e: MouseEvent, result: Result) => activate(result, e.ctrlKey || e.metaKey);
@@ -211,7 +231,7 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
     if (e.button === 1) activate(result, true);
   };
 
-  const message = !showPopup ? null : loading ? m.loading : failed ? m.loadError : found.total === 0 ? m.noMatch(query.trim()) : null;
+  const message = !showPopup ? null : loading ? m.loading : failed ? m.loadError : counted && found.total === 0 ? m.noMatch(query.trim()) : null;
   const footer = listShown && found.total > options.length ? m.truncated(options.length, found.total) : null;
 
   return (
@@ -222,7 +242,18 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
         aria-label={m.open}
         aria-expanded={expanded}
         aria-controls={areaId}
-        onClick={() => (expanded ? setExpanded(false) : focusField())}
+        // Keep the focus where it is until the click decides (Safari would otherwise blur the field towards nothing).
+        onMouseDown={(e) => e.preventDefault()}
+        onPointerDown={() => {
+          togglePressed.current = true;
+        }}
+        onPointerCancel={() => {
+          togglePressed.current = false;
+        }}
+        onPointerLeave={() => {
+          togglePressed.current = false;
+        }}
+        onClick={toggle}
         className={cn(
           "flex size-10 items-center justify-center rounded-md text-header-foreground outline-none hover:bg-header-foreground/15 focus-visible:ring-2 focus-visible:ring-header-foreground sm:hidden",
           toggleClassName,
@@ -291,7 +322,7 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
             </kbd>
           )}
           <div
-            hidden={!showPopup}
+            hidden={!showPopup || (!listShown && !message)}
             // Keep the focus in the field when the list, its scrollbar or its footer is pressed.
             onMouseDown={(e) => e.preventDefault()}
             className="absolute inset-x-0 top-full z-40 mt-1 max-h-[min(28rem,calc(100dvh-8rem))] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-raised sm:right-0 sm:left-auto sm:w-[min(28rem,calc(100vw-2rem))]"

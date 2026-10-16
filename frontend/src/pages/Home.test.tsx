@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData } from "../api";
-import { invalidateHome, primeHome } from "../lib/home-store";
+import { invalidateHome, onViewerChanged, primeHome } from "../lib/home-store";
 import { mockApi, renderWithProviders } from "../test-utils";
 import { Home } from "./Home";
 
@@ -154,11 +154,15 @@ describe("Home", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("reports a session that ended on the server", async () => {
-    mockApi(home({ signedIn: false, categories: [], empty: null }));
-    const onSessionEnded = vi.fn();
-    renderWithProviders(<Home user={ADA} onSessionEnded={onSessionEnded} />);
-    await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledTimes(1));
+  it("shows nothing of an answer for another viewer, and reports the change", async () => {
+    mockApi(home({ ...DATA, signedIn: false }));
+    const changed = vi.fn();
+    const stop = onViewerChanged(changed);
+    const { container } = renderWithProviders(<Home user={ADA} />);
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    expect(container.querySelector("[data-slot=home-skeleton]")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Second in the catalog" })).toBeNull();
+    stop();
   });
 
   it("fetches the public links when the store has none", async () => {

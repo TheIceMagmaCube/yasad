@@ -189,25 +189,62 @@ export function buildIndex(categories: HomeCategory[]): SearchIndex {
 /** Number of characters an excerpt of the description aims for. */
 export const EXCERPT_LENGTH = 80;
 const ELLIPSIS = "…";
+const MARK = /\p{M}/u;
+
+/** Return the whole source character ending at `offset` (a surrogate pair counts as one). */
+function charBefore(source: string, offset: number): string {
+  const low = source.charCodeAt(offset - 1);
+  const high = source.charCodeAt(offset - 2);
+  return low >= 0xdc00 && low <= 0xdfff && high >= 0xd800 && high <= 0xdbff ? source.slice(offset - 2, offset) : source.charAt(offset - 1);
+}
+
+/** Return `offset` moved back, if needed, so that it does not split a surrogate pair or a letter from its marks. */
+function charBoundary(source: string, offset: number): number {
+  let at = offset;
+  const code = source.charCodeAt(at - 1);
+  if (at < source.length && code >= 0xd800 && code <= 0xdbff) at -= 1;
+  while (at > 0 && at < source.length && MARK.test(source[at]!)) at -= charBefore(source, at).length;
+  return at;
+}
 
 /**
- * Return about {@link EXCERPT_LENGTH} characters of `source` from the word boundary before `from`, with an
- * ellipsis where it is cut (a description that short is returned whole), and `ranges` moved into the excerpt (those outside it are dropped).
+ * Return the start of the word holding `from`: back over letters, digits, marks and the single hyphens joining
+ * them. A word too long to leave room for the match is not walked back over at all.
+ */
+function wordStart(source: string, from: number): number {
+  let start = from;
+  while (start > 0) {
+    const previous = charBefore(source, start);
+    const linked = HYPHENS.has(previous) && start > 1 && WORD_CHAR.test(charBefore(source, start - 1));
+    if (!WORD_CHAR.test(previous) && !MARK.test(previous) && !linked) break;
+    start -= previous.length;
+  }
+  return from - start > EXCERPT_LENGTH / 2 ? from : start;
+}
+
+/**
+ * Return about {@link EXCERPT_LENGTH} characters of `source` from the start of the word holding `from`, with an
+ * ellipsis where it is cut (a description that short is returned whole), and `ranges` moved into the excerpt
+ * (cut to it, and dropped when outside). The excerpt never splits a source character.
  */
 export function excerpt(source: string, from: number, ranges: Range[]): Highlighted {
   if (source.length <= EXCERPT_LENGTH) return { text: source, ranges };
-  let start = from;
-  while (start > 0 && !/\s/u.test(source[start - 1]!)) start -= 1;
+  const start = wordStart(source, from);
   let end = Math.min(source.length, start + EXCERPT_LENGTH);
   if (end < source.length) {
     const space = source.lastIndexOf(" ", end);
-    if (space > from) end = space;
+    end = space > from ? space : charBoundary(source, end);
   }
   const head = start > 0 ? ELLIPSIS : "";
+  const body = source.slice(start, end).trimEnd();
   const tail = end < source.length ? ELLIPSIS : "";
   const shift = head.length - start;
-  const moved = ranges.filter(([s, e]) => s >= start && e <= end).map(([s, e]): Range => [s + shift, e + shift]);
-  return { text: head + source.slice(start, end).trimEnd() + tail, ranges: moved };
+  const limit = start + body.length;
+  const moved = ranges
+    .map(([s, e]): Range => [Math.max(s, start), Math.min(e, limit)])
+    .filter(([s, e]) => s < e)
+    .map(([s, e]): Range => [s + shift, e + shift]);
+  return { text: head + body + tail, ranges: moved };
 }
 
 type Match = { entry: Entry; level: 0 | 1 | 2; titleStart: 0 | 1; order: number };

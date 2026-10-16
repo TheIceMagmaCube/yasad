@@ -240,6 +240,37 @@ describe("search, highlights", () => {
     expect(cut.ranges).toEqual([[3, 11]]);
   });
 
+  it("shows the match when it sits deep in a token without spaces, such as a URL", () => {
+    const description = `See https://example.com/${"a".repeat(90)}/vpnconfig for details`;
+    const [r] = search(buildIndex([category("a", [link("x", "Tool", { description })])]), "vpnconf").results;
+    expect(r!.level).toBe(2);
+    expect(r!.excerpt!.text.startsWith("…vpnconfig for details")).toBe(true);
+    expect(covered(r!.excerpt!.text, r!.excerpt!.ranges)).toEqual(["vpnconf"]);
+  });
+
+  it("starts at the match itself when its word is too long to walk back over", () => {
+    const long = `${"x".repeat(60)}-vpnconfig ${"and more ".repeat(10)}`;
+    const cut = excerpt(long, 61, [[61, 68]]);
+    expect(cut.text.startsWith("…vpnconfig")).toBe(true);
+    expect(cut.ranges).toEqual([[1, 8]]);
+  });
+
+  it("cuts a highlight longer than the excerpt to it", () => {
+    const long = `go ${"b".repeat(100)}`;
+    const cut = excerpt(long, 3, [[3, 103]]);
+    expect(cut.ranges).toEqual([[1, 81]]);
+  });
+
+  it("never splits a character made of two UTF-16 units, or a letter from its marks", () => {
+    // No space after the match: the cut falls at 80 units, inside the pair of the 39th emoji.
+    const emoji = excerpt(`zet${"😀".repeat(50)}`, 0, [[0, 3]]);
+    expect(emoji.text).toBe(`zet${"😀".repeat(38)}…`);
+    expect(emoji.ranges).toEqual([[0, 3]]);
+    // The cut at 80 falls between an "e" and its accent.
+    const marks = excerpt(`z${"e\u0301".repeat(50)}`, 0, [[0, 1]]);
+    expect(marks.text).toBe(`z${"e\u0301".repeat(39)}…`);
+  });
+
   it("returns a short description whole", () => {
     expect(excerpt("Use the e-learning portal", 8, [[8, 18]])).toEqual({ text: "Use the e-learning portal", ranges: [[8, 18]] });
   });

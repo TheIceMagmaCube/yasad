@@ -549,5 +549,40 @@ describe("App", () => {
       await user.type(search()!, "mail");
       expect(await screen.findByRole("option", { name: /^Mail/ })).toBeInTheDocument();
     });
+
+    it("never keeps a signed-in answer on the public page, and reloads the session instead", async () => {
+      const publicHome = { signedIn: false, categories: [CATEGORY], empty: null };
+      const bobHome = { signedIn: true, categories: [{ id: "c", title: "Private", links: [{ ...CATEGORY.links[0]!, id: "vault", title: "Bob vault" }] }], empty: null };
+      let session: object | null = null;
+      let homeBody: object = publicHome;
+      const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (path: string) => {
+          if (path === "/api/setup") return answer(200, { open: false });
+          if (path === "/api/auth/get-session") return answer(200, session && { user: session, session: {} });
+          if (path === "/api/home") return answer(200, homeBody);
+          throw new Error(`Unexpected request: ${path}`);
+        }),
+      );
+      const user = userEvent.setup();
+      renderAt("/");
+      expect(await screen.findByRole("heading", { name: "Links", level: 1 })).toBeInTheDocument();
+
+      // Bob signs in in another tab; this tab still shows the public page.
+      session = { ...BOB, id: "bob" };
+      homeBody = bobHome;
+      await user.click(search()!);
+      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
+
+      // Bob signs out in the other tab: this tab goes back to the public links, without Bob's.
+      session = null;
+      homeBody = publicHome;
+      await user.click(search()!);
+      expect(await screen.findByRole("heading", { name: "Links", level: 1 })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Bob vault" })).toBeNull();
+      await user.type(search()!, "vault");
+      expect(await screen.findByText("No link matches vault")).toBeInTheDocument();
+    });
   });
 });

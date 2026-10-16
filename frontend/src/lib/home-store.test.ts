@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData } from "@/api";
 
-import { homeKey, invalidateHome, loadHome, primeHome, useHomeEntry } from "./home-store";
+import { homeKey, invalidateHome, loadHome, onViewerChanged, primeHome, useHomeEntry } from "./home-store";
 
 const data = (title: string): HomeData => ({
   signedIn: true,
@@ -96,8 +96,9 @@ describe("home store", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const { result } = renderHook(() => useHomeEntry("anonymous"));
-    act(() => primeHome("anonymous", data("Public")));
-    expect(result.current?.state).toEqual({ status: "ready", data: data("Public") });
+    const pub = { ...data("Public"), signedIn: false };
+    act(() => void primeHome("anonymous", pub));
+    expect(result.current?.state).toEqual({ status: "ready", data: pub });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -113,5 +114,36 @@ describe("home store", () => {
     expect(result.current?.state.status).toBe("error");
     await vi.waitFor(() => expect(result.current?.state).toMatchObject({ status: "error", attempt: 2 }));
     expect(result.current?.pending).toBe(false);
+  });
+
+  it("drops an answer for another viewer and reports it", async () => {
+    const { release } = controlledFetch();
+    const changed = vi.fn();
+    const stop = onViewerChanged(changed);
+    const anonymous = renderHook(() => useHomeEntry("anonymous"));
+    act(() => void primeHome("anonymous", { ...data("Public"), signedIn: false }));
+    // Someone signed in in another tab: the anonymous refetch comes back signed in.
+    act(() => loadHome("anonymous"));
+    await release(0, data("Private"));
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    expect(anonymous.result.current).toBeNull();
+
+    // And the other way round: a signed-in key gets an anonymous answer.
+    const ada = renderHook(() => useHomeEntry("user:ada"));
+    act(() => loadHome("user:ada"));
+    await release(1, { ...data("Public"), signedIn: false });
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+    expect(ada.result.current).toBeNull();
+    stop();
+  });
+
+  it("refuses to prime an answer for another viewer", () => {
+    const { result } = renderHook(() => useHomeEntry("anonymous"));
+    let stored = true;
+    act(() => {
+      stored = primeHome("anonymous", data("Private"));
+    });
+    expect(stored).toBe(false);
+    expect(result.current).toBeNull();
   });
 });
