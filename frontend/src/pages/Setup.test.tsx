@@ -1,5 +1,6 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getStatus, mockApi, renderWithProviders, sentBody } from "../test-utils";
@@ -28,6 +29,16 @@ async function passCode(user: ReturnType<typeof userEvent.setup>) {
 const summary = (name = "Check the highlighted fields.") => screen.getByRole("group", { name });
 
 describe("Setup", () => {
+  it("leaves the focus alone on its first render, under StrictMode too", () => {
+    renderWithProviders(
+      <StrictMode>
+        <Setup onDone={vi.fn()} onClosed={vi.fn()} />
+      </StrictMode>,
+    );
+    expect(screen.getByRole("heading", { name: "Set up YASAD" })).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
+  });
+
   it("goes from the code to the admin account to the final notice", async () => {
     const fetchMock = mockApi({
       "POST /api/setup/verify-code": { status: 204 },

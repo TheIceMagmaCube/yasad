@@ -67,13 +67,14 @@ describe("SignIn", () => {
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it("puts an invalid e-mail on the e-mail field only", async () => {
+  it("puts an invalid e-mail on the e-mail field only, keeping the password", async () => {
     mockApi({ "POST /api/auth/sign-in/email": { status: 400, body: { code: "INVALID_EMAIL", message: "Invalid email" } } });
     renderWithProviders(<SignIn onSignedIn={vi.fn()} />);
     await signIn("correct horse battery", "ada");
     expect(summary("Check the highlighted fields.")).toHaveFocus();
     expect(screen.getByLabelText("E-mail")).toHaveAccessibleDescription("Error: Enter a valid e-mail address.");
     expect(screen.getByLabelText("Password")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Password")).toHaveValue("correct horse battery");
   });
 
   it("says when the account is disabled, with the title alone", async () => {
@@ -83,6 +84,7 @@ describe("SignIn", () => {
     const box = summary("This account is disabled. Ask your administrator.");
     expect(box).toHaveFocus();
     expect(within(box).queryByRole("list")).toBeNull();
+    expect(screen.getByLabelText("Password")).toHaveValue("correct horse battery");
   });
 
   it("shows its progress label and keeps the focus on the button while signing in, then announces it", async () => {

@@ -151,7 +151,7 @@ export function useFormErrors<F extends string>(fields: readonly F[], formId?: s
 }
 
 /** Length range of a password, as the server checks it. */
-export const PASSWORD_LENGTH = { min: 12, max: 128 } as const;
+const PASSWORD_LENGTH = { min: 12, max: 128 } as const;
 
 /** Return the problem of a new password, or null: required, then 12 to 128 characters. */
 export function newPasswordProblem(password: string, m: Messages): string | null {

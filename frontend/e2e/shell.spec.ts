@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 
 import { ICONS_BASE } from "../src/icons-base";
-import { addTemporaryUser, ADMIN, expectAccessible, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -346,17 +346,29 @@ test("the users and groups pages create an account and a group, accessibly", asy
   expect(csp).toEqual([]);
 });
 
-test("the temporary password screen is accessible", async ({ page }) => {
+test("the temporary password screen is accessible, with field errors too", async ({ page }) => {
+  test.setTimeout(180_000);
   await addTemporaryUser();
   const res = await page.request.post("/api/auth/sign-in/email", { data: TEMPORARY });
   expect(res.ok()).toBe(true);
   for (const theme of THEMES) {
     for (const mode of MODES) {
-      const csp = watchCsp(page);
-      await open(page, "/", theme, mode, 320);
-      await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
-      await expectAccessible(page, `change password (${theme}, ${mode})`);
-      expect(csp).toEqual([]);
+      for (const width of WIDTHS) {
+        const label = `change password (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/", theme, mode, width);
+        await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
+        await expectAccessible(page, label);
+        // Errors under every field, with a password shown, without sending anything.
+        await page.getByLabel("New password", { exact: true }).fill("short");
+        await page.getByRole("button", { name: "Show password" }).nth(1).click();
+        await page.getByRole("button", { name: "Save password" }).click();
+        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+        await expect(page.getByLabel("New password", { exact: true })).toHaveAttribute("aria-invalid", "true");
+        await expectAccessible(page, `${label}, field errors`);
+        await expectNoHorizontalScroll(page, `${label}, field errors`);
+        expect(csp).toEqual([]);
+      }
     }
   }
 });

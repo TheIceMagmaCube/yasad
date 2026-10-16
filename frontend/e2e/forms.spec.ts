@@ -105,7 +105,7 @@ test.describe("sign-in", () => {
   });
 
   test("is accessible with errors in every theme, mode and width", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await page.route(SIGN_IN_API, (route) => route.fulfill(WRONG));
     for (const theme of THEMES) {
       for (const mode of MODES) {
@@ -117,6 +117,14 @@ test.describe("sign-in", () => {
           await expect(page.getByRole("group", { name: "Wrong e-mail or password." })).toBeFocused();
           await expectAccessible(page, label);
           await expectNoHorizontalScroll(page, label);
+          // Field errors under each field, with the password shown, through the same matrix.
+          await page.getByLabel("E-mail", { exact: true }).fill("");
+          await page.getByRole("button", { name: "Show password" }).click();
+          await page.getByLabel("Password", { exact: true }).press("Enter");
+          await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+          await expect(page.getByLabel("E-mail", { exact: true })).toHaveAccessibleDescription(/Error:/);
+          await expectAccessible(page, `${label}, field errors`);
+          await expectNoHorizontalScroll(page, `${label}, field errors`);
           expect(csp).toEqual([]);
         }
       }

@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import { AuthLayout } from "../components/AuthLayout";
 import { ErrorSummary } from "../components/form/ErrorSummary";
 import { Field } from "../components/form/Field";
@@ -67,7 +67,8 @@ export function SignIn({ onSignedIn, local = false, expired = false, publicHome 
           account_disabled: { message: s.accountDisabled },
         },
       });
-      setPassword("");
+      // Only wrong credentials empty the password: the summary then links to it to type it again.
+      if (err instanceof ApiError && err.body.code === "INVALID_EMAIL_OR_PASSWORD") setPassword("");
     } finally {
       setBusy(false);
     }

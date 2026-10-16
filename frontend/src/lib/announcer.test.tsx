@@ -2,7 +2,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AnnouncerProvider, useAnnounce, useAnnounceAfter, useDebouncedStatus } from "./announcer";
+import { ANNOUNCEMENT_LIFETIME, AnnouncerProvider, useAnnounce, useAnnounceAfter, useDebouncedStatus } from "./announcer";
 import { navigate } from "./router";
 
 /** Return the announcer region. */
@@ -58,6 +58,21 @@ describe("AnnouncerProvider", () => {
     act(() => screen.getByRole("button").click());
     expect(region()).toHaveTextContent("Saved.");
     act(() => navigate("/elsewhere"));
+    expect(region()).toHaveTextContent("");
+  });
+
+  it("empties the region a while after the last announcement", () => {
+    render(
+      <AnnouncerProvider>
+        <Speaker text="Signing in…" />
+      </AnnouncerProvider>,
+    );
+    act(() => screen.getByRole("button").click());
+    act(() => vi.advanceTimersByTime(ANNOUNCEMENT_LIFETIME - 1000));
+    act(() => screen.getByRole("button").click());
+    act(() => vi.advanceTimersByTime(ANNOUNCEMENT_LIFETIME - 1));
+    expect(region()).toHaveTextContent("Signing in…");
+    act(() => vi.advanceTimersByTime(1));
     expect(region()).toHaveTextContent("");
   });
 

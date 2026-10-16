@@ -438,7 +438,7 @@ describe("App", () => {
       const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
       mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden });
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
-      expect(await screen.findByRole("heading", { name: "Admins only" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Admins only" })).toHaveFocus();
       expect(within(screen.getByRole("navigation", { name: "Main" })).queryByRole("link", { name: "Admin" })).toBeNull();
     });
 
@@ -726,6 +726,24 @@ describe("App, views and focus", () => {
     await user.click(within(notice).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("note")).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Links" })).toHaveFocus();
+  });
+
+  it("stops saying the session ended once the notice is gone", async () => {
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    mockApi({
+      ...signedIn({ ...BOB, id: "bob" }),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+    });
+    renderAt("/");
+    await screen.findByRole("note");
+    act(() => navigate("/elsewhere"));
+    act(() => navigate("/sign-in"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
   });
 
   it("clears the shell notice on the next navigation", async () => {

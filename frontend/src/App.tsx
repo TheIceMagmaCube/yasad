@@ -90,8 +90,11 @@ type ShellNoticeState = Notice & { navigations: number };
 export function App() {
   const [instance, setInstance] = useState(cachedInstance);
   const [view, setView] = useState<View>({ name: "loading" });
-  /** The session of this browser ended on the server: the sign-in screen says so. */
-  const [expired, setExpired] = useState(false);
+  /**
+   * The navigation count when the session of this browser ended on the server: the sign-in screen says so until
+   * the next navigation, or until the shell notice saying the same is closed.
+   */
+  const [expiredAt, setExpiredAt] = useState<number | null>(null);
   const [notice, setNotice] = useState<ShellNoticeState | null>(null);
 
   const viewRef = useRef(view);
@@ -115,10 +118,10 @@ export function App() {
       const [next, nextInstance] = await Promise.all([loadView(), leavingError ? loadInstance(cachedInstance()) : null]);
       if (nextInstance) setInstance(nextInstance);
       if (next.name === "home") {
-        setExpired(false);
+        setExpiredAt(null);
         setNotice((current) => (current?.kind === "sessionExpired" ? null : current));
       } else if (sessionEnded) {
-        setExpired(true);
+        setExpiredAt(navigationsRef.current);
         if (next.name === "public") setNotice({ kind: "sessionExpired", navigations: navigationsRef.current });
       }
       setView(next);
@@ -170,12 +173,17 @@ export function App() {
   }, []);
 
   const shownNotice = notice && notice.navigations === navigations ? notice : null;
+  const expired = expiredAt === navigations;
+  const dismissNotice = () => {
+    setNotice(null);
+    setExpiredAt(null);
+  };
   return (
     <InstanceContext value={instance}>
       <LocaleProvider defaultLanguage={instance.defaultLanguage}>
         <ThemeProvider instanceTheme={instance.theme}>
           <AnnouncerProvider>
-            <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: () => setNotice(null) }}>
+            <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: dismissNotice }}>
               <Screen view={view} refresh={refresh} expired={expired} />
             </ShellNoticeProvider>
           </AnnouncerProvider>
@@ -207,10 +215,13 @@ function SignedInPage({ user, path }: { user: User; path: string }) {
   return <NotFound />;
 }
 
-/** Return the key of a view for the focus rule: the temporary password step, else the view and the person. */
+/**
+ * Return the key of a view for the focus rule: the temporary password step, else the view, the person and their
+ * role, since a new role can replace the page (administration becomes "Admins only").
+ */
 function viewKeyOf(view: View): string {
   if (view.name !== "home") return view.name;
-  return view.user.mustChangePassword ? "temporary" : `home:${view.user.id}`;
+  return view.user.mustChangePassword ? "temporary" : `home:${view.user.id}:${view.user.role}`;
 }
 
 function Screen({ view, refresh, expired }: { view: View; refresh: () => Promise<View>; expired: boolean }) {

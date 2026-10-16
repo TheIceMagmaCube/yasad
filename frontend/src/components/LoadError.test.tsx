@@ -11,6 +11,7 @@ function Page({ failed, attempt, pending = false, onRetry = vi.fn() }: { failed:
   return (
     <main id="content" tabIndex={-1}>
       <h1 tabIndex={-1}>Users</h1>
+      <input aria-label="Search" />
       {failed ? <LoadError attempt={attempt} message="The list could not be loaded." pending={pending} onRetry={onRetry} /> : <p>List</p>}
     </main>
   );
@@ -35,6 +36,15 @@ describe("LoadError", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     rerender(<Page failed={false} attempt={1} />);
     expect(screen.getByRole("heading", { name: "Users" })).toHaveFocus();
+  });
+
+  it("leaves the focus where the person moved it during a retry that succeeds", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderWithProviders(<Page failed attempt={1} />);
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("textbox", { name: "Search" }));
+    rerender(<Page failed={false} attempt={1} />);
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveFocus();
   });
 
   it("leaves the focus alone when it goes away without a retry", () => {

@@ -15,19 +15,25 @@ type LoadErrorProps = {
 
 /**
  * Render a load failure: an alert, then a Retry button that keeps the focus while it runs and on a new failure.
- * When a retry succeeds and this goes away, the focus moves to the page heading.
+ * When a retry succeeds and this goes away, the focus moves to the page heading, unless the person has already
+ * moved it elsewhere.
  */
 export function LoadError({ attempt, message, pending, onRetry }: LoadErrorProps) {
   const m = useStrings();
   const retried = useRef({ value: false });
+  const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const flag = retried.current;
+    const node = container.current;
     return () => {
-      if (flag.value) focusPage();
+      if (!flag.value) return;
+      // The focus falls to the body when the focused Retry button is removed.
+      const active = document.activeElement;
+      if (!active || active === document.body || node?.contains(active)) focusPage();
     };
   }, []);
   return (
-    <div data-slot="load-error" className="flex flex-col items-start gap-4">
+    <div ref={container} data-slot="load-error" className="flex flex-col items-start gap-4">
       <Alert key={attempt} variant="destructive" className="w-full">
         {message}
       </Alert>

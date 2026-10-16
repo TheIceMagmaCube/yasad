@@ -86,15 +86,13 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
   const [created, setCreated] = useState<User | null>(null);
   const codeErrors = useFormErrors(CODE_FIELDS, "setup");
   const adminErrors = useFormErrors(ADMIN_FIELDS, "setup-admin");
-  const firstRender = useRef(true);
+  const previousStep = useRef(step);
   useDocumentTitle(...(step === "code" || step === "admin" ? [s.steps[step], s.title] : [stepTitle(step, s)]));
 
   // A new step focuses the heading, unless an error summary of the same commit took the focus.
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
+    if (previousStep.current === step) return;
+    previousStep.current = step;
     focusPage();
   }, [step]);
 

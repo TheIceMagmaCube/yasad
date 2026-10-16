@@ -222,7 +222,7 @@ export const en = {
     intro: "Your account has a temporary password. Choose your own before going on.",
     current: "Current password",
     new: "New password",
-    newHint: "At least 12 characters.",
+    newHint: "12 to 128 characters.",
     confirm: "Confirm new password",
     submit: "Save password",
     submitting: "Saving…",

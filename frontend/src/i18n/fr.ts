@@ -227,7 +227,7 @@ export const fr = {
     intro: "Votre compte a un mot de passe temporaire. Choisissez le vôtre avant de continuer.",
     current: "Mot de passe actuel",
     new: "Nouveau mot de passe",
-    newHint: "Au moins 12 caractères.",
+    newHint: "De 12 à 128 caractères.",
     confirm: "Confirmer le nouveau mot de passe",
     submit: "Enregistrer le mot de passe",
     submitting: "Enregistrement…",
