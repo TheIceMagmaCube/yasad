@@ -29,14 +29,15 @@ export function focusPage(): void {
 }
 
 /**
- * Focus the element with `id` once `after` (the reload that follows an action) has settled and the page has
- * rendered. When the element is gone, focus the list filter (`data-focus-fallback`), then the page heading: never
- * the body.
+ * Focus the element with `id` (the first one still there, given several) once `after` (the reload that follows an
+ * action) has settled and the page has rendered. When none is there, focus the list filter (`data-focus-fallback`),
+ * then the page heading: never the body.
  */
-export async function focusById(id: string, after?: Promise<unknown>): Promise<void> {
+export async function focusById(id: string | readonly string[], after?: Promise<unknown>): Promise<void> {
   await after?.catch(() => {});
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const target = document.getElementById(id) ?? document.querySelector<HTMLElement>("[data-focus-fallback]") ?? pageTarget();
+  const found = (typeof id === "string" ? [id] : id).map((one) => document.getElementById(one)).find(Boolean);
+  const target = found ?? document.querySelector<HTMLElement>("[data-focus-fallback]") ?? pageTarget();
   target?.focus();
 }
 

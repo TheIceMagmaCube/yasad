@@ -183,3 +183,13 @@ export function focusIsLost(): boolean {
 export function focusIsWithin(id: string): boolean {
   return !!document.getElementById(id)?.contains(document.activeElement) || focusIsLost();
 }
+
+/**
+ * After the coming render, focus `id` only if that render dropped the focus (its element was removed): for an
+ * outcome that leaves the focus where the person put it, unless it is gone.
+ */
+export function focusIfLost(id: string): void {
+  setTimeout(() => {
+    if (focusIsLost()) void focusById(id);
+  }, 0);
+}

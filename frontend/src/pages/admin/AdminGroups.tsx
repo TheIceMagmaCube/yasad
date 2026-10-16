@@ -21,7 +21,7 @@ import { Label } from "../../components/ui/label";
 import type { Messages } from "../../i18n/en";
 import { useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
-import { focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { focusIfLost, focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce, useDebouncedStatus } from "../../lib/announcer";
 import { matchesFilter, prepareFilter } from "../../lib/filter";
 import { claimFocus, focusById } from "../../lib/focus";
@@ -53,6 +53,10 @@ function groupTrigger(key: string): string {
 }
 
 const removeButtonId = (groupId: string, userId: string) => `member-${groupId}-${userId}-remove`;
+const addButtonId = (groupId: string, userId: string) => `candidate-${groupId}-${userId}-add`;
+
+/** Return whether the focus is still on the button that ran a change, or lost: only then may its outcome move it. */
+const focusOnButton = (id: string) => document.activeElement?.id === id || focusIsLost();
 
 /** Return whether the focus is in the row of the group, or lost: an outcome may take it there. */
 const focusInRow = (groupId: string) => rowHasFocus(`group-${groupId}-title`) || focusIsLost();
@@ -109,6 +113,7 @@ export function AdminGroups() {
     const here = open && focusHere();
     if (open) panel.close();
     feedback.say(text, here ? focusById(focusId) : undefined);
+    if (!here) focusIfLost(focusId);
     void collection.refresh();
   };
 
@@ -234,8 +239,11 @@ export function AdminGroups() {
     const stillOpen = panel.claim(`members:${group.id}`);
     if (!(await changeMember(group, user, stillOpen, () => api.addMember(group.id, user.id)))) return;
     invalidateHome();
+    // Taken from the Add button only: not from the search the person went on typing in.
+    const move = stillOpen() && focusOnButton(addButtonId(group.id, user.id));
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: [...g.memberIds.filter((id) => id !== user.id), user.id] } : g)) }));
-    feedback.say(s.added(user.name, group.name), stillOpen() && focusInRow(group.id) ? focusById(pickerId(group.id)) : undefined);
+    feedback.say(s.added(user.name, group.name), move ? focusById(pickerId(group.id)) : undefined);
+    if (!move) focusIfLost(pickerId(group.id));
     void collection.refresh();
   }
 
@@ -243,10 +251,13 @@ export function AdminGroups() {
     const stillOpen = panel.claim(`members:${group.id}`);
     if (!(await changeMember(group, user, stillOpen, () => api.removeMember(group.id, user.id)))) return;
     invalidateHome();
+    // Taken from the Remove button only: a space typed in a field must never land on the next Remove button.
+    const move = stillOpen() && focusOnButton(removeButtonId(group.id, user.id));
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: g.memberIds.filter((id) => id !== user.id) } : g)) }));
-    const target = neighbours.next ?? neighbours.previous;
-    const focused = stillOpen() && focusInRow(group.id) ? focusById(target ? removeButtonId(group.id, target) : pickerId(group.id)) : undefined;
-    feedback.say(s.removed(user.name, group.name), focused);
+    // The neighbours still there once rendered: another removal may have taken one meanwhile.
+    const targets = [neighbours.next, neighbours.previous].filter((id): id is string => !!id).map((id) => removeButtonId(group.id, id));
+    feedback.say(s.removed(user.name, group.name), move ? focusById([...targets, pickerId(group.id)]) : undefined);
+    if (!move) focusIfLost(pickerId(group.id));
     void collection.refresh();
   }
 
@@ -648,6 +659,7 @@ function MemberPicker({ group, users, memberIds, pending, onAdd }: MemberPickerP
                 <p className="text-sm wrap-anywhere text-muted-foreground">{user.email}</p>
               </div>
               <PendingButton
+                id={addButtonId(group.id, user.id)}
                 size="sm"
                 variant="outline"
                 aria-label={s.addPersonLabel(user.name, group.name)}

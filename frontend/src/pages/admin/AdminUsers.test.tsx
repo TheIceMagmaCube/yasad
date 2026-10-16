@@ -423,6 +423,23 @@ describe("AdminUsers", () => {
     expect(filterField).toHaveValue("carol");
   });
 
+  it("gives the focus to the new account when its creation removes the empty list the focus was in", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": [list(ADA), list(ADA, BOB)] });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Ada", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "zz");
+    await userEv.click(screen.getByRole("button", { name: "New user" }));
+    await userEv.type(screen.getByLabelText("Name"), "Bob");
+    await userEv.type(screen.getByLabelText("E-mail"), "bob@example.invalid");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Create the account" }));
+    screen.getByRole("button", { name: "Clear the filter" }).focus();
+    release(new Response(JSON.stringify({ user: BOB, temporaryPassword: "abcdefghijkmnopqrstu" }), { status: 201 }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Bob" })).toHaveFocus());
+  });
+
   it("selects the secret for Ctrl+C when the clipboard is not available", async () => {
     const { userEv } = await renderPage({
       "GET /api/admin/users": list(ADA, BOB),

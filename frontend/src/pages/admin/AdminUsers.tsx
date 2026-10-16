@@ -21,7 +21,7 @@ import { Button } from "../../components/ui/button";
 import { CheckboxField } from "../../components/ui/checkbox";
 import { useLocale, useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
-import { focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { focusIfLost, focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce } from "../../lib/announcer";
 import { prepareFilter } from "../../lib/filter";
 import { focusById } from "../../lib/focus";
@@ -93,6 +93,7 @@ export function AdminUsers({ me }: { me: User }) {
     const here = open && focusInRow(key);
     if (open) panel.close();
     feedback.say(text, here ? focusById(userTrigger(key)) : undefined);
+    if (!here) focusIfLost(userTrigger(key));
     void collection.refresh();
   };
 
@@ -161,7 +162,10 @@ export function AdminUsers({ me }: { me: User }) {
     collection.setData((list) => [...list.filter((u) => u.id !== user.id), user]);
     putSecret({ userId: user.id, password: temporaryPassword, then: "edit", focus: here });
     feedback.note(s.created(user.name));
-    if (!here) announce(s.created(user.name));
+    if (!here) {
+      announce(s.created(user.name));
+      focusIfLost(`user-${user.id}-edit`);
+    }
     void collection.refresh();
   }
 
@@ -173,7 +177,10 @@ export function AdminUsers({ me }: { me: User }) {
       const here = open && focusInRow(`reset:${user.id}`);
       if (open) panel.close();
       putSecret({ userId: user.id, password: temporaryPassword, then: "reset", focus: here });
-      if (!here) announce(m.admin.temporaryPassword(user.name));
+      if (!here) {
+        announce(m.admin.temporaryPassword(user.name));
+        focusIfLost(`user-${user.id}-reset`);
+      }
       void collection.refresh();
     } catch (err) {
       failed(user, stillOpen, err);

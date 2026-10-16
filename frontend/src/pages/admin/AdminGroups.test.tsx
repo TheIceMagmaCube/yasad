@@ -251,6 +251,53 @@ describe("AdminGroups", () => {
     expect(button).toHaveFocus();
   });
 
+  it("leaves the focus in the search the person types in when a removal ends, so no key lands on another Remove", async () => {
+    const { fetchMock, userEv } = await renderPage(routes({ "DELETE /api/admin/groups/g1/members/carol": { status: 204 } }));
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/admin/groups/g1/members/carol") await held;
+      return answer(path, init);
+    });
+    await userEv.click(screen.getByRole("button", { name: "Members (3) of Contractors" }));
+    await userEv.click(within(row("Contractors")).getByRole("button", { name: "Remove Carol from Contractors" }));
+    const search = within(row("Contractors")).getByLabelText("Add people");
+    await userEv.type(search, "ada");
+    release();
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Carol removed from Contractors."));
+    expect(search).toHaveFocus();
+    await userEv.keyboard(" lovelace");
+    expect(search).toHaveValue("ada lovelace");
+    expect(fetchMock.mock.calls.filter((c) => c[1]?.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("sends the focus to a Remove button still there after two removals run together", async () => {
+    const without = (...gone: string[]) => groups(EVERYONE, { ...CONTRACTORS, memberIds: CONTRACTORS.memberIds.filter((id) => !gone.includes(id)) });
+    const { fetchMock, userEv } = await renderPage(
+      routes({
+        "GET /api/admin/groups": [groups(EVERYONE, CONTRACTORS), without("dan"), without("dan", "carol")],
+        "DELETE /api/admin/groups/g1/members/carol": { status: 204 },
+        "DELETE /api/admin/groups/g1/members/dan": { status: 204 },
+      }),
+    );
+    let releaseCarol!: () => void;
+    const heldCarol = new Promise<void>((resolve) => (releaseCarol = resolve));
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/admin/groups/g1/members/carol") await heldCarol;
+      return answer(path, init);
+    });
+    await userEv.click(screen.getByRole("button", { name: "Members (3) of Contractors" }));
+    // Carol, then Dan: Carol's next neighbour is Dan, removed before Carol's answer comes.
+    await userEv.click(within(row("Contractors")).getByRole("button", { name: "Remove Carol from Contractors" }));
+    await userEv.click(within(row("Contractors")).getByRole("button", { name: "Remove Dan from Contractors" }));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Dan removed from Contractors."));
+    within(row("Contractors")).getByRole("button", { name: "Remove Carol from Contractors" }).focus();
+    releaseCarol();
+    await waitFor(() => expect(within(row("Contractors")).getByRole("button", { name: "Remove Bob from Contractors" })).toHaveFocus());
+  });
+
   it("renames in the row, the name selected, and focuses Rename after saving", async () => {
     const renamed = { ...STAFF, name: "Team" };
     const { userEv } = await renderPage(
