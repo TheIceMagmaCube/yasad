@@ -44,7 +44,7 @@ describe("generated icon lists", () => {
     expect(generated.iconsBase).toContain(`"/icons/${generated.hash}"`);
   });
 
-  it("leave out every Simple Icon under a non-commercial, no-derivatives or custom licence", () => {
+  it("keep only Simple Icons under no licence of their own, CC0, the Unlicense, CC-BY or CC-BY-SA", () => {
     const data = readJson(join(ROOT, "node_modules/simple-icons/data/simple-icons.json")) as unknown as { slug: string; license?: { type: string } }[];
     const excluded = data.filter((icon) => excludedLicense(icon.license));
     expect(excluded.length).toBeGreaterThan(0);
@@ -53,7 +53,11 @@ describe("generated icon lists", () => {
       expect(generated.files.has(`si/${icon.slug}.json`)).toBe(false);
     }
     expect(SI.size).toBe(data.length - excluded.length);
-    expect(generated.files.get("NOTICE.txt")).not.toMatch(/CC-BY-(NC|ND)|: custom/);
+    expect(generated.files.get("NOTICE.txt")).not.toMatch(/CC-BY-(NC|ND)|: custom|Licence: (MIT|BSD|Apache|GPL|AGPL|LGPL|MPL)/);
+    for (const type of ["MIT", "BSD-3-Clause", "Apache-2.0", "GPL-2.0-only", "AGPL-3.0-only", "MPL-2.0", "CC-BY-NC-4.0", "CC-BY-ND-4.0", "custom"]) {
+      expect(excludedLicense({ type })).toBe(true);
+    }
+    for (const type of ["CC0-1.0", "Unlicense", "CC-BY-4.0", "CC-BY-SA-2.5"]) expect(excludedLicense({ type })).toBe(false);
   });
 
   it("credit every Simple Icon under its own licence with its source and a link to the licence", () => {
@@ -71,7 +75,7 @@ describe("generated icon lists", () => {
       expect(icon.source).toMatch(/^https?:\/\//);
       expect(text).toContain(`${icon.slug} (${icon.title})\n  Source: ${icon.source}\n  Licence: ${license.type}, ${licenseUrl(license)}\n`);
     }
-    expect(licenseUrl({ type: "Apache-2.0" })).toBe("https://spdx.org/licenses/Apache-2.0.html");
+    expect(licenseUrl({ type: "CC-BY-SA-4.0" })).toBe("https://spdx.org/licenses/CC-BY-SA-4.0.html");
     expect(licenseUrl({ type: "CC-BY-4.0", url: "https://example.org/licence" })).toBe("https://example.org/licence");
   });
 

@@ -4,8 +4,9 @@
  * Writes one JSON file per icon under frontend/public/icons/<hash>/, where <hash> is a hash of the
  * generated content, plus a NOTICE.txt with the licences; frontend/src/icons-base.ts, the URL base
  * the frontend fetches icons from; and backend/src/icons/names.ts, the names the API and the import
- * accept. Simple Icons under a non-commercial, no-derivatives or custom licence are left out of every
- * output. Run with `--check` to only report whether the committed name lists are up to date.
+ * accept. Only Simple Icons with no licence of their own (CC0 data), or under CC0, the Unlicense, CC-BY
+ * or CC-BY-SA, are kept: the others need the full licence text and a copyright holder the data does
+ * not give, or forbid commercial use or adaptation. Run with `--check` to only report whether the committed name lists are up to date.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -27,10 +28,10 @@ const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 /** Return the directory of an installed package. */
 const packageDir = (name) => join(ROOT, "node_modules", name);
 
-/** Return whether a Simple Icons licence forbids commercial use or adaptation, or is not a standard one. */
+/** Return whether a Simple Icon is left out: any licence other than CC0, the Unlicense, CC-BY or CC-BY-SA. */
 export function excludedLicense(license) {
   if (!license) return false;
-  return license.type === "custom" || /-(NC|ND)(-|$)/.test(license.type);
+  return !/^(CC0-1\.0|Unlicense|CC-BY-(SA-)?\d\.\d)$/.test(license.type);
 }
 
 /** Return the Simple Icons kept, sorted by slug, with their path and licence. */
