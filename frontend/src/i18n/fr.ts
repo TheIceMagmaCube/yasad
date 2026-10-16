@@ -43,6 +43,8 @@ export const fr = {
     appearance: "Apparence",
     modes: { system: "Système", light: "Clair", dark: "Sombre" },
     theme: "Thème (dev uniquement)",
+    label: "Préférences",
+    savedHere: "Enregistré sur cet appareil.",
   },
   languages: { en: "English", fr: "Français" },
   roles: { admin: "Administrateur", user: "Utilisateur" },

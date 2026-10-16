@@ -1,10 +1,8 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
 import { type Language, LANGUAGES, readPreference, resolveLanguage, writePreference } from "../preferences";
-import { en, type Messages } from "./en";
-import { fr } from "./fr";
-
-const MESSAGES: Record<Language, Messages> = { en, fr };
+import type { Messages } from "./en";
+import { MESSAGES } from "./index";
 
 type Locale = {
   language: Language;

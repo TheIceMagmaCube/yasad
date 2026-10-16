@@ -106,8 +106,11 @@ describe("App", () => {
     await user.selectOptions(await screen.findByLabelText("Appearance"), "dark");
     expect(document.documentElement).toHaveAttribute("data-mode", "dark");
     expect(localStorage.getItem("yasad.mode")).toBe("dark");
-    await user.selectOptions(screen.getByLabelText("Language"), "fr");
+    const preferences = screen.getByRole("group", { name: "Preferences" });
+    expect(preferences.compareDocumentPosition(screen.getByRole("main")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.selectOptions(within(preferences).getByLabelText("Language / Langue"), "fr");
     expect(screen.getByRole("heading", { name: "Connexion" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Préférences" })).getByLabelText("Language / Langue")).toHaveValue("fr");
     expect(localStorage.getItem("yasad.language")).toBe("fr");
   });
 
