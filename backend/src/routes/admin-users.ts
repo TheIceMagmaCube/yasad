@@ -1,7 +1,7 @@
 import { and, asc, eq, exists, ne, type SQL } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
-import { authFor } from "../auth";
+import { authFor, sessionFor } from "../auth";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { apiError } from "../errors";
@@ -162,7 +162,7 @@ adminUsers.patch("/:id", async (c) => {
 
   const role = (body.role as Role | undefined) ?? (body.roleOverride === undefined ? undefined : ((body.roleOverride as Role | null) ?? undefined));
   const disabled = body.disabled as boolean | undefined;
-  const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+  const current = await sessionFor(c);
   if (current?.user.id === id && ((role !== undefined && role !== target.role) || body.roleOverride !== undefined || disabled === true)) {
     return apiError(c, 409, "cannot_change_self", "You cannot change your own role or disable yourself.");
   }
@@ -205,7 +205,7 @@ adminUsers.post("/:id/password", async (c) => {
   const [target] = await listUsers(db, id);
   if (!target) return apiError(c, 404, "not_found", "No such user.");
   if (target.origin !== "local") return apiError(c, 409, "no_local_password", "This account has no local password.");
-  const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+  const current = await sessionFor(c);
   if (current?.user.id === id) return apiError(c, 409, "cannot_change_self", "You cannot reset your own password here.");
 
   const password = temporaryPassword();
@@ -228,7 +228,7 @@ adminUsers.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const [target] = await listUsers(db, id);
   if (!target) return apiError(c, 404, "not_found", "No such user.");
-  const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+  const current = await sessionFor(c);
   if (current?.user.id === id) return apiError(c, 409, "cannot_change_self", "You cannot delete yourself.");
 
   const demotes = isActiveLocalAdmin(target);

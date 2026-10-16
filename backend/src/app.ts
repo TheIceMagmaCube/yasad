@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
-import { authFor } from "./auth";
+import { sessionFor } from "./auth";
 import { type Config, loadConfig, type RawConfig } from "./config";
 import type { AppEnv } from "./context";
 import type { DB } from "./db";
@@ -12,6 +12,7 @@ import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { adminGroups } from "./routes/admin-groups";
 import { adminUsers } from "./routes/admin-users";
 import { authRoutes } from "./routes/auth";
+import { home } from "./routes/home";
 import { instance } from "./routes/instance";
 import { setup } from "./routes/setup";
 import { sameOriginOnly, withSecurityHeaders } from "./security";
@@ -65,7 +66,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
   // While a temporary password is set, only these routes answer; the rest of the API is refused.
   app.use("*", async (c, next) => {
     if (OPEN_WITH_TEMPORARY_PASSWORD.has(`${c.req.method} ${c.req.path}`) || !c.req.header("cookie")) return next();
-    const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+    const current = await sessionFor(c);
     if (current?.user.mustChangePassword) {
       return apiError(c, 403, "password_change_required", "Choose a new password before going on.");
     }
@@ -87,6 +88,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     return apiError(c, 500, "internal_error", "Something went wrong on the server. See the server logs.");
   });
 
+  app.route("/home", home);
   app.route("/instance", instance);
   app.route("/setup", setup);
   app.route("/account", accountRoutes);
