@@ -25,9 +25,10 @@ export type RowPanel = {
 
 /**
  * Hold the one panel open on an administration page; `triggerOf` gives the id of the button that opens a panel.
- * Pass a function defined outside the component, so the returned object changes only with the open panel.
+ * `onRowClosed` receives the row id of a row panel (`<kind>:<id>`) when it closes, so the page can keep that row
+ * shown: a filter typed meanwhile may match it no longer, and its trigger must stay to take the focus back.
  */
-export function useRowPanel(triggerOf: (key: string) => string): RowPanel {
+export function useRowPanel(triggerOf: (key: string) => string, onRowClosed: (id: string) => void): RowPanel {
   const [open, setOpen] = useState<string | null>(null);
   // Read when a request ends, after renders that the closure of its start did not see. `opening` counts every
   // change, so two openings of the same panel differ.
@@ -35,8 +36,10 @@ export function useRowPanel(triggerOf: (key: string) => string): RowPanel {
 
   return useMemo<RowPanel>(() => {
     const set = (key: string | null) => {
+      const closed = current.current.key;
       current.current = { key, opening: current.current.opening + 1 };
       setOpen(key);
+      if (closed !== null && closed !== key && closed.includes(":")) onRowClosed(closed.slice(closed.indexOf(":") + 1));
     };
     const cancel = () => {
       const { key } = current.current;
@@ -61,7 +64,7 @@ export function useRowPanel(triggerOf: (key: string) => string): RowPanel {
         cancel();
       },
     };
-  }, [open, triggerOf]);
+  }, [open, triggerOf, onRowClosed]);
 }
 
 /**
@@ -174,4 +177,9 @@ export function rowHasFocus(titleId: string): boolean {
 /** Return whether nothing holds the focus (it fell to the body when its element was removed). */
 export function focusIsLost(): boolean {
   return document.activeElement === null || document.activeElement === document.body;
+}
+
+/** Return whether the focus is inside the element `id` (an open panel), or lost: an outcome may take it there. */
+export function focusIsWithin(id: string): boolean {
+  return !!document.getElementById(id)?.contains(document.activeElement) || focusIsLost();
 }

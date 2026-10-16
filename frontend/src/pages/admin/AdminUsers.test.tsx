@@ -390,6 +390,39 @@ describe("AdminUsers", () => {
     expect(await screen.findByRole("group", { name: "Carol deleted." })).toHaveFocus();
   });
 
+  it("keeps a row whose panel is folded under a filter that hides it, with the focus on its trigger", async () => {
+    const { userEv } = await renderPage({ "GET /api/admin/users": list(ADA, BOB, CAROL) });
+    const edit = screen.getByRole("button", { name: "Edit Bob" });
+    await userEv.click(edit);
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "car");
+    await userEv.click(edit);
+    expect(edit).toHaveAttribute("aria-expanded", "false");
+    expect(edit).toHaveFocus();
+    expect(row("Bob")).toBeInTheDocument();
+  });
+
+  it("leaves the focus in the filter when a save ends while the person types there", async () => {
+    let release!: (res: Response) => void;
+    const robert = { ...BOB, name: "Robert" };
+    const fetchMock = mockApi({ "GET /api/admin/users": [list(ADA, BOB, CAROL), list(ADA, robert, CAROL)] });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    const name = within(row("Bob")).getByLabelText("Name");
+    await userEv.clear(name);
+    await userEv.type(name, "Robert");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    const filterField = screen.getByLabelText("Filter by name or e-mail");
+    await userEv.type(filterField, "ca");
+    release(new Response(JSON.stringify({ user: robert }), { status: 200 }));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Robert updated."));
+    expect(filterField).toHaveFocus();
+    await userEv.keyboard("rol");
+    expect(filterField).toHaveValue("carol");
+  });
+
   it("selects the secret for Ctrl+C when the clipboard is not available", async () => {
     const { userEv } = await renderPage({
       "GET /api/admin/users": list(ADA, BOB),

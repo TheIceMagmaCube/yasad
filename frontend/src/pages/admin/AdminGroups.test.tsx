@@ -323,6 +323,17 @@ describe("AdminGroups", () => {
     expect(screen.getByText("1 of 3 groups")).toBeInTheDocument();
   });
 
+  it("keeps a group whose members panel is folded under a filter that hides it, with the focus on its trigger", async () => {
+    const { userEv } = await renderPage();
+    const members = screen.getByRole("button", { name: "Members (0) of Staff" });
+    await userEv.click(members);
+    await userEv.type(screen.getByLabelText("Filter groups"), "contr");
+    await userEv.click(members);
+    expect(members).toHaveAttribute("aria-expanded", "false");
+    expect(members).toHaveFocus();
+    expect(row("Staff")).toBeInTheDocument();
+  });
+
   it("creates a group and focuses its Members button", async () => {
     const created: AdminGroup = { id: "g3", name: "Reviewers", source: "local", memberIds: [], categories: 0, links: 0 };
     const { fetchMock, userEv } = await renderPage(

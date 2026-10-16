@@ -21,7 +21,7 @@ import { Label } from "../../components/ui/label";
 import type { Messages } from "../../i18n/en";
 import { useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
-import { focusIsLost, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce, useDebouncedStatus } from "../../lib/announcer";
 import { matchesFilter, prepareFilter } from "../../lib/filter";
 import { claimFocus, focusById } from "../../lib/focus";
@@ -53,6 +53,9 @@ function groupTrigger(key: string): string {
 }
 
 const removeButtonId = (groupId: string, userId: string) => `member-${groupId}-${userId}-remove`;
+
+/** Return whether the focus is in the row of the group, or lost: an outcome may take it there. */
+const focusInRow = (groupId: string) => rowHasFocus(`group-${groupId}-title`) || focusIsLost();
 const pickerId = (groupId: string) => `group-${groupId}-picker`;
 
 /** Return the name a group is shown with: built-in groups are translated, the others shown as named. */
@@ -70,8 +73,8 @@ export function AdminGroups() {
   const s = m.groups;
   const announce = useAnnounce();
   const collection = useAdminCollection(load);
-  const panel = useRowPanel(groupTrigger);
   const feedback = useListFeedback();
+  const panel = useRowPanel(groupTrigger, feedback.pin);
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [memberErrors, setMemberErrors] = useState<Record<string, { text: string; n: number }>>({});
@@ -98,13 +101,14 @@ export function AdminGroups() {
   };
 
   /**
-   * After a success: close the panel that ran it and focus `focusId`; if the person moved on (`stillOpen` false),
-   * only say it.
+   * After a success: close the panel that ran it and focus `focusId` when the focus is still where the action was
+   * (`focusHere`); if the person moved on, only say it.
    */
-  const succeed = (stillOpen: () => boolean, text: string, focusId: string) => {
+  const succeed = (stillOpen: () => boolean, focusHere: () => boolean, text: string, focusId: string) => {
     const open = stillOpen();
+    const here = open && focusHere();
     if (open) panel.close();
-    feedback.say(text, open ? focusById(focusId) : undefined);
+    feedback.say(text, here ? focusById(focusId) : undefined);
     void collection.refresh();
   };
 
@@ -148,7 +152,7 @@ export function AdminGroups() {
     collection.setData((d) => ({ ...d, groups: [...d.groups, group] }));
     // Shown whatever the filter, which stays as typed.
     feedback.pin(group.id);
-    succeed(stillOpen, s.created(group.name), `group-${group.id}-members`);
+    succeed(stillOpen, () => focusIsWithin("groups-new-panel"), s.created(group.name), `group-${group.id}-members`);
   }
 
   async function rename(group: AdminGroup, name: string) {
@@ -160,7 +164,7 @@ export function AdminGroups() {
       replaceGroup(renamed);
       feedback.pin(renamed.id);
       invalidateHome();
-      succeed(stillOpen, s.renamed(renamed.name), groupTrigger(key));
+      succeed(stillOpen, () => focusInRow(group.id), s.renamed(renamed.name), groupTrigger(key));
     } catch (err) {
       failed(group, stillOpen, err);
     }
@@ -231,7 +235,7 @@ export function AdminGroups() {
     if (!(await changeMember(group, user, stillOpen, () => api.addMember(group.id, user.id)))) return;
     invalidateHome();
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: [...g.memberIds.filter((id) => id !== user.id), user.id] } : g)) }));
-    feedback.say(s.added(user.name, group.name), stillOpen() ? focusById(pickerId(group.id)) : undefined);
+    feedback.say(s.added(user.name, group.name), stillOpen() && focusInRow(group.id) ? focusById(pickerId(group.id)) : undefined);
     void collection.refresh();
   }
 
@@ -241,7 +245,7 @@ export function AdminGroups() {
     invalidateHome();
     collection.setData((d) => ({ ...d, groups: d.groups.map((g) => (g.id === group.id ? { ...g, memberIds: g.memberIds.filter((id) => id !== user.id) } : g)) }));
     const target = neighbours.next ?? neighbours.previous;
-    const focused = stillOpen() ? focusById(target ? removeButtonId(group.id, target) : pickerId(group.id)) : undefined;
+    const focused = stillOpen() && focusInRow(group.id) ? focusById(target ? removeButtonId(group.id, target) : pickerId(group.id)) : undefined;
     feedback.say(s.removed(user.name, group.name), focused);
     void collection.refresh();
   }

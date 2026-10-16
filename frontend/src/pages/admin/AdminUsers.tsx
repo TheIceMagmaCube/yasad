@@ -21,7 +21,7 @@ import { Button } from "../../components/ui/button";
 import { CheckboxField } from "../../components/ui/checkbox";
 import { useLocale, useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
-import { focusIsLost, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce } from "../../lib/announcer";
 import { prepareFilter } from "../../lib/filter";
 import { focusById } from "../../lib/focus";
@@ -39,6 +39,9 @@ function userTrigger(key: string): string {
   return `user-${key.slice(at + 1)}-${key.slice(0, at)}`;
 }
 
+/** Return whether the focus is in the row of a row panel key (`<kind>:<id>`), or lost. */
+const focusInRow = (key: string) => rowHasFocus(`user-${key.slice(key.indexOf(":") + 1)}-title`) || focusIsLost();
+
 /**
  * A temporary password shown in its row until noted; `then` is the button that gets the focus once noted, `focus`
  * whether the panel takes the focus (not when the person had moved on before the request ended).
@@ -51,8 +54,8 @@ export function AdminUsers({ me }: { me: User }) {
   const s = m.users;
   const announce = useAnnounce();
   const collection = useAdminCollection(api.users);
-  const panel = useRowPanel(userTrigger);
   const feedback = useListFeedback();
+  const panel = useRowPanel(userTrigger, feedback.pin);
   const [query, setQuery] = useState("");
   // One per person: a second reset or account never hides a password not noted yet.
   const [secrets, setSecrets] = useState<Record<string, Secret>>({});
@@ -86,8 +89,10 @@ export function AdminUsers({ me }: { me: User }) {
    */
   const succeed = (stillOpen: () => boolean, key: string, text: string) => {
     const open = stillOpen();
+    // The focus comes back to the trigger only from the row, not from the filter the person went on typing in.
+    const here = open && focusInRow(key);
     if (open) panel.close();
-    feedback.say(text, open ? focusById(userTrigger(key)) : undefined);
+    feedback.say(text, here ? focusById(userTrigger(key)) : undefined);
     void collection.refresh();
   };
 
@@ -150,12 +155,13 @@ export function AdminUsers({ me }: { me: User }) {
     }
     const { user, temporaryPassword } = created;
     const open = stillOpen();
+    const here = open && focusIsWithin("users-new-panel");
     if (open) panel.close();
     // Its temporary password keeps the new row shown, whatever the filter.
     collection.setData((list) => [...list.filter((u) => u.id !== user.id), user]);
-    putSecret({ userId: user.id, password: temporaryPassword, then: "edit", focus: open });
+    putSecret({ userId: user.id, password: temporaryPassword, then: "edit", focus: here });
     feedback.note(s.created(user.name));
-    if (!open) announce(s.created(user.name));
+    if (!here) announce(s.created(user.name));
     void collection.refresh();
   }
 
@@ -164,9 +170,10 @@ export function AdminUsers({ me }: { me: User }) {
     try {
       const { temporaryPassword } = await api.resetPassword(user.id);
       const open = stillOpen();
+      const here = open && focusInRow(`reset:${user.id}`);
       if (open) panel.close();
-      putSecret({ userId: user.id, password: temporaryPassword, then: "reset", focus: open });
-      if (!open) announce(m.admin.temporaryPassword(user.name));
+      putSecret({ userId: user.id, password: temporaryPassword, then: "reset", focus: here });
+      if (!here) announce(m.admin.temporaryPassword(user.name));
       void collection.refresh();
     } catch (err) {
       failed(user, stillOpen, err);
