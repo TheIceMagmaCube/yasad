@@ -4,8 +4,11 @@ import type { User } from "../api";
 import { useStrings } from "../i18n/LocaleProvider";
 import { Brand } from "./Brand";
 import { Link } from "./Link";
+import { PreferenceSelects } from "./PreferenceSelects";
 import { SkipLink } from "./SkipLink";
-import { UserMenu } from "./UserMenu";
+import { buttonVariants } from "./ui/button";
+import { HEADER_BUTTON, UserMenu } from "./UserMenu";
+
 
 type Section = "home" | "admin";
 
@@ -42,8 +45,10 @@ function NavLink({ href, current, label, short }: { href: string; current: boole
 }
 
 /**
- * Frame of the signed-in screens: skip link, header with the instance title, the section links and the
- * user menu, main content. `path` is the current path; `nav` hides the section links when false.
+ * Frame of the app screens: skip link, header with the instance title, the section links and the user menu, main
+ * content. `path` is the current path; `nav` hides the section links when false. Without `user` (anonymous home),
+ * the header has no section links and a sign-in link instead of the menu, and a footer holds the language and
+ * appearance choices.
  */
 export function AppShell({
   user,
@@ -52,10 +57,10 @@ export function AppShell({
   onSignOut,
   children,
 }: {
-  user: User;
+  user: User | null;
   path: string;
   nav?: boolean;
-  onSignOut: () => void;
+  onSignOut?: () => void;
   children: ReactNode;
 }) {
   const m = useStrings();
@@ -66,7 +71,7 @@ export function AppShell({
       <header className="border-b border-header-border bg-header text-header-foreground">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-4 sm:gap-6 sm:px-8">
           <Brand />
-          {nav && (
+          {nav && user && (
             <nav aria-label={m.nav.label} className="h-full">
               <ul className="flex h-full gap-1 sm:gap-2">
                 <li className="h-full">
@@ -81,13 +86,26 @@ export function AppShell({
             </nav>
           )}
           <div className="ml-auto">
-            <UserMenu user={user} onSignOut={onSignOut} />
+            {user ? (
+              <UserMenu user={user} onSignOut={onSignOut ?? (() => {})} />
+            ) : (
+              <Link href="/sign-in" className={buttonVariants({ variant: "ghost", size: "sm", className: HEADER_BUTTON })}>
+                {m.signIn.title}
+              </Link>
+            )}
           </div>
         </div>
       </header>
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl p-4 outline-none sm:p-8">
         {children}
       </main>
+      {!user && (
+        <footer className="border-t">
+          <div className="mx-auto max-w-5xl p-4 sm:px-8">
+            <PreferenceSelects />
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
