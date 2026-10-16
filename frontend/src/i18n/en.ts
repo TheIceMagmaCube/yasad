@@ -104,6 +104,7 @@ export const en = {
     links: "Links",
     removalNotice: (n: number) => `${n} item${n === 1 ? "" : "s"} will be deleted.`,
     noGroup: (kind: "category" | "link", id: string) => `${kind === "category" ? "Category" : "Link"} "${id}" has no group: nobody can see it.`,
+    unknownIcon: (id: string) => `Link "${id}" has an icon this version does not know: it shows its first letter instead.`,
     groupsDifferByCase: (groups: string[]) => `Groups differ only by case: ${groups.join(", ")}.`,
     errors: {
       invalid_id: () => "Use lower-case letters, digits and dashes.",

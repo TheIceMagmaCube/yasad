@@ -106,6 +106,7 @@ export const fr = {
     links: "Liens",
     removalNotice: (n: number) => `${n} élément${n === 1 ? "" : "s"} ${n === 1 ? "sera supprimé" : "seront supprimés"}.`,
     noGroup: (kind, id) => `${kind === "category" ? "La catégorie" : "Le lien"} « ${id} » n'a aucun groupe : personne ne peut le voir.`,
+    unknownIcon: (id) => `Le lien « ${id} » a une icône que cette version ne connaît pas : sa première lettre s'affiche à la place.`,
     groupsDifferByCase: (groups) => `Groupes qui ne diffèrent que par la casse : ${groups.join(", ")}.`,
     errors: {
       invalid_id: () => "Utilisez des minuscules, des chiffres et des tirets.",

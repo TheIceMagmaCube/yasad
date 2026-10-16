@@ -24,7 +24,14 @@ function errorText(error: CatalogError, s: Messages["catalog"]): string {
 
 /** Return the text of a preview warning. */
 function warningText(warning: CatalogWarning, s: Messages["catalog"]): string {
-  return warning.code === "no_group" ? s.noGroup(warning.kind, warning.id) : s.groupsDifferByCase(warning.groups);
+  switch (warning.code) {
+    case "no_group":
+      return s.noGroup(warning.kind, warning.id);
+    case "unknown_icon":
+      return s.unknownIcon(warning.id);
+    case "groups_differ_by_case":
+      return s.groupsDifferByCase(warning.groups);
+  }
 }
 
 function Ids({ label, ids }: { label: string; ids: string[] }) {
