@@ -20,7 +20,7 @@ categories:
         url: https://mail.example.org            # http or https only.
         description: Company mailbox             # Optional.
         icon: lucide:mail                        # Optional: si:<slug> (Simple Icons) or lucide:<name>.
-        keywords: [email, webmail]               # Optional, used by search.
+        keywords: [email, webmail]               # Optional, used by search. Sent to everyone who sees the link: no secrets.
         groups: ["@authenticated"]
 
   - id: dev-tools

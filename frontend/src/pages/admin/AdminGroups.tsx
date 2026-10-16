@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { fieldErrorMessage } from "../../i18n/errors";
 import { useStrings } from "../../i18n/LocaleProvider";
+import { invalidateHome } from "../../lib/home-store";
 import { adminErrorText, ConfirmAction, NoticeBox, selectClass, useNotice } from "./shared";
 
 /** Admin page: list every group, manage local ones and their members; OIDC and built-in groups are read-only. */
@@ -107,7 +108,7 @@ export function AdminGroups() {
                           disabled={busy}
                           className="h-7 px-2"
                           aria-label={s.removeMember(u.name)}
-                          onClick={() => void act(() => api.removeMember(group.id, u.id))}
+                          onClick={() => void act(() => api.removeMember(group.id, u.id).then(invalidateHome))}
                         >
                           ×
                         </Button>
@@ -139,6 +140,7 @@ export function AdminGroups() {
                       void act(async () => {
                         setDeleting(null);
                         await api.deleteGroup(group.id);
+                        invalidateHome();
                         say(s.deleted(group.name));
                       })
                     }
@@ -148,7 +150,7 @@ export function AdminGroups() {
                 )}
                 {local && renaming !== group.id && deleting !== group.id && (
                   <div className="mt-3 flex flex-wrap items-end gap-2">
-                    <AddMember group={group} candidates={data.users.filter((u) => !group.memberIds.includes(u.id))} busy={busy} onAdd={(userId) => void act(() => api.addMember(group.id, userId))} />
+                    <AddMember group={group} candidates={data.users.filter((u) => !group.memberIds.includes(u.id))} busy={busy} onAdd={(userId) => void act(() => api.addMember(group.id, userId).then(invalidateHome))} />
                     <Button type="button" size="sm" variant="outline" onClick={() => setRenaming(group.id)} aria-label={`${s.rename} ${group.name}`}>
                       {s.rename}
                     </Button>

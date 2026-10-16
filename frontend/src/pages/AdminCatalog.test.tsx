@@ -1,7 +1,8 @@
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { primeHome, useHomeEntry } from "../lib/home-store";
 import { mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { AdminCatalog } from "./AdminCatalog";
 
@@ -31,9 +32,12 @@ describe("AdminCatalog", () => {
         { status: 200, body: { applied: true, baseVersion: "v1", diff: {} } },
       ],
     });
+    primeHome("user:ada", { signedIn: true, categories: [], empty: null });
+    const cached = renderHook(() => useHomeEntry("user:ada"));
     renderWithProviders(<AdminCatalog />);
     const user = await choose();
     expect(await screen.findByText("1 item will be deleted.")).toBeInTheDocument();
+    expect(cached.result.current).not.toBeNull();
     expect(screen.getByText('Link "x" has no group: nobody can see it.')).toBeInTheDocument();
     expect(screen.getByText('Link "mail" has an icon this version does not know: it shows its first letter instead.')).toBeInTheDocument();
     expect(sentBody(fetchMock, 0)).toEqual({ yaml: YAML, dryRun: true });
@@ -41,6 +45,8 @@ describe("AdminCatalog", () => {
     await user.click(screen.getByRole("button", { name: "Import" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Catalog imported.");
     expect(sentBody(fetchMock, 1)).toEqual({ yaml: YAML, dryRun: false, baseVersion: "v1" });
+    // The home and the search load the new catalog next time.
+    expect(cached.result.current).toBeNull();
   });
 
   it("says when the file changes nothing", async () => {

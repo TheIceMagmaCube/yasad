@@ -6,6 +6,7 @@ import { Label } from "../components/ui/label";
 import type { Messages } from "../i18n/en";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
+import { invalidateHome } from "../lib/home-store";
 
 type State =
   | { name: "idle" }
@@ -87,6 +88,7 @@ export function AdminCatalog() {
     setBusy(true);
     try {
       await api.applyCatalog(yaml, baseVersion);
+      invalidateHome();
       setState({ name: "message", text: s.applied, tone: "info" });
     } catch (err) {
       if (err instanceof ApiError && err.body.code === "catalog_changed") await preview(yaml, true);

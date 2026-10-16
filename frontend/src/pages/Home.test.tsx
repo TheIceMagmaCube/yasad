@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData } from "../api";
+import { invalidateHome, onViewerChanged, primeHome } from "../lib/home-store";
 import { mockApi, renderWithProviders } from "../test-utils";
 import { Home } from "./Home";
 
 const ADA = { id: "ada", name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
 
-const link = (id: string) => ({ id, title: id.toUpperCase(), description: `${id} description`, url: `https://${id}.example.invalid`, icon: null });
+const link = (id: string) => ({ id, title: id.toUpperCase(), description: `${id} description`, url: `https://${id}.example.invalid`, icon: null, keywords: [] });
 const DATA: HomeData = {
   signedIn: true,
   categories: [
@@ -143,20 +144,52 @@ describe("Home", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("shows the public links it is given without fetching", () => {
+  it("shows the public links the app stored without fetching", () => {
     const fetchMock = mockApi({});
-    renderWithProviders(<Home user={null} initial={{ ...DATA, signedIn: false }} />);
+    primeHome("anonymous", { ...DATA, signedIn: false });
+    renderWithProviders(<Home user={null} />);
     expect(screen.getByRole("heading", { level: 1, name: "Links" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("reports a session that ended on the server", async () => {
-    mockApi(home({ signedIn: false, categories: [], empty: null }));
-    const onSessionEnded = vi.fn();
-    renderWithProviders(<Home user={ADA} onSessionEnded={onSessionEnded} />);
-    await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledTimes(1));
+  it("shows nothing of an answer for another viewer, and reports the change", async () => {
+    mockApi(home({ ...DATA, signedIn: false }));
+    const changed = vi.fn();
+    const stop = onViewerChanged(changed);
+    const { container } = renderWithProviders(<Home user={ADA} />);
+    await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+    expect(container.querySelector("[data-slot=home-skeleton]")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Second in the catalog" })).toBeNull();
+    stop();
+  });
+
+  it("fetches the public links when the store has none", async () => {
+    const fetchMock = mockApi(home({ ...DATA, signedIn: false }));
+    renderWithProviders(<Home user={null} />);
+    expect(await screen.findByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the skeleton and asks again on every visit of a signed-in person, even with data in the store", async () => {
+    const fetchMock = mockApi(home(DATA));
+    primeHome("user:ada", DATA);
+    const { container } = renderWithProviders(<Home user={ADA} />);
+    expect(container.querySelector("[data-slot=home-skeleton]")).not.toBeNull();
+    expect(await screen.findByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never shows another viewer's cached links", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    primeHome("anonymous", { ...DATA, signedIn: false });
+    renderWithProviders(<Home user={ADA} />);
+    expect(screen.queryByRole("region", { name: "Second in the catalog" })).toBeNull();
+    invalidateHome();
   });
 
   it("translates its texts", async () => {

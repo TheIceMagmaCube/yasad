@@ -126,6 +126,23 @@ export function parseCatalog(text: string): Parsed {
   return duplicates.length > 0 ? { ok: false, errors: duplicates } : { ok: true, catalog: result.data };
 }
 
+/**
+ * Return the keywords stored in a `link.keywords` column.
+ *
+ * The column holds a JSON array of strings. Anything else (invalid JSON, not an array) gives an
+ * empty list, and items that are not non-empty strings are dropped, so a corrupt row never fails a
+ * request. Values are returned as stored: folding for search happens in the browser.
+ */
+export function parseKeywords(text: string | null | undefined): string[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(text ?? "[]");
+  } catch {
+    return [];
+  }
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.length > 0) : [];
+}
+
 /** Write the catalog as YAML, leaving out default values so a hand-written file comes back unchanged. */
 export function formatCatalog(catalog: Catalog): string {
   const compact = {

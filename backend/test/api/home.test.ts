@@ -6,7 +6,7 @@ import { addOidcUser, addUser, post, send, signIn } from "./users";
 type Icon = { set: "si" | "lucide"; name: string };
 type HomeBody = {
   signedIn: boolean;
-  categories: { id: string; title: string; links: { id: string; title: string; description: string; url: string; icon: Icon | null }[] }[];
+  categories: { id: string; title: string; links: { id: string; title: string; description: string; url: string; icon: Icon | null; keywords: string[] }[] }[];
   empty: string | null;
 };
 
@@ -321,14 +321,23 @@ describe("GET /api/home, response", () => {
           id: "second-by-id",
           title: "Category second-by-id",
           links: [
-            { id: "zeta", title: "Link zeta", description: "Last letter", url: "https://zeta.example.invalid/", icon: { set: "si", name: "github" } },
-            { id: "alpha", title: "Link alpha", description: "", url: "https://alpha.example.invalid/", icon: null },
+            {
+              id: "zeta",
+              title: "Link zeta",
+              description: "Last letter",
+              url: "https://zeta.example.invalid/",
+              icon: { set: "si", name: "github" },
+              keywords: ["code"],
+            },
+            { id: "alpha", title: "Link alpha", description: "", url: "https://alpha.example.invalid/", icon: null, keywords: [] },
           ],
         },
         {
           id: "after",
           title: "Category after",
-          links: [{ id: "mail", title: "Link mail", description: "", url: "https://mail.example.invalid/", icon: { set: "lucide", name: "mail" } }],
+          links: [
+            { id: "mail", title: "Link mail", description: "", url: "https://mail.example.invalid/", icon: { set: "lucide", name: "mail" }, keywords: [] },
+          ],
         },
       ],
       empty: null,
@@ -417,6 +426,144 @@ describe("GET /api/home, temporary password", () => {
     const res = await browser.request("/api/home");
     expect(res.status).toBe(403);
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe("password_change_required");
+  });
+
+  it("sends no keyword with the refusal", async () => {
+    const admin = await adminApp();
+    await load(admin, [{ id: "tools", groups: ["@everyone"], links: [{ id: "wiki", groups: ["@everyone"], keywords: ["kw-secret-tmp"] }] }]);
+    const browser = admin.another();
+    await addUser(browser, { id: "tmp", email: "tmp@example.invalid", mustChangePassword: true });
+    expect((await signIn(browser, "tmp@example.invalid")).status).toBe(200);
+    const res = await browser.request("/api/home");
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("kw-secret-tmp");
+  });
+});
+
+describe("GET /api/home, keywords", () => {
+  /** Return the keywords of each visible link, by link id. */
+  async function keywordsOf(app: TestApp): Promise<Record<string, string[]>> {
+    const { res, body } = await home(app);
+    expect(res.status).toBe(200);
+    return Object.fromEntries(body.categories.flatMap((cat) => cat.links.map((lnk) => [lnk.id, lnk.keywords])));
+  }
+
+  it("sends the keywords of a visible link in file order, and [] when it has none", async () => {
+    const admin = await adminApp();
+    await load(admin, [
+      {
+        id: "tools",
+        groups: ["@authenticated"],
+        links: [
+          { id: "mail", groups: ["@authenticated"], keywords: ["webmail", "courrier", "Agenda"] },
+          { id: "wiki", groups: ["@authenticated"] },
+        ],
+      },
+    ]);
+    expect(await keywordsOf(admin)).toEqual({ mail: ["webmail", "courrier", "Agenda"], wiki: [] });
+  });
+
+  it("never sends the keywords of a link hidden by its groups, its category, or active: false", async () => {
+    const admin = await adminApp();
+    await load(admin, [
+      {
+        id: "open",
+        groups: ["@authenticated"],
+        links: [
+          { id: "visible", groups: ["@authenticated"], keywords: ["kw-visible"] },
+          { id: "by-link", groups: ["local:Ops"], keywords: ["kw-secret-link"] },
+          { id: "inactive", groups: ["@authenticated"], active: false, keywords: ["kw-secret-inactive"] },
+        ],
+      },
+      { id: "closed", groups: ["local:Ops"], links: [{ id: "by-category", groups: ["@authenticated"], keywords: ["kw-secret-category"] }] },
+    ]);
+    const user = await localUser(admin, "bob");
+    for (const app of [user, admin]) {
+      const { text } = await home(app);
+      expect(text).toContain("kw-visible");
+      for (const marker of ["kw-secret-link", "kw-secret-inactive", "kw-secret-category"]) expect(text).not.toContain(marker);
+    }
+  });
+
+  it("keeps OIDC and local groups of the same name apart for keywords too", async () => {
+    const admin = await adminApp();
+    await load(admin, [
+      {
+        id: "both",
+        groups: ["oidc:Developers", "local:Developers"],
+        links: [
+          { id: "oidc-only", groups: ["oidc:Developers"], keywords: ["kw-secret-oidc"] },
+          { id: "local-only", groups: ["local:Developers"], keywords: ["kw-secret-local"] },
+        ],
+      },
+    ]);
+    const local = await localUser(admin, "lou");
+    await join(admin, "lou", "Developers");
+    const asLocal = await home(local);
+    expect(asLocal.text).toContain("kw-secret-local");
+    expect(asLocal.text).not.toContain("kw-secret-oidc");
+
+    const browser = admin.another();
+    await addOidcUser(browser, { id: "olga", email: "olga@example.invalid" });
+    await browser.exec(`insert into session (id, expires_at, token, user_id) values ('s-olga', ${Date.now() + 3_600_000}, 'olga-token', 'olga')`);
+    await addMembership(admin, "olga", "oidc", "Developers");
+    const cookie = `__Secure-better-auth.session_token=${await signedCookie("olga-token")}`;
+    const asOidc = await (await browser.request("/api/home", { headers: { cookie } })).text();
+    expect(asOidc).toContain("kw-secret-oidc");
+    expect(asOidc).not.toContain("kw-secret-local");
+  });
+
+  it("sends only @everyone keywords to an anonymous visitor", async () => {
+    const admin = await adminApp();
+    await load(admin, [
+      {
+        id: "public",
+        groups: ["@everyone"],
+        links: [
+          { id: "wiki", groups: ["@everyone"], keywords: ["kw-public"] },
+          { id: "intranet", groups: ["@authenticated"], keywords: ["kw-secret-members"] },
+        ],
+      },
+      { id: "private", groups: ["@authenticated"], links: [{ id: "hr", groups: ["@everyone"], keywords: ["kw-secret-private"] }] },
+    ]);
+    const anonymous = admin.another();
+    expect(await keywordsOf(anonymous)).toEqual({ wiki: ["kw-public"] });
+    const { text } = await home(anonymous);
+    expect(text).not.toContain("kw-secret-members");
+    expect(text).not.toContain("kw-secret-private");
+  });
+
+  it("gives an administrator no keyword of a link they hold no group on", async () => {
+    const admin = await adminApp();
+    await load(admin, [{ id: "tools", groups: ["local:Ops"], links: [{ id: "console", groups: ["local:Ops"], keywords: ["kw-secret-admin"] }] }]);
+    const { res, text } = await home(admin);
+    expect(res.status).toBe(200);
+    expect(text).not.toContain("kw-secret-admin");
+  });
+
+  it("answers [] with a 200 for a malformed column, and drops items that are not strings", async () => {
+    const admin = await adminApp();
+    await load(admin, [
+      {
+        id: "tools",
+        groups: ["@authenticated"],
+        links: [
+          { id: "broken", groups: ["@authenticated"], keywords: ["a"] },
+          { id: "object", groups: ["@authenticated"], keywords: ["a"] },
+          { id: "mixed", groups: ["@authenticated"], keywords: ["a"] },
+        ],
+      },
+    ]);
+    await admin.exec(`update link set keywords = 'not json' where id = 'broken'`);
+    await admin.exec(`update link set keywords = '{"a":1}' where id = 'object'`);
+    await admin.exec(`update link set keywords = '["ok", 3, null, "", {"x": 1}, "fine"]' where id = 'mixed'`);
+    expect(await keywordsOf(admin)).toEqual({ broken: [], object: [], mixed: ["ok", "fine"] });
+  });
+
+  it("sends Unicode keywords as stored, without folding", async () => {
+    const admin = await adminApp();
+    await load(admin, [{ id: "tools", groups: ["@authenticated"], links: [{ id: "team", groups: ["@authenticated"], keywords: ["Équipe", "straße"] }] }]);
+    expect(await keywordsOf(admin)).toEqual({ team: ["Équipe", "straße"] });
   });
 });
 

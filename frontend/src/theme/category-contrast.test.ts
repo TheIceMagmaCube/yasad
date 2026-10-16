@@ -67,3 +67,16 @@ describe("category colours", () => {
     }
   });
 });
+
+describe("header search field", () => {
+  // The field's border is header-muted on the header: a user interface component boundary, which needs 3:1
+  // (WCAG 1.4.11). axe does not check it.
+  it.each(THEMES)("keeps 3:1 between its border and the header in the %s theme", async (theme) => {
+    const tokens = themeTokens(await readFile(`src/theme/themes/${theme}.css`, "utf8"), theme);
+    for (const mode of ["light", "dark"] as const) {
+      const border = parseColor(tokens[mode]["header-muted"]!);
+      const header = parseColor(tokens[mode].header!);
+      expect(contrast(border, header), `${theme} ${mode}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

@@ -39,6 +39,7 @@ frontend/e2e/.data/
 frontend/public/icons/
 frontend/test-results/
 frontend/playwright-report/
+frontend/.vitest/
 
 # Design specs live in Outline, never in the repo.
 docs/superpowers/

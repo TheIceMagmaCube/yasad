@@ -19,6 +19,7 @@ describe("AppShell", () => {
     const footer = screen.getByRole("contentinfo");
     expect(within(footer).getByLabelText("Language")).toBeInTheDocument();
     expect(within(footer).getByLabelText("Appearance")).toBeInTheDocument();
+    expect(screen.getByRole("search", { name: "Search links" })).toBeInTheDocument();
   });
 
   it("gives a signed-in person the menu and no footer", () => {
@@ -30,5 +31,27 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Account menu for Ada" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
     expect(screen.queryByRole("contentinfo")).toBeNull();
+    expect(within(screen.getByRole("banner")).getByRole("combobox", { name: "Search links" })).toBeInTheDocument();
+  });
+
+  it("has no search while the section links are hidden (temporary password)", () => {
+    renderWithProviders(
+      <AppShell user={{ id: "ada", name: "Ada", email: "ada@example.invalid", role: "user" }} path="/" nav={false} onSignOut={() => {}}>
+        <p>content</p>
+      </AppShell>,
+    );
+    expect(screen.queryByRole("search")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+  });
+
+  it("puts the toggle before the field and the field before the account menu in focus order", () => {
+    renderWithProviders(
+      <AppShell user={{ id: "ada", name: "Ada", email: "ada@example.invalid", role: "user" }} path="/" onSignOut={() => {}}>
+        <p>content</p>
+      </AppShell>,
+    );
+    const banner = screen.getByRole("banner");
+    const order = [...banner.querySelectorAll("a, button, input")].map((el) => el.getAttribute("aria-label") ?? el.textContent);
+    expect(order.slice(-3)).toEqual(["Search", "Search links", "Account menu for Ada"]);
   });
 });

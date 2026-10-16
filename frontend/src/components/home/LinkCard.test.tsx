@@ -7,7 +7,7 @@ import { LinkCard } from "./LinkCard";
 
 afterEach(cleanup);
 
-const LINK = { id: "jira", title: "Jira", description: "Tickets and sprints", url: "https://jira.example.invalid/board", icon: null };
+const LINK = { id: "jira", title: "Jira", description: "Tickets and sprints", url: "https://jira.example.invalid/board", icon: null, keywords: [] };
 
 describe("LinkCard", () => {
   it("is one same-tab link named by the title and described by the description", () => {
