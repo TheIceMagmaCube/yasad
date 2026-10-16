@@ -1,4 +1,4 @@
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -49,7 +49,7 @@ describe("Home", () => {
     expect(headings.map((h) => h.textContent)).toEqual(["Second in the catalog", "First letter, later"]);
     const first = screen.getByRole("region", { name: "Second in the catalog" });
     expect(within(first).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["https://zeta.example.invalid", "https://alpha.example.invalid"]);
-    expect(document.title).toBe("My links - YASAD");
+    await waitFor(() => expect(document.title).toBe("My links - YASAD"));
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 

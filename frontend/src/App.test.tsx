@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -78,7 +78,7 @@ describe("App", () => {
     });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Connexion" })).toBeInTheDocument();
-    expect(document.title).toBe("Connexion - Home lab");
+    await waitFor(() => expect(document.title).toBe("Connexion - Home lab"));
     expect(document.documentElement).toHaveAttribute("data-theme", "dusk");
     expect(document.documentElement).toHaveAttribute("lang", "fr");
     expect(localStorage.getItem("yasad.instanceTheme")).toBe("dusk");
@@ -198,7 +198,7 @@ describe("App", () => {
       const fetchMock = mockApi(anonymous);
       renderAt("/");
       expect(await screen.findByRole("heading", { name: "Links", level: 1 })).toBeInTheDocument();
-      expect(document.title).toBe("Links - YASAD");
+      await waitFor(() => expect(document.title).toBe("Links - YASAD"));
       const card = screen.getByRole("link", { name: "Mail" });
       expect(card).toHaveAttribute("href", "https://mail.example.invalid");
       expect(card).not.toHaveAttribute("target");
@@ -296,13 +296,13 @@ describe("App", () => {
       renderAt("/");
       expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
       expect(document.activeElement).toBe(document.body);
-      expect(document.title).toBe("My links - YASAD");
+      await waitFor(() => expect(document.title).toBe("My links - YASAD"));
 
       await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" }));
       const heading = await screen.findByRole("heading", { name: "Administration, Users", level: 1 });
       expect(location.pathname).toBe("/admin/users");
       expect(heading).toHaveFocus();
-      expect(document.title).toBe("Users - Administration - YASAD");
+      await waitFor(() => expect(document.title).toBe("Users - Administration - YASAD"));
       expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" })).toHaveAttribute(
         "aria-current",
         "page",
@@ -310,14 +310,14 @@ describe("App", () => {
 
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
       expect(location.pathname).toBe("/admin/groups");
-      expect(document.title).toBe("Groups - Administration - YASAD");
+      await waitFor(() => expect(document.title).toBe("Groups - Administration - YASAD"));
       expect(screen.getByRole("heading", { name: "Administration, Groups", level: 1 })).toHaveFocus();
 
       act(() => {
         history.back();
       });
       await vi.waitFor(() => expect(location.pathname).toBe("/admin/users"));
-      expect(document.title).toBe("Users - Administration - YASAD");
+      await waitFor(() => expect(document.title).toBe("Users - Administration - YASAD"));
 
       expect(fetchMock.mock.calls.filter(([path]) => path === "/api/auth/get-session")).toHaveLength(1);
     });
@@ -343,7 +343,7 @@ describe("App", () => {
       mockApi(signedIn(BOB));
       renderAt("/nowhere");
       expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
-      expect(document.title).toBe("Page not found - YASAD");
+      await waitFor(() => expect(document.title).toBe("Page not found - YASAD"));
       await user.click(screen.getByRole("link", { name: "Back to my links" }));
       expect(location.pathname).toBe("/");
       expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toHaveFocus();
@@ -359,7 +359,7 @@ describe("App", () => {
       mockApi(signedIn(BOB));
       renderAt("/admin/catalog");
       expect(await screen.findByRole("heading", { name: "Admins only" })).toBeInTheDocument();
-      expect(document.title).toBe("Admins only - YASAD");
+      await waitFor(() => expect(document.title).toBe("Admins only - YASAD"));
       expect(screen.getByRole("link", { name: "Back to my links" })).toHaveAttribute("href", "/");
     });
 
@@ -381,7 +381,7 @@ describe("App", () => {
       renderAt("/admin/users");
       expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
       expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
-      expect(document.title).toBe("Choose your password - YASAD");
+      await waitFor(() => expect(document.title).toBe("Choose your password - YASAD"));
     });
 
     it("titles the setup steps", async () => {
@@ -389,7 +389,7 @@ describe("App", () => {
       ...NO_PUBLIC_LINKS });
       renderAt("/");
       await screen.findByRole("heading", { name: "Set up YASAD" });
-      expect(document.title).toBe("Setup code - Set up YASAD - YASAD");
+      await waitFor(() => expect(document.title).toBe("Setup code - Set up YASAD - YASAD"));
     });
 
     it("shows the password change when the API says an admin reset the password since the page loaded", async () => {
