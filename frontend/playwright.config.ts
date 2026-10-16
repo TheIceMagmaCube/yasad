@@ -19,6 +19,7 @@ export default defineConfig({
     { name: "shell", testMatch: "shell.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
     { name: "forms", testMatch: "forms.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
     { name: "account", testMatch: "account.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
+    { name: "admin", testMatch: "admin.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: {
     command: `rm -rf e2e/.data && node --import tsx ../backend/src/server.ts`,

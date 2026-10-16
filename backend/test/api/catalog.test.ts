@@ -39,6 +39,7 @@ type Diff = {
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
   warnings: Record<string, unknown>[];
+  labels: { categories: Record<string, string>; links: Record<string, { title: string; categoryId: string }> };
 };
 type ImportBody = {
   applied: boolean;
@@ -135,6 +136,134 @@ describe("catalog import and export", () => {
     expect(result.body.diff.updated.links).toEqual(["mail"]);
     expect(result.body.diff.removed.links).toEqual([]);
     expect(await app.query("select category_id from link where id = 'mail'")).toEqual([{ category_id: "dev-tools" }]);
+  });
+
+  it("labels each change with its title from the file, and each removal with its stored title and category", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    const next = `version: 1
+categories:
+  - id: dev-tools
+    title: Dev tools
+    groups: ["@authenticated"]
+    links:
+      - id: jira
+        title: Jira Cloud
+        url: https://acme.atlassian.net
+        description: Tickets and sprints
+        icon: si:jira
+        keywords: [tickets, issues]
+        groups: ["oidc:Developers", "local:Contractors"]
+  - id: ops
+    title: Operations
+    groups: ["@authenticated"]
+    links:
+      - id: grafana
+        title: Grafana
+        url: https://grafana.example.org
+        groups: ["oidc:Developers"]
+        active: false
+      - id: status
+        title: Status page
+        url: https://status.example.org
+        groups: ["@everyone"]
+`;
+    const { diff } = (await send(app, next, true)).body;
+    expect(diff.added).toEqual({ categories: ["ops"], links: ["status"] });
+    expect(diff.updated).toEqual({ categories: ["dev-tools"], links: ["jira", "grafana"] });
+    expect(diff.removed).toEqual({ categories: ["everyday"], links: ["mail"] });
+    expect(diff.labels).toEqual({
+      categories: { ops: "Operations", "dev-tools": "Dev tools", everyday: "Everyday" },
+      links: {
+        status: { title: "Status page", categoryId: "ops" },
+        jira: { title: "Jira Cloud", categoryId: "dev-tools" },
+        grafana: { title: "Grafana", categoryId: "ops" },
+        mail: { title: "Mail", categoryId: "everyday" },
+      },
+    });
+  });
+
+  it("labels the category holding each listed link, and a listed category with its own title", async () => {
+    const app = await adminApp();
+    await importFile(app, CATALOG);
+    const next = `version: 1
+categories:
+  - id: dev-tools
+    title: Developer tools
+    groups: ["@authenticated"]
+    links:
+      - id: jira
+        title: Jira Cloud
+        url: https://acme.atlassian.net
+        description: Tickets and sprints
+        icon: si:jira
+        keywords: [tickets, issues]
+        groups: ["oidc:Developers", "local:Contractors"]
+  - id: everyday
+    title: Daily
+    groups: ["@everyone"]
+    links: []
+`;
+    const { diff } = (await send(app, next, true)).body;
+    expect(diff.updated).toEqual({ categories: ["everyday"], links: ["jira"] });
+    expect(diff.removed).toEqual({ categories: [], links: ["grafana", "mail"] });
+    // dev-tools is unchanged; everyday holds a removed link but is renamed, so it keeps the title from the file.
+    expect(diff.labels.categories).toEqual({ "dev-tools": "Developer tools", everyday: "Daily" });
+    expect(diff.labels.links).toEqual({
+      jira: { title: "Jira Cloud", categoryId: "dev-tools" },
+      grafana: { title: "Grafana", categoryId: "dev-tools" },
+      mail: { title: "Mail", categoryId: "everyday" },
+    });
+  });
+
+  it("labels the items a warning names, though the diff does not list them", async () => {
+    const app = await adminApp();
+    const quiet = `version: 1
+categories:
+  - id: tools
+    title: Tools
+    groups: []
+    links:
+      - id: wiki
+        title: Wiki
+        url: https://wiki.example.org
+        icon: si:not-an-icon-at-all
+        groups: ["@everyone"]
+`;
+    await importFile(app, quiet);
+    const { diff } = (await send(app, quiet, true)).body;
+    expect(diff.added).toEqual({ categories: [], links: [] });
+    expect(diff.updated).toEqual({ categories: [], links: [] });
+    expect(diff.warnings).toEqual([
+      { code: "no_group", kind: "category", id: "tools" },
+      { code: "unknown_icon", kind: "link", id: "wiki" },
+    ]);
+    expect(diff.labels).toEqual({ categories: { tools: "Tools" }, links: { wiki: { title: "Wiki", categoryId: "tools" } } });
+  });
+
+  it("labels an item whose id is also the name of an object property", async () => {
+    const app = await adminApp();
+    const file = `version: 1
+categories:
+  - id: constructor
+    title: Builders
+    groups: []
+    links: []
+  - id: tools
+    title: Tools
+    groups: ["@everyone"]
+    links:
+      - id: wiki
+        title: Wiki
+        url: https://wiki.example.org
+        groups: ["@everyone"]
+`;
+    await importFile(app, file);
+    // Only the warning names the unchanged "constructor" category.
+    const { diff } = (await send(app, file.replace("title: Wiki", "title: Handbook"), true)).body;
+    expect(diff.updated.links).toEqual(["wiki"]);
+    expect(diff.warnings).toEqual([{ code: "no_group", kind: "category", id: "constructor" }]);
+    expect(diff.labels.categories).toEqual({ tools: "Tools", constructor: "Builders" });
   });
 
   it("refuses an invalid file and writes nothing", async () => {
@@ -261,6 +390,44 @@ describe("catalog import and export", () => {
     const res = await post(app, "/api/admin/catalog", { yaml: CATALOG, dryRun: true });
     expect(res.status).toBe(409);
     expect((await app.request("/api/admin/catalog")).status).toBe(200);
+  });
+
+  it("reports the catalog state to admins only", async () => {
+    const app = await testApp();
+    const codeOf = async (res: Response) => ((await res.json()) as { error: { code: string } }).error.code;
+    expect((await app.request("/api/admin/catalog/state")).status).toBe(401);
+    await addUser(app, { id: "bob", email: "bob@example.invalid" });
+    await signIn(app, "bob@example.invalid");
+    const user = await app.request("/api/admin/catalog/state");
+    expect(user.status).toBe(403);
+    expect(await codeOf(user)).toBe("forbidden");
+
+    const temporary = app.another();
+    await addUser(temporary, { id: "tmp", email: "tmp@example.invalid", role: "admin", mustChangePassword: true });
+    expect((await signIn(temporary, "tmp@example.invalid")).status).toBe(200);
+    const blocked = await temporary.request("/api/admin/catalog/state");
+    expect(blocked.status).toBe(403);
+    expect(await codeOf(blocked)).toBe("password_change_required");
+  });
+
+  it("counts stored categories and links, and each group they use once", async () => {
+    const app = await adminApp();
+    const empty = await app.request("/api/admin/catalog/state");
+    expect(empty.headers.get("cache-control")).toBe("no-store");
+    expect(await empty.json()).toStrictEqual({ managedByFile: false, categories: 0, links: 0, groups: 0 });
+
+    await importFile(app, CATALOG);
+    // @everyone is on a category and a link; oidc:Developers is on two links.
+    const res = await app.request("/api/admin/catalog/state");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toStrictEqual({ managedByFile: false, categories: 2, links: 3, groups: 4 });
+  });
+
+  it("reports a catalog managed by CATALOG_FILE", async () => {
+    const app = await adminApp({ CATALOG_FILE: "/config/catalog.yaml" });
+    const res = await app.request("/api/admin/catalog/state");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { managedByFile: boolean }).managedByFile).toBe(true);
   });
 
   it("accepts files up to 1 MB, and 500 links in one import", async () => {

@@ -30,8 +30,12 @@ export type CatalogDiff = {
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
   warnings: CatalogWarning[];
+  /** Titles of the categories and links the diff lists, and of the categories holding those links. */
+  labels: { categories: Record<string, string>; links: Record<string, { title: string; categoryId: string }> };
 };
 export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
+/** What the catalog holds, and whether CATALOG_FILE manages it (import refused, groups it uses locked). */
+export type CatalogState = { managedByFile: boolean; categories: number; links: number; groups: number };
 
 export type Role = "admin" | "user";
 export type GroupSource = "oidc" | "local" | "system";
@@ -78,12 +82,12 @@ export function onStaleSession(listener: (code: string) => void): () => void {
 }
 
 /**
- * Call the API and return the parsed body.
+ * Send a request to the API and return the response when its status is a success.
  *
  * Throws ApiError on an error status. YASAD routes answer `{ error: {...} }`; Better Auth answers `{ code, message }`.
  * An error code from STALE_SESSION_CODES is also reported to the onStaleSession listener.
  */
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(path, {
     credentials: "same-origin",
     ...init,
@@ -95,6 +99,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     if (STALE_SESSION_CODES.has(err.body.code)) staleSessionListener?.(err.body.code);
     throw err;
   }
+  return res;
+}
+
+/** Call the API and return the parsed body; see {@link request}. */
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await request(path, init);
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
@@ -113,6 +123,9 @@ export const api = {
   signOut: () => call<unknown>("/api/auth/sign-out", post({})),
   previewCatalog: (yaml: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: true })),
   applyCatalog: (yaml: string, baseVersion: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: false, baseVersion })),
+  catalogState: () => call<CatalogState>("/api/admin/catalog/state"),
+  /** Return the catalog file, as the YAML the import accepts. */
+  exportCatalog: async () => (await request("/api/admin/catalog")).blob(),
   account: () => call<{ origin: "local" | "oidc" }>("/api/account"),
   updateProfile: (changes: { name?: string; email?: string; currentPassword?: string }) =>
     call<{ user: { id: string; name: string; email: string } }>("/api/account", send("PATCH", changes)),

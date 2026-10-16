@@ -1,0 +1,40 @@
+# The example catalog (docs/catalog.example.yaml) changed in every way the preview shows: a category and a
+# link added, a link renamed, a link deleted, groups to create, and a category nobody can see.
+version: 1
+
+categories:
+  - id: everyday
+    title: Everyday
+    groups: ["@authenticated"]
+    links:
+      - id: mail
+        title: Mail
+        url: https://mail.example.org
+        description: Company mailbox
+        icon: lucide:mail
+        keywords: [email, webmail]
+        groups: ["@authenticated"]
+
+  - id: dev-tools
+    title: Developer tools
+    groups: ["oidc:Developers", "local:Contractors"]
+    links:
+      - id: jira
+        title: Jira Cloud
+        url: https://acme.atlassian.net
+        icon: si:jira
+        groups: ["oidc:Developers", "local:Contractors"]
+
+  - id: ops
+    title: Operations
+    groups: ["local:Auditors", "oidc:Platform"]
+    links:
+      - id: status
+        title: Status page
+        url: https://status.example.org
+        groups: ["local:Auditors"]
+
+  - id: drafts
+    title: Drafts
+    groups: []
+    links: []

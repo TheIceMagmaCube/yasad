@@ -1,9 +1,9 @@
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminUser } from "../../api";
-import { findStatus, mockApi, renderWithProviders, sentBody } from "../../test-utils";
+import { getAnnouncer, mockApi, renderWithProviders, sentBody } from "../../test-utils";
 import { AdminUsers } from "./AdminUsers";
 
 afterEach(() => {
@@ -28,143 +28,368 @@ const user = (fields: Partial<AdminUser> & { id: string; name: string }): AdminU
 
 const ADA = user({ id: "ada", name: "Ada", role: "admin", lastSignInAt: "2026-10-15T09:00:00.000Z" });
 const BOB = user({ id: "bob", name: "Bob", groups: [{ id: "g1", name: "Contractors", source: "local" }] });
-const CAROL = user({ id: "carol", name: "Carol", origin: "oidc", roleSource: "provider" });
+const CAROL = user({
+  id: "carol",
+  name: "Carol",
+  origin: "oidc",
+  role: "admin",
+  roleSource: "override",
+  roleOverride: "admin",
+  groups: [{ id: "o1", name: "Developers", source: "oidc" }],
+});
+const list = (...users: AdminUser[]) => ({ status: 200, body: { users } });
+const error = (status: number, code: string, fields?: Record<string, string>) => ({ status, body: { error: { code, message: "", fields } } });
 
-const card = (name: string) => screen.getByRole("heading", { name: new RegExp(`^${name}`) }).closest("li")!;
+/** Return the row of a user, found by its title. */
+const row = (name: string) => screen.getByText(name, { selector: "p[id$='-title']" }).closest("li")!;
+const status = () => document.querySelector('[data-slot="toolbar-status"]')!;
+
+async function renderPage(routes: Parameters<typeof mockApi>[0]) {
+  const fetchMock = mockApi(routes);
+  renderWithProviders(<AdminUsers me={ME} />);
+  await screen.findByText("Ada", { selector: "p[id$='-title']" });
+  return { fetchMock, userEv: userEvent.setup() };
+}
 
 describe("AdminUsers", () => {
-  it("lists the accounts with their origin, role, groups and last sign-in", async () => {
-    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB, CAROL] } } });
-    renderWithProviders(<AdminUsers me={ME} />);
-    expect(await screen.findByRole("heading", { name: /^Ada/ })).toHaveTextContent("Ada (you)");
-    expect(card("Bob")).toHaveTextContent("Contractors");
-    expect(card("Bob")).toHaveTextContent("Never");
-    expect(card("Carol")).toHaveTextContent("User (from the identity provider) · Identity provider");
-    expect(within(card("Ada")).queryByRole("button", { name: "Delete Ada" })).toBeNull();
-    expect(within(card("Carol")).queryByRole("button", { name: /Reset password/ })).toBeNull();
+  it("lists the accounts with their badges, last sign-in and groups, the provider's groups marked", async () => {
+    await renderPage({ "GET /api/admin/users": list(ADA, BOB, CAROL, user({ id: "dan", name: "Dan", mustChangePassword: true, disabled: true })) });
+    const ada = within(row("Ada"));
+    expect(ada.getByText("You")).toBeInTheDocument();
+    expect(ada.getByText("Administrator")).toBeInTheDocument();
+    expect(ada.getByText("Local account")).toBeInTheDocument();
+    expect(ada.getByText(/^Last sign-in on/)).toContainElement(row("Ada").querySelector("time[datetime='2026-10-15T09:00:00.000Z']"));
+    expect(ada.queryByRole("button", { name: "Delete Ada" })).toBeNull();
+    expect(ada.queryByRole("button", { name: /Reset password/ })).toBeNull();
+
+    expect(within(row("Bob")).getByText("Never signed in")).toBeInTheDocument();
+    expect(within(row("Bob")).getByText("Groups: Contractors")).toBeInTheDocument();
+    const carol = within(row("Carol"));
+    expect(carol.getByText("Identity provider")).toBeInTheDocument();
+    expect(carol.getByText("Forced in YASAD")).toBeInTheDocument();
+    expect(carol.getByText("Groups: Developers (identity provider)")).toBeInTheDocument();
+    expect(carol.queryByRole("button", { name: /Reset password/ })).toBeNull();
+    expect(within(row("Dan")).getByText("Temporary password")).toBeInTheDocument();
+    expect(within(row("Dan")).getByText("Disabled")).toBeInTheDocument();
+    expect(screen.getByText("4 users")).toBeInTheDocument();
   });
 
-  it("creates an account and shows its temporary password once, with a copy button", async () => {
-    const fetchMock = mockApi({
-      "GET /api/admin/users": [
-        { status: 200, body: { users: [ADA] } },
-        { status: 200, body: { users: [ADA, BOB] } },
+  it("filters by name or e-mail, ignoring accents, and offers to clear a filter that hides everything", async () => {
+    const { userEv } = await renderPage({ "GET /api/admin/users": list(ADA, BOB, user({ id: "helene", name: "Hélène" })) });
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "helene");
+    expect(screen.getByText("1 of 3 users")).toBeInTheDocument();
+    expect(screen.queryByText("Bob", { selector: "p" })).toBeNull();
+
+    await userEv.clear(screen.getByLabelText("Filter by name or e-mail"));
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "nobody");
+    await userEv.click(screen.getByRole("button", { name: "Clear the filter" }));
+    await waitFor(() => expect(screen.getByLabelText("Filter by name or e-mail")).toHaveFocus());
+    expect(screen.getByLabelText("Filter by name or e-mail")).toHaveValue("");
+  });
+
+  it("clears the filter on Escape without closing the open panel", async () => {
+    const { userEv } = await renderPage({ "GET /api/admin/users": list(ADA, BOB) });
+    await userEv.click(screen.getByRole("button", { name: "New user" }));
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "bo");
+    await userEv.keyboard("{Escape}");
+    expect(screen.getByLabelText("Filter by name or e-mail")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "New user" })).toHaveAttribute("aria-expanded", "true");
+    await userEv.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "New user" })).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() => expect(screen.getByRole("button", { name: "New user" })).toHaveFocus());
+  });
+
+  it("edits in the row: focus on the name, Escape back to Edit, Save shows the status line and focuses Edit", async () => {
+    const renamed = { ...BOB, name: "Robert" };
+    const { fetchMock, userEv } = await renderPage({
+      "GET /api/admin/users": [list(ADA, BOB), list(ADA, renamed)],
+      "PATCH /api/admin/users/bob": { status: 200, body: { user: renamed } },
+    });
+    const edit = screen.getByRole("button", { name: "Edit Bob" });
+    await userEv.click(edit);
+    expect(edit).toHaveAttribute("aria-expanded", "true");
+    expect(within(row("Bob")).getByLabelText("Name")).toHaveFocus();
+    await userEv.keyboard("{Escape}");
+    await waitFor(() => expect(edit).toHaveFocus());
+    expect(edit).toHaveAttribute("aria-expanded", "false");
+
+    await userEv.click(edit);
+    const name = within(row("Bob")).getByLabelText("Name");
+    await userEv.clear(name);
+    await userEv.type(name, "Robert");
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Robert" })).toHaveFocus());
+    expect(status()).toHaveTextContent("Robert updated.");
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Robert updated."));
+    expect(sentBody(fetchMock, 1)).toEqual({ name: "Robert" });
+  });
+
+  it("closes an edit without changes like Cancel, without a request", async () => {
+    const { fetchMock, userEv } = await renderPage({ "GET /api/admin/users": list(ADA, BOB) });
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Bob" })).toHaveFocus());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an edited row shown though it no longer matches the filter, until the filter changes", async () => {
+    // An e-mail without the name, so the new name alone decides whether the row matches.
+    const bob = { ...BOB, email: "b7@example.invalid" };
+    const renamed = { ...bob, name: "Robert" };
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": [list(ADA, bob), list(ADA, renamed)],
+      "PATCH /api/admin/users/bob": { status: 200, body: { user: renamed } },
+    });
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "bob");
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    const name = within(row("Bob")).getByLabelText("Name");
+    await userEv.clear(name);
+    await userEv.type(name, "Robert");
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Robert" })).toHaveFocus());
+    expect(row("Robert")).toBeInTheDocument();
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "x");
+    expect(screen.queryByText("Robert", { selector: "p" })).toBeNull();
+  });
+
+  it("shows email_taken in the summary, linked to the e-mail field marked invalid", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": list(ADA, BOB),
+      "PATCH /api/admin/users/bob": error(422, "invalid_input", { email: "email_taken" }),
+    });
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    const email = within(row("Bob")).getByLabelText("E-mail");
+    await userEv.clear(email);
+    await userEv.type(email, "ada@example.invalid");
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    const summary = await screen.findByRole("group", { name: "Check the highlighted fields." });
+    expect(summary).toHaveFocus();
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    await userEv.click(within(summary).getByRole("link", { name: /already used by another account/ }));
+    expect(email).toHaveFocus();
+  });
+
+  it("shows last_local_admin as the title of the summary in the panel", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": list(ADA, user({ id: "eve", name: "Eve", role: "admin" })),
+      "PATCH /api/admin/users/eve": error(409, "last_local_admin"),
+    });
+    await userEv.click(screen.getByRole("button", { name: "Edit Eve" }));
+    await userEv.click(within(row("Eve")).getByLabelText("Administrator"));
+    await userEv.click(within(row("Eve")).getByRole("button", { name: "Save" }));
+    const summary = await within(row("Eve")).findByRole("group", { name: /Keep at least one enabled local administrator/ });
+    expect(summary).toHaveFocus();
+  });
+
+  it("offers the role select to an OIDC account, and only a note when editing oneself", async () => {
+    const { userEv } = await renderPage({ "GET /api/admin/users": list(ADA, CAROL) });
+    await userEv.click(screen.getByRole("button", { name: "Edit Carol" }));
+    expect(within(row("Carol")).getByLabelText("Role")).toHaveValue("admin");
+    expect(within(row("Carol")).queryByLabelText("E-mail")).toBeNull();
+    expect(within(row("Carol")).getByText("E-mail from the identity provider")).toBeInTheDocument();
+
+    await userEv.click(screen.getByRole("button", { name: "Edit Ada" }));
+    expect(within(row("Carol")).queryByLabelText("Role")).toBeNull();
+    expect(within(row("Ada")).getByText("You cannot change your own role or disable your own account.")).toBeInTheDocument();
+    expect(within(row("Ada")).queryByLabelText("Disabled")).toBeNull();
+  });
+
+  it("resets a password after confirmation, shows the secret focused, and starts over on a second reset", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": list(ADA, BOB),
+      "POST /api/admin/users/bob/password": [
+        { status: 200, body: { temporaryPassword: "first-temporary-pass" } },
+        { status: 200, body: { temporaryPassword: "second-temporary-pas" } },
       ],
+    });
+    await userEv.click(screen.getByRole("button", { name: "Reset password for Bob" }));
+    const confirm = within(row("Bob")).getByRole("group", { name: "Reset the password of Bob?" });
+    expect(confirm).toHaveFocus();
+    await userEv.click(within(confirm).getByRole("button", { name: "Reset" }));
+    const secret = await screen.findByRole("region", { name: "Temporary password for Bob" });
+    expect(secret).toHaveFocus();
+    expect(within(secret).getByLabelText("Temporary password")).toHaveValue("first-temporary-pass");
+    await userEv.click(within(secret).getByRole("button", { name: "Copy" }));
+    expect(await navigator.clipboard.readText()).toBe("first-temporary-pass");
+    expect(within(secret).getByText("Copied.")).toBeInTheDocument();
+
+    await userEv.click(screen.getByRole("button", { name: "Reset password for Bob" }));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(within(row("Bob")).getByLabelText("Temporary password")).toHaveValue("second-temporary-pas"));
+    expect(within(row("Bob")).queryByText("Copied.")).toBeNull();
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "I have noted it" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reset password for Bob" })).toHaveFocus());
+    expect(screen.queryByRole("region", { name: "Temporary password for Bob" })).toBeNull();
+  });
+
+  it("keeps a password not noted yet when another one is shown, and keeps its row through the filter", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": list(ADA, BOB, user({ id: "dan", name: "Dan" })),
+      "POST /api/admin/users/bob/password": { status: 200, body: { temporaryPassword: "bob-temporary-passwd" } },
+      "POST /api/admin/users/dan/password": { status: 200, body: { temporaryPassword: "dan-temporary-passwd" } },
+    });
+    await userEv.click(screen.getByRole("button", { name: "Reset password for Bob" }));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Reset" }));
+    await screen.findByRole("region", { name: "Temporary password for Bob" });
+    await userEv.click(screen.getByRole("button", { name: "Reset password for Dan" }));
+    await userEv.click(within(row("Dan")).getByRole("button", { name: "Reset" }));
+    expect(await screen.findByRole("region", { name: "Temporary password for Dan" })).toHaveFocus();
+    expect(within(row("Bob")).getByLabelText("Temporary password")).toHaveValue("bob-temporary-passwd");
+
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "ada");
+    expect(screen.getByRole("region", { name: "Temporary password for Bob" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by name or e-mail")).toHaveFocus();
+  });
+
+  it("puts the message in place of a row deleted after its confirmation was cancelled, when the focus is in it", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": list(ADA, BOB, CAROL) });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Delete Bob" }));
+    await userEv.click(screen.getByRole("button", { name: "Delete for good" }));
+    await userEv.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Delete Bob" })).toHaveFocus());
+    release(new Response(null, { status: 204 }));
+    expect(await screen.findByRole("group", { name: "Bob deleted." })).toHaveFocus();
+  });
+
+  it("shows a creation error under the toolbar when the form was closed before the answer", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": list(ADA) });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Ada", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "New user" }));
+    await userEv.type(screen.getByLabelText("Name"), "Bob");
+    await userEv.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Create the account" }));
+    await userEv.click(screen.getByRole("button", { name: "Cancel" }));
+    release(new Response(JSON.stringify({ error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } }), { status: 422 }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This e-mail address is already used by another account.");
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("This e-mail address is already used by another account."));
+  });
+
+  it("selects the secret for Ctrl+C when the clipboard is not available", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": list(ADA, BOB),
+      "POST /api/admin/users/bob/password": { status: 200, body: { temporaryPassword: "abcdefghijkmnopqrstu" } },
+    });
+    await userEv.click(screen.getByRole("button", { name: "Reset password for Bob" }));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Reset" }));
+    const secret = await screen.findByRole("region", { name: "Temporary password for Bob" });
+    vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+    await userEv.click(within(secret).getByRole("button", { name: "Copy" }));
+    const field = within(secret).getByLabelText("Temporary password") as HTMLInputElement;
+    expect(field).toHaveFocus();
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, 20]);
+    expect(within(secret).getByText(/Copy is not available here/)).toBeInTheDocument();
+    expect(field).toHaveAccessibleDescription(/press Ctrl\+C/);
+  });
+
+  it("creates an account, shows its secret in the new row, and focuses its Edit button once noted", async () => {
+    const { fetchMock, userEv } = await renderPage({
+      "GET /api/admin/users": [list(ADA), list(ADA, BOB)],
       "POST /api/admin/users": { status: 201, body: { user: BOB, temporaryPassword: "abcdefghijkmnopqrstu" } },
     });
-    renderWithProviders(<AdminUsers me={ME} />);
-    const userEv = userEvent.setup();
-    await userEv.click(await screen.findByRole("button", { name: "New user" }));
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "ada");
+    const add = screen.getByRole("button", { name: "New user" });
+    await userEv.click(add);
+    expect(add).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Name")).toHaveFocus();
     await userEv.type(screen.getByLabelText("Name"), "Bob");
     await userEv.type(screen.getByLabelText("E-mail"), "bob@example.invalid");
     await userEv.click(screen.getByRole("button", { name: "Create the account" }));
 
-    const panel = await screen.findByRole("region", { name: "Temporary password for Bob" });
-    expect(panel).toHaveFocus();
-    expect(panel).toHaveTextContent("abcdefghijkmnopqrstu");
+    const secret = await within(row("Bob")).findByRole("region", { name: "Temporary password for Bob" });
+    expect(secret).toHaveFocus();
     expect(sentBody(fetchMock, 1)).toEqual({ name: "Bob", email: "bob@example.invalid", role: "user" });
-    await userEv.click(within(panel).getByRole("button", { name: "Copy" }));
-    expect(await navigator.clipboard.readText()).toBe("abcdefghijkmnopqrstu");
-    expect(within(panel).getByRole("status")).toHaveTextContent("Copied.");
-    await userEv.click(within(panel).getByRole("button", { name: "Done" }));
-    expect(screen.queryByText("abcdefghijkmnopqrstu")).toBeNull();
+    // The filter hid the new account: it was cleared.
+    expect(screen.getByLabelText("Filter by name or e-mail")).toHaveValue("");
+    expect(add).toHaveAttribute("aria-expanded", "false");
+    await userEv.click(within(secret).getByRole("button", { name: "I have noted it" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Bob" })).toHaveFocus());
   });
 
-  it("shows field errors from the API under the fields", async () => {
-    mockApi({
-      "GET /api/admin/users": { status: 200, body: { users: [ADA] } },
-      "POST /api/admin/users": { status: 422, body: { error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } } },
-    });
-    renderWithProviders(<AdminUsers me={ME} />);
-    const userEv = userEvent.setup();
-    await userEv.click(await screen.findByRole("button", { name: "New user" }));
+  it("checks the required fields of a new account in one pass, without a request", async () => {
+    const { fetchMock, userEv } = await renderPage({ "GET /api/admin/users": list(ADA) });
+    await userEv.click(screen.getByRole("button", { name: "New user" }));
     await userEv.click(screen.getByRole("button", { name: "Create the account" }));
-    expect(await screen.findByText("This e-mail address is already used by another account.")).toBeInTheDocument();
+    const summary = await screen.findByRole("group", { name: "Check the highlighted fields." });
+    expect(summary).toHaveFocus();
+    expect(within(summary).getAllByRole("link")).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("forces the role of an OIDC account and disables it, sending only what changed", async () => {
-    const fetchMock = mockApi({
-      "GET /api/admin/users": { status: 200, body: { users: [ADA, CAROL] } },
-      "PATCH /api/admin/users/carol": { status: 200, body: { user: CAROL } },
+  it("deletes after confirmation, the row replaced by a focused message", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": [list(ADA, BOB, CAROL), list(ADA, CAROL)],
+      "DELETE /api/admin/users/bob": { status: 204 },
     });
-    renderWithProviders(<AdminUsers me={ME} />);
-    const userEv = userEvent.setup();
-    await userEv.click(await screen.findByRole("button", { name: "Edit Carol" }));
-    await userEv.selectOptions(screen.getByLabelText("Role"), "Always administrator");
-    await userEv.click(screen.getByLabelText("Disabled"));
-    await userEv.click(screen.getByRole("button", { name: "Save" }));
-    expect(await findStatus()).toHaveTextContent("Carol updated.");
-    expect(sentBody(fetchMock, 1)).toEqual({ roleOverride: "admin", disabled: true });
-  });
+    await userEv.click(screen.getByRole("button", { name: "Delete Bob" }));
+    const confirm = within(row("Bob")).getByRole("group", { name: "Delete Bob?" });
+    expect(confirm).toHaveFocus();
+    await userEv.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Delete Bob" })).toHaveFocus());
 
-  it("changes the e-mail of a local account, and explains a taken one", async () => {
-    const fetchMock = mockApi({
-      "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB, CAROL] } },
-      "PATCH /api/admin/users/bob": { status: 422, body: { error: { code: "invalid_input", message: "", fields: { email: "email_taken" } } } },
-    });
-    renderWithProviders(<AdminUsers me={ME} />);
-    const userEv = userEvent.setup();
-    await userEv.click(await screen.findByRole("button", { name: "Edit Bob" }));
-    const field = screen.getByLabelText("E-mail");
-    await userEv.clear(field);
-    await userEv.type(field, "carol@example.invalid");
-    await userEv.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("already used by another account");
-    expect(sentBody(fetchMock, 1)).toEqual({ email: "carol@example.invalid" });
-  });
-
-  it("offers no e-mail field for an OIDC account", async () => {
-    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA, CAROL] } } });
-    renderWithProviders(<AdminUsers me={ME} />);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Edit Carol" }));
-    expect(screen.queryByLabelText("E-mail")).toBeNull();
-  });
-
-  it("offers no role or disable control on one's own account", async () => {
-    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA] } } });
-    renderWithProviders(<AdminUsers me={ME} />);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Edit Ada" }));
-    expect(screen.queryByLabelText("Administrator")).toBeNull();
-    expect(screen.queryByLabelText("Disabled")).toBeNull();
-  });
-
-  it("explains the refusal to remove the last local admin", async () => {
-    mockApi({
-      "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB] } },
-      "DELETE /api/admin/users/bob": { status: 409, body: { error: { code: "last_local_admin", message: "" } } },
-    });
-    renderWithProviders(<AdminUsers me={ME} />);
-    const userEv = userEvent.setup();
-    await userEv.click(await screen.findByRole("button", { name: "Delete Bob" }));
-    expect(screen.getByRole("group", { name: /Delete Bob\?/ })).toHaveFocus();
+    await userEv.click(screen.getByRole("button", { name: "Delete Bob" }));
     await userEv.click(screen.getByRole("button", { name: "Delete for good" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Keep at least one enabled local administrator");
+    const tombstone = await screen.findByRole("group", { name: "Bob deleted." });
+    expect(tombstone).toHaveFocus();
+    expect(tombstone.closest("li")).toBeInTheDocument();
+    // Still in place once the list has reloaded without Bob.
+    await waitFor(() => expect(screen.getByText("2 users")).toBeInTheDocument());
+    expect(screen.getByRole("group", { name: "Bob deleted." })).toHaveFocus();
+    await userEv.tab();
+    expect(screen.getByRole("button", { name: "Edit Carol" })).toHaveFocus();
   });
 
-  it("warns that a deleted OIDC account comes back at its next sign-in", async () => {
-    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA, CAROL] } } });
-    renderWithProviders(<AdminUsers me={ME} />);
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Delete Carol" }));
-    expect(screen.getByText(/created again at its next sign-in/)).toBeInTheDocument();
-  });
-
-  it("resets a local password once confirmed, and shows the new one", async () => {
-    const fetchMock = mockApi({
-      "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB] } },
-      "POST /api/admin/users/bob/password": { status: 200, body: { temporaryPassword: "zyxwvutsrqponmkjihgf" } },
+  it("replaces a row the server no longer has by a focused message, then reloads", async () => {
+    const { userEv } = await renderPage({
+      "GET /api/admin/users": [list(ADA, BOB), list(ADA)],
+      "PATCH /api/admin/users/bob": error(404, "not_found"),
     });
-    renderWithProviders(<AdminUsers me={ME} />);
-    const userEv = userEvent.setup();
-    await userEv.click(await screen.findByRole("button", { name: "Reset password: Bob" }));
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/password"))).toBe(false);
-    await userEv.click(within(screen.getByRole("group", { name: /^Reset the password of Bob\?/ })).getByRole("button", { name: "Reset password" }));
-    expect(await screen.findByRole("region", { name: "Temporary password for Bob" })).toHaveTextContent("zyxwvutsrqponmkjihgf");
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    await userEv.type(within(row("Bob")).getByLabelText("Name"), "!");
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("group", { name: "This item no longer exists." })).toHaveFocus();
+    await waitFor(() => expect(screen.getByText("1 user")).toBeInTheDocument());
   });
 
-  it("offers no password reset on one's own account", async () => {
-    mockApi({ "GET /api/admin/users": { status: 200, body: { users: [ADA, BOB] } } });
+  it("leaves the other rows usable while one waits", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": list(ADA, BOB, CAROL) });
     renderWithProviders(<AdminUsers me={ME} />);
-    await screen.findByRole("button", { name: "Reset password: Bob" });
-    expect(screen.queryByRole("button", { name: "Reset password: Ada" })).not.toBeInTheDocument();
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Delete Bob" }));
+    await userEv.click(screen.getByRole("button", { name: "Delete for good" }));
+    expect(screen.getByRole("button", { name: "Deleting…" })).toHaveAttribute("aria-disabled", "true");
+    await userEv.click(screen.getByRole("button", { name: "Edit Carol" }));
+    expect(within(row("Carol")).getByLabelText("Name")).toHaveFocus();
+    release(new Response(null, { status: 204 }));
+    // The confirmation was closed: the deletion is only announced, without taking the focus.
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Bob deleted."));
+    expect(within(row("Carol")).getByLabelText("Name")).toHaveFocus();
+  });
+
+  it("shows a load failure with Retry, the page heading kept", async () => {
+    mockApi({ "GET /api/admin/users": [error(500, "internal"), list(ADA)] });
+    renderWithProviders(<AdminUsers me={ME} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Users" })).toBeInTheDocument();
+    expect(await screen.findByText("The users could not be loaded.")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Ada", { selector: "p[id$='-title']" })).toBeInTheDocument();
+  });
+
+  it("keeps the status line mounted while loading", () => {
+    mockApi({ "GET /api/admin/users": list(ADA) });
+    renderWithProviders(<AdminUsers me={ME} />);
+    expect(status()).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="list-skeleton"]')).toHaveAttribute("aria-hidden", "true");
   });
 });

@@ -110,3 +110,41 @@ export async function expectNoHorizontalScroll(page: Page, label: string): Promi
 export function announcer(page: Page) {
   return page.locator('[data-slot="announcer"]');
 }
+
+/** Insert an account with no password, as an OIDC sign-in creates it. */
+export function addOidcUser({ id, name, email }: { id: string; name: string; email: string }): void {
+  const db = new DatabaseSync(E2E_DB);
+  try {
+    db.prepare(`insert into "user" (id, name, email) values (?, ?, ?)`).run(id, name, email);
+  } finally {
+    db.close();
+  }
+}
+
+/** Insert `n` accounts with no password, named "<prefix> 001" onwards, in one transaction. */
+export function addUsers(n: number, prefix: string): void {
+  const db = new DatabaseSync(E2E_DB);
+  try {
+    const insert = db.prepare(`insert into "user" (id, name, email) values (?, ?, ?)`);
+    db.exec("begin");
+    for (let i = 1; i <= n; i++) {
+      const number = String(i).padStart(3, "0");
+      const slug = `${prefix.toLowerCase().replace(/\W+/g, "-")}-${number}`;
+      insert.run(slug, `${prefix} ${number}`, `${slug}@example.invalid`);
+    }
+    db.exec("commit");
+  } finally {
+    db.close();
+  }
+}
+
+/** Insert a group and its members. */
+export function addGroup({ id, name, source = "local", memberIds = [] }: { id: string; name: string; source?: "local" | "oidc"; memberIds?: string[] }): void {
+  const db = new DatabaseSync(E2E_DB);
+  try {
+    db.prepare(`insert into "group" (id, name, source) values (?, ?, ?)`).run(id, name, source);
+    for (const userId of memberIds) db.prepare(`insert into user_group (user_id, group_id) values (?, ?)`).run(userId, id);
+  } finally {
+    db.close();
+  }
+}

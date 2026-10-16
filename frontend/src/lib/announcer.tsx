@@ -59,9 +59,23 @@ export function useAnnounceAfter(active: boolean, text: string, delay: number): 
 }
 
 /**
- * Announce `text` once it has stopped changing for `delay` ms: for counts that change on every key press (list
- * filter, member picker). An empty text announces nothing.
+ * Announce `text` once `query` has stopped changing for `delay` ms: for counts that follow what the person types
+ * (list filter, member picker). A change of `text` alone, after an action reloaded the list, stays silent, so it
+ * never covers the announcement of that action. Nothing is announced before the first change of `query`.
  */
-export function useDebouncedStatus(text: string, delay = 500): void {
-  useAnnounceAfter(text !== "", text, delay);
+export function useDebouncedStatus(query: string, text: string, delay = 500): void {
+  const announce = useAnnounce();
+  const latest = useRef(text);
+  useLayoutEffect(() => {
+    latest.current = text;
+  });
+  const previous = useRef(query);
+  useEffect(() => {
+    if (previous.current === query) return;
+    previous.current = query;
+    const timer = setTimeout(() => {
+      if (latest.current) announce(latest.current);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [query, delay, announce]);
 }
