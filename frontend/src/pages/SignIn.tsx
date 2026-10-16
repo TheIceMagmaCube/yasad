@@ -6,6 +6,7 @@ import { Field, SubmitButton } from "../components/Field";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
 import { useInstance } from "../instance";
+import { useDocumentTitle } from "../lib/page";
 
 /**
  * Sign-in screen. With password sign-in off, the default path only says so; `local` (the
@@ -15,6 +16,7 @@ export function SignIn({ onSignedIn, local = false }: { onSignedIn: () => void; 
   const m = useStrings();
   const s = m.signIn;
   const { passwordSignIn } = useInstance();
+  useDocumentTitle(!passwordSignIn && !local ? s.disabledTitle : s.title);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

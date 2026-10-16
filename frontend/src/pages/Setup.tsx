@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import type { Messages } from "../i18n/en";
 import { errorMessage, fieldErrorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
+import { useDocumentTitle } from "../lib/page";
 
 type Step = "code" | "admin" | "done";
 type FieldErrors = Partial<Record<keyof AdminInput, string>>;
@@ -60,6 +61,7 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
+  useDocumentTitle(...(step === "done" ? [s.doneTitle] : [s.steps[step], s.title]));
 
   useEffect(() => {
     if (firstRender.current) {
