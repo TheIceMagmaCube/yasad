@@ -1,7 +1,7 @@
-import { BASE_ENV, type TestApp, testApp } from "#harness";
+import { type TestApp, testApp } from "#harness";
 import { describe, expect, it } from "vitest";
 
-import { addOidcUser, addUser, post, send, signIn } from "./users";
+import { addOidcUser, addUser, post, send, signedCookie, signIn } from "./users";
 
 type Icon = { set: "si" | "lucide"; name: string };
 type HomeBody = {
@@ -566,11 +566,3 @@ describe("GET /api/home, keywords", () => {
     expect(await keywordsOf(admin)).toEqual({ team: ["Équipe", "straße"] });
   });
 });
-
-/** Return a Better Auth session cookie value: the token signed with AUTH_SECRET (HMAC-SHA256, base64). */
-async function signedCookie(token: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(BASE_ENV.AUTH_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token));
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
-  return encodeURIComponent(`${token}.${base64}`);
-}

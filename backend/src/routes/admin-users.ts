@@ -78,7 +78,7 @@ function otherActiveLocalAdmins(db: DB, id: string) {
 const isActiveLocalAdmin = (u: AdminUser) => u.origin === "local" && u.role === "admin" && !u.disabled;
 
 /** Return whether an account other than `exceptId` uses this e-mail. */
-const emailTaken = async (db: DB, email: string, exceptId?: string) =>
+export const emailTaken = async (db: DB, email: string, exceptId?: string) =>
   (await db
     .select({ id: user.id })
     .from(user)

@@ -1,4 +1,4 @@
-import type { TestApp } from "#harness";
+import { BASE_ENV, type TestApp } from "#harness";
 import { hashPassword } from "better-auth/crypto";
 
 export const PASSWORD = "correct horse battery";
@@ -33,4 +33,22 @@ export async function addOidcUser(app: TestApp, { id, email, role = "user" }: { 
 /** Send JSON with any method; state-changing requests always carry a JSON body, even an empty one. */
 export function send(app: TestApp, method: string, path: string, body: unknown = {}) {
   return app.request(path, method === "GET" ? {} : { method, body: JSON.stringify(body) });
+}
+
+/** Return a Better Auth session cookie value: the token signed with AUTH_SECRET (HMAC-SHA256, base64). */
+export async function signedCookie(token: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(BASE_ENV.AUTH_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token));
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return encodeURIComponent(`${token}.${base64}`);
+}
+
+/**
+ * Give a user a session straight in the database, as an OIDC account cannot sign in by password in tests, and
+ * return the cookie header that carries it.
+ */
+export async function sessionCookie(app: TestApp, userId: string): Promise<string> {
+  const token = `token-${userId}`;
+  await app.exec(`insert into session (id, expires_at, token, user_id) values ('s-${userId}', ${Date.now() + 3_600_000}, '${token}', '${userId}')`);
+  return `__Secure-better-auth.session_token=${await signedCookie(token)}`;
 }
