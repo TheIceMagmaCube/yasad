@@ -44,7 +44,7 @@ function simpleIcons() {
       const svg = readFileSync(join(dir, "icons", `${icon.slug}.svg`), "utf8");
       const path = svg.match(/<path d="([^"]+)"\s*\/>/)?.[1];
       if (!path) throw new Error(`simple-icons: no path in ${icon.slug}.svg`);
-      return { slug: icon.slug, title: icon.title, path, license: icon.license };
+      return { slug: icon.slug, title: icon.title, source: icon.source, path, license: icon.license };
     })
     .sort((a, b) => (a.slug < b.slug ? -1 : 1));
 }
@@ -88,6 +88,11 @@ function lucideIcons() {
   return { icons, aliases, license: readFileSync(join(dir, "LICENSE"), "utf8") };
 }
 
+/** Return the URL of a Simple Icons licence: its own URL when given, otherwise the SPDX page of its id. */
+export function licenseUrl(license) {
+  return license.url ?? `https://spdx.org/licenses/${license.type}.html`;
+}
+
 /** Return the NOTICE.txt text: the Lucide licence and the Simple Icons kept under their own licence. */
 function notice(si, lucide, versions) {
   const ownLicense = si.filter((icon) => icon.license);
@@ -106,10 +111,14 @@ function notice(si, lucide, versions) {
     "one identifies the linked service and implies no endorsement. See the Simple Icons DISCLAIMER:",
     "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
     "",
-    "Icons under their own licence:",
+    "Icons under their own licence, with the source of each logo and a link to the full text of its licence:",
     "",
-    ...ownLicense.map((icon) => `${icon.slug} (${icon.title}): ${icon.license.type}${icon.license.url ? ` ${icon.license.url}` : ""}`),
-    "",
+    ...ownLicense.flatMap((icon) => [
+      `${icon.slug} (${icon.title})`,
+      `  Source: ${icon.source}`,
+      `  Licence: ${icon.license.type}, ${licenseUrl(icon.license)}`,
+      "",
+    ]),
   ].join("\n");
 }
 

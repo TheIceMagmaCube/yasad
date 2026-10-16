@@ -27,17 +27,29 @@ afterEach(() => {
 });
 
 describe("Home", () => {
+  it("mounts the status region empty and fills it afterwards, so it is announced", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    const { container } = renderWithProviders(<Home user={ADA} />);
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    await vi.waitFor(() => expect(status).toHaveTextContent("Loading your links"));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(container.querySelector("[data-slot=home-skeleton] [role=status]")).toBeNull();
+  });
+
   it("shows the heading and a loading status, then the categories and links in API order", async () => {
     mockApi(home(DATA));
     renderWithProviders(<Home user={ADA} />);
     expect(screen.getByRole("heading", { level: 1, name: "My links" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your links");
     const headings = await screen.findAllByRole("heading", { level: 2 });
     expect(headings.map((h) => h.textContent)).toEqual(["Second in the catalog", "First letter, later"]);
     const first = screen.getByRole("region", { name: "Second in the catalog" });
     expect(within(first).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["https://zeta.example.invalid", "https://alpha.example.invalid"]);
     expect(document.title).toBe("My links - YASAD");
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("shows an error with a retry button that stays in place, then the links", async () => {
@@ -54,6 +66,24 @@ describe("Home", () => {
     await user.click(retry);
     expect(await screen.findByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("moves the focus to the page heading when a retry succeeds", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/home": [
+        { status: 500, body: { error: { code: "internal_error", message: "" } } },
+        { status: 200, body: DATA },
+      ],
+    });
+    renderWithProviders(
+      <main>
+        <Home user={ADA} />
+      </main>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    await screen.findByRole("region", { name: "Second in the catalog" });
+    expect(screen.getByRole("heading", { level: 1, name: "My links" })).toHaveFocus();
   });
 
   it("keeps the retry button focused and the alert mounted while retrying", async () => {
@@ -118,7 +148,7 @@ describe("Home", () => {
     renderWithProviders(<Home user={null} initial={{ ...DATA, signedIn: false }} />);
     expect(screen.getByRole("heading", { level: 1, name: "Links" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Second in the catalog" })).toBeInTheDocument();
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

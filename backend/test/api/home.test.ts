@@ -395,6 +395,12 @@ describe("GET /api/home, empty states", () => {
     expect((await home(admin)).body.empty).toBe("admin_no_access");
   });
 
+  it("tells an admin the catalog is empty when every link is inactive", async () => {
+    const admin = await adminApp();
+    await load(admin, [{ id: "tools", groups: ["@authenticated"], links: [{ id: "console", groups: ["@authenticated"], active: false }] }]);
+    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty" });
+  });
+
   it("is null when something is visible", async () => {
     const admin = await adminApp();
     await load(admin, [{ id: "tools", groups: ["@authenticated"], links: [{ id: "console", groups: ["@authenticated"] }] }]);

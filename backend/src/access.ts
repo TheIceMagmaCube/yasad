@@ -87,12 +87,13 @@ export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCatego
  * Return why nothing is visible, to be called only when {@link visibleCatalog} is empty.
  *
  * Anonymous viewers get null: they learn nothing about the instance. Administrators are told whether
- * the catalog has no link or only links they do not hold; other people whether they hold any group.
+ * the catalog has no active link or only active links they do not hold; other people whether they
+ * hold any group.
  */
 export async function emptyState(db: DB, viewer: Viewer): Promise<HomeEmpty | null> {
   if (viewer.kind === "anonymous") return null;
   if (viewer.role === "admin") {
-    const any = await db.select({ id: link.id }).from(link).limit(1).get();
+    const any = await db.select({ id: link.id }).from(link).where(eq(link.active, true)).limit(1).get();
     return any ? "admin_no_access" : "catalog_empty";
   }
   const membership = await db

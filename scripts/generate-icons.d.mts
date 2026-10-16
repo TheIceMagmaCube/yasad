@@ -15,5 +15,6 @@ export type GeneratedIcons = {
 };
 
 export function excludedLicense(license: { type: string; url?: string } | undefined): boolean;
+export function licenseUrl(license: { type: string; url?: string }): string;
 export function buildIcons(): GeneratedIcons;
 export function writeIcons(): GeneratedIcons;

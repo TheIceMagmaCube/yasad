@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { HomeData, User } from "../api";
 import { CategorySection } from "../components/home/CategorySection";
@@ -9,7 +9,7 @@ import { Alert } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import { errorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
-import { useDocumentTitle } from "../lib/page";
+import { focusPage, useDocumentTitle } from "../lib/page";
 import { useHomeData } from "./home/useHomeData";
 
 /**
@@ -24,6 +24,26 @@ export function Home({ user, initial, onSessionEnded }: { user: User | null; ini
   const title = user ? m.title : m.publicTitle;
   useDocumentTitle(title);
   const { state, retry, retrying } = useHomeData(initial);
+  const loading = state.status === "loading";
+
+  /** Whether the status region has been registered: it is filled only after mount, so screen readers announce the change. */
+  const [statusReady, setStatusReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setStatusReady(true), 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  /** Whether to focus the page heading once a retry succeeds, since the focused button goes away. */
+  const focusAfterRetry = useRef(false);
+  const retryAndRefocus = () => {
+    focusAfterRetry.current = true;
+    retry();
+  };
+  useEffect(() => {
+    if (state.status === "error") return;
+    if (focusAfterRetry.current && state.status === "ready") focusPage();
+    focusAfterRetry.current = false;
+  }, [state]);
 
   const ended = user !== null && state.status === "ready" && !state.data.signedIn;
   useEffect(() => {
@@ -33,14 +53,17 @@ export function Home({ user, initial, onSessionEnded }: { user: User | null; ini
   return (
     <>
       <PageHeader title={title} />
-      {state.status === "loading" ? (
+      <p role="status" className="sr-only">
+        {statusReady && loading ? m.loading : ""}
+      </p>
+      {loading ? (
         <HomeSkeleton />
       ) : state.status === "error" ? (
         <div className="space-y-4">
           <Alert key={state.attempt} tone="destructive">
             {m.loadError} {errorMessage(state.error, strings)}
           </Alert>
-          <Button variant="outline" pending={retrying} onClick={retry}>
+          <Button variant="outline" pending={retrying} onClick={retryAndRefocus}>
             {m.retry}
           </Button>
         </div>

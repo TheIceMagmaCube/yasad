@@ -229,6 +229,14 @@ describe("catalog import and export", () => {
     expect((await send(app, CATALOG, true)).body.diff.warnings.filter((w) => w.code === "unknown_icon")).toEqual([]);
   });
 
+  it("warns about a hyphenated Simple Icons slug instead of refusing it", async () => {
+    const app = await adminApp();
+    const file = CATALOG.replace("icon: si:jira", "icon: si:google-drive");
+    const { warnings } = (await send(app, file, true)).body.diff;
+    expect(warnings.filter((w) => w.code === "unknown_icon")).toEqual([{ code: "unknown_icon", kind: "link", id: "jira" }]);
+    expect((await importFile(app, file)).status).toBe(200);
+  });
+
   it("is refused to non-admins and without a session", async () => {
     const anonymous = await testApp();
     expect((await anonymous.request("/api/admin/catalog")).status).toBe(401);

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { buildIcons, excludedLicense, ICONS_BASE_FILE, NAMES_FILE, ROOT } from "../../../scripts/generate-icons.mjs";
+import { buildIcons, excludedLicense, ICONS_BASE_FILE, licenseUrl, NAMES_FILE, ROOT } from "../../../scripts/generate-icons.mjs";
 import { LUCIDE, LUCIDE_ALIASES, SI } from "../../src/icons/names";
 import { resolveIcon } from "../../src/icons/resolve";
 
@@ -54,6 +54,25 @@ describe("generated icon lists", () => {
     }
     expect(SI.size).toBe(data.length - excluded.length);
     expect(generated.files.get("NOTICE.txt")).not.toMatch(/CC-BY-(NC|ND)|: custom/);
+  });
+
+  it("credit every Simple Icon under its own licence with its source and a link to the licence", () => {
+    const data = readJson(join(ROOT, "node_modules/simple-icons/data/simple-icons.json")) as unknown as {
+      slug: string;
+      title: string;
+      source: string;
+      license?: { type: string; url?: string };
+    }[];
+    const listed = data.filter((icon) => icon.license && !excludedLicense(icon.license));
+    expect(listed.length).toBeGreaterThan(0);
+    const text = generated.files.get("NOTICE.txt") ?? "";
+    for (const icon of listed) {
+      const license = icon.license!;
+      expect(icon.source).toMatch(/^https?:\/\//);
+      expect(text).toContain(`${icon.slug} (${icon.title})\n  Source: ${icon.source}\n  Licence: ${license.type}, ${licenseUrl(license)}\n`);
+    }
+    expect(licenseUrl({ type: "Apache-2.0" })).toBe("https://spdx.org/licenses/Apache-2.0.html");
+    expect(licenseUrl({ type: "CC-BY-4.0", url: "https://example.org/licence" })).toBe("https://example.org/licence");
   });
 
   it("map every Lucide alias to a canonical name, with no file of its own", () => {
