@@ -35,8 +35,38 @@ async function importCatalog(request: APIRequestContext, path: string): Promise<
 
 /** Categories of e2e/fixtures/home.yaml, in order, as the admin sees them (the admin holds no local group). */
 const HOME_CATEGORIES = ["Public", "Everyday", "Documentation", "People", "Money", "Operations", "Miscellaneous"];
-/** Links of the fixture the admin may not see: one on local:Nobody, one inactive. */
-const HIDDEN_LINKS = ["Secret plans", "Retired tool"];
+/** Links of the fixture the admin may not see: two on local:Nobody, one inactive. */
+const HIDDEN_LINKS = ["Secret plans", "Secret vault", "Retired tool"];
+/** Keyword of a hidden link: it must never reach the browser either. */
+const HIDDEN_KEYWORD = "kw-hidden-marker";
+
+/** Return the header search field. */
+const searchField = (page: Page) => page.getByRole("combobox", { name: "Search links" });
+
+/** Return the search result options (the footer's language and appearance selects have options too). */
+const results = (page: Page) => page.getByRole("banner").getByRole("option");
+
+/** Reach the search field as a person would at this width: the toggle button on a phone, "/" elsewhere. */
+async function openSearch(page: Page, width: number): Promise<void> {
+  if (width === 320) await page.getByRole("button", { name: "Search", exact: true }).click();
+  else await page.keyboard.press("/");
+  await expect(searchField(page)).toBeFocused();
+}
+
+/** Check the page accessibly with a query that finds results (first one active), then with one that finds none. */
+async function expectSearchAccessible(page: Page, query: string, width: number, label: string): Promise<void> {
+  await openSearch(page, width);
+  const field = searchField(page);
+  await field.fill(query);
+  await expect(field).toHaveAttribute("aria-expanded", "true");
+  await expect(field).toHaveAttribute("aria-activedescendant", /opt-0$/);
+  await expectAccessible(page, `${label}, search results`);
+  if (width === 320) expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await field.fill("zzzz");
+  await expect(page.getByText("No link matches zzzz")).toBeVisible();
+  await expectAccessible(page, `${label}, search with no results`);
+  await field.press("Escape");
+}
 
 for (const theme of THEMES) {
   for (const mode of MODES) {
@@ -136,6 +166,7 @@ for (const theme of THEMES) {
         await expect(everyday.getByRole("link", { name: "Chat" }).locator("svg")).toHaveCount(0);
 
         await expectAccessible(page, "home with links");
+        await expectSearchAccessible(page, "mail", width, `home (${theme}, ${mode}, ${width}px)`);
         expect(csp).toEqual([]);
         if (width === 320) {
           expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
@@ -167,11 +198,19 @@ test("an anonymous visitor sees the public links only, accessibly", async ({ pag
         await expect(page.getByText("Members only")).toHaveCount(0);
         await expect(page.getByRole("navigation", { name: "Main" })).toHaveCount(0);
         await expectAccessible(page, `anonymous home (${theme}, ${mode}, ${width}px)`);
+        await expectSearchAccessible(page, "status", width, `anonymous home (${theme}, ${mode}, ${width}px)`);
         expect(csp).toEqual([]);
         if (width === 320) expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
       }
     }
   }
+
+  await searchField(page).fill("uptime");
+  await expect(results(page)).toHaveText([/Status page/]);
+  await searchField(page).fill("mail");
+  await expect(results(page)).toHaveCount(0);
+  await expect(page.getByText("No link matches mail")).toBeVisible();
+  await searchField(page).press("Escape");
 
   await page.getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
@@ -194,6 +233,121 @@ test("a link card opens its service in the same tab", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL("https://status.example.invalid/");
   expect(opened).toBe(0);
+});
+
+test.describe("search", () => {
+  test.beforeEach(async ({ page }) => {
+    setInstanceTheme("default");
+    await page.route("https://*.example.invalid/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Service</title><p>Service</p>" }),
+    );
+    await signIn(page);
+  });
+
+  for (const shortcut of ["/", "ControlOrMeta+K"]) {
+    test(`opens a result with the keyboard from ${shortcut}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: "My links", level: 1 })).toBeVisible();
+      await page.keyboard.press(shortcut);
+      const field = searchField(page);
+      await expect(field).toBeFocused();
+      await expect(field).toHaveValue("");
+      await page.keyboard.type("cour");
+      const mail = results(page).and(page.getByRole("option", { name: /^Mail, Everyday/ }));
+      await expect(mail).toHaveAttribute("aria-selected", "true");
+      await expect(field).toHaveAttribute("aria-activedescendant", (await mail.getAttribute("id"))!);
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("ArrowUp");
+      await expect(mail).toHaveAttribute("aria-selected", "true");
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL("https://mail.example.invalid/");
+    });
+  }
+
+  test("never finds a link the person may not see", async ({ page }) => {
+    const body = await (await page.request.get("/api/home")).text();
+    for (const marker of [...HIDDEN_LINKS, HIDDEN_KEYWORD]) expect(body).not.toContain(marker);
+    expect(body).toContain("courrier");
+
+    for (const path of ["/", "/admin/groups"]) {
+      await page.goto(path);
+      await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+      await page.keyboard.press("/");
+      const field = searchField(page);
+      for (const query of ["secret", "kw-hidden", "vault", "retired"]) {
+        await field.fill(query);
+        await expect(page.getByText(`No link matches ${query}`)).toBeVisible();
+        await expect(results(page)).toHaveCount(0);
+        await expect(page.getByRole("status").filter({ hasText: "No results" })).toHaveCount(1);
+      }
+      await field.fill("plans");
+      await expect(results(page)).toHaveCount(0);
+    }
+  });
+
+  test("ignores accents and finds hyphenated words joined", async ({ page }) => {
+    await page.goto("/");
+    await page.keyboard.press("/");
+    const field = searchField(page);
+    for (const query of ["equipe", "elearning", "e-learning"]) {
+      await field.fill(query);
+      await expect(results(page)).toHaveText([/Équipe e-learning/]);
+    }
+    await field.fill("equipe");
+    await expect(results(page).locator("mark")).toHaveText("Équipe");
+  });
+
+  test("gives the focus back on Escape, and announces the count", async ({ page }) => {
+    await page.goto("/");
+    const card = page.getByRole("link", { name: "Status page" });
+    await card.focus();
+    await page.keyboard.press("/");
+    await page.keyboard.type("wiki");
+    const status = page.getByRole("banner").getByRole("status");
+    await expect(status).toHaveText("1 result");
+    await page.keyboard.press("Escape");
+    await expect(card).toBeFocused();
+    await expect(searchField(page)).toHaveValue("");
+    await expect(status).toHaveText("");
+  });
+
+  test("leaves '/' and Ctrl+K alone in other fields", async ({ page }) => {
+    await page.goto("/admin/users");
+    await page.getByRole("button", { name: "New user" }).click();
+    const name = page.getByLabel("Name", { exact: true });
+    await name.focus();
+    await page.keyboard.type("a/b");
+    await page.keyboard.press("ControlOrMeta+K");
+    await expect(name).toBeFocused();
+    await expect(name).toHaveValue("a/b");
+  });
+
+  test("works on a 320 px screen without widening the page", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    for (const path of ["/", "/admin/users"]) {
+      await page.goto(path);
+      const toggle = page.getByRole("button", { name: "Search", exact: true });
+      const active = page.getByRole("navigation", { name: "Main" }).locator('[aria-current="page"]');
+      const borderAtRowBottom = async () => {
+        const box = (await active.boundingBox())!;
+        expect(Math.round(box.y + box.height)).toBe(56);
+      };
+      await borderAtRowBottom();
+      await expect(searchField(page)).toBeHidden();
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(searchField(page)).toBeFocused();
+      await page.keyboard.type("m");
+      await expect(page.getByRole("listbox")).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+      await borderAtRowBottom();
+      await page.keyboard.press("Escape");
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await expect(toggle).toBeFocused();
+      await expect(searchField(page)).toBeHidden();
+    }
+  });
 });
 
 test("the server sends the icon files as JSON, cached for good", async ({ request }) => {
@@ -268,6 +422,8 @@ test("the account menu works with the keyboard", async ({ page }) => {
     await page.keyboard.press("Tab");
     await expect(nav.getByRole("link", { name })).toBeFocused();
   }
+  await page.keyboard.press("Tab");
+  await expect(searchField(page)).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(trigger).toBeFocused();
   await page.keyboard.press("Enter");
