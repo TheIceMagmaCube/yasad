@@ -78,11 +78,9 @@ export function AdminGroups() {
 
   const data = collection.data;
   const filter = useMemo(() => prepareFilter(data?.groups ?? [], (g) => [displayName(g, m), g.source === "system" ? `@${g.name}` : g.name]), [data, m]);
-  const shown = useMemo(() => {
-    if (!data) return [];
-    const matched = new Set(filter(query).map((g) => g.id));
-    return data.groups.filter((g) => matched.has(g.id) || g.id === feedback.pinned);
-  }, [data, filter, query, feedback.pinned]);
+  const matched = useMemo(() => new Set(filter(query).map((g) => g.id)), [filter, query]);
+  // A row in the middle of something stays whatever the filter: its open panel, an error or a pin.
+  const shown = (data?.groups ?? []).filter((g) => matched.has(g.id) || feedback.kept.has(g.id) || panel.holds(g.id));
   const shownRef = useRef(shown);
   useEffect(() => {
     shownRef.current = shown;
@@ -115,8 +113,11 @@ export function AdminGroups() {
    * the focus is in the row (its panel, or its buttons after Cancel) or lost; elsewhere it is only announced.
    */
   const gone = (group: AdminGroup, stillOpen: () => boolean, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
-    if (stillOpen()) panel.close();
-    if (rowHasFocus(`group-${group.id}-title`) || focusIsLost()) {
+    // Any panel of the row goes with it, opened again or not.
+    if (stillOpen() || panel.holds(group.id)) panel.close();
+    if (feedback.isBuried(group.id)) {
+      // Already replaced and read: say nothing twice.
+    } else if (rowHasFocus(`group-${group.id}-title`) || focusIsLost()) {
       const section = shownRef.current.filter((g) => g.source === group.source);
       feedback.bury({ id: group.id, text, variant, section: group.source, index: Math.max(0, section.findIndex((g) => g.id === group.id)) });
     } else announce(text);
@@ -246,7 +247,8 @@ export function AdminGroups() {
   }
 
   const total = data?.groups.length ?? 0;
-  const count = !data ? "" : query.trim() ? s.countFiltered(shown.length, total) : s.count(total);
+  // Matches only: a row kept for another reason is not a result of the filter.
+  const count = !data ? "" : query.trim() ? s.countFiltered(data.groups.filter((g) => matched.has(g.id)).length, total) : s.count(total);
   const sections = SECTIONS.map((source) => ({
     source,
     entries: withTombstones(

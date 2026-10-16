@@ -56,6 +56,25 @@ describe("useAdminCollection", () => {
     expect(result.current.refreshFailures).toBe(0);
   });
 
+  it("resolves an overtaken refresh with what the later one applied", async () => {
+    const slow = deferred<string[]>();
+    const load = vi.fn<() => Promise<string[]>>().mockResolvedValueOnce(["a"]).mockReturnValueOnce(slow.promise).mockResolvedValue(["c"]);
+    const { result } = renderHook(() => useAdminCollection(load));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    let first!: Promise<string[] | null>;
+    act(() => {
+      first = result.current.refresh();
+    });
+    await act(() => result.current.refresh());
+    let seen: string[] | null = null;
+    await act(async () => {
+      slow.resolve(["old"]);
+      seen = await first;
+    });
+    expect(seen).toEqual(["c"]);
+    expect(result.current.data).toEqual(["c"]);
+  });
+
   it("applies only the latest request, and ignores one started before a local change", async () => {
     const slow = deferred<string[]>();
     const load = vi.fn<() => Promise<string[]>>().mockResolvedValueOnce(["a"]).mockReturnValueOnce(slow.promise).mockResolvedValue(["c"]);

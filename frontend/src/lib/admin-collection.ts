@@ -16,8 +16,9 @@ export type AdminCollection<T> = {
   /** Load again after a failed load. */
   retry: () => void;
   /**
-   * Reload while the list stays shown; resolve with the new data once applied (before it renders), or null when it
-   * failed or was overtaken.
+   * Reload while the list stays shown; resolve with the new data once applied (before it renders). Overtaken by a
+   * later reload, resolve with what that one applied; null when it failed, or when a local change overtook it with
+   * no reload after.
    */
   refresh: () => Promise<T | null>;
   /** Number of failed refreshes in a row, 0 after a successful one: the list shown may be out of date. */
@@ -73,16 +74,19 @@ export function useAdminCollection<T>(load: () => Promise<T>): AdminCollection<T
     );
   }, [run]);
 
-  const refresh = useCallback(
-    () =>
-      run((result) =>
-        setState((prev) => {
-          if (prev.status !== "ready") return result.ok ? { status: "ready", data: result.data, refreshFailures: 0 } : prev;
-          return result.ok ? { status: "ready", data: result.data, refreshFailures: 0 } : { ...prev, refreshFailures: prev.refreshFailures + 1 };
-        }),
-      ),
-    [run],
-  );
+  // The latest reload, so an overtaken one resolves with what came after it.
+  const lastRefresh = useRef<Promise<T | null> | null>(null);
+  const refresh = useCallback(() => {
+    const mine = run((result) =>
+      setState((prev) => {
+        if (prev.status !== "ready") return result.ok ? { status: "ready", data: result.data, refreshFailures: 0 } : prev;
+        return result.ok ? { status: "ready", data: result.data, refreshFailures: 0 } : { ...prev, refreshFailures: prev.refreshFailures + 1 };
+      }),
+    );
+    const settled: Promise<T | null> = mine.then((data) => (data !== null || lastRefresh.current === settled ? data : lastRefresh.current!));
+    lastRefresh.current = settled;
+    return settled;
+  }, [run]);
 
   const setData = useCallback((update: (data: T) => T) => {
     latest.current++;

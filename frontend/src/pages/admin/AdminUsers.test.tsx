@@ -295,6 +295,101 @@ describe("AdminUsers", () => {
     expect(screen.queryByRole("group", { name: "Check the highlighted fields." })).toBeNull();
   });
 
+  it("keeps a row whose request runs shown under a filter that hides it, so its form still reports the outcome", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": list(ADA, BOB, CAROL) });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    await userEv.type(within(row("Bob")).getByLabelText("Name"), "!");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "car");
+    expect(row("Bob")).toBeInTheDocument();
+    expect(screen.getByText("1 of 3 users")).toBeInTheDocument();
+    release(new Response(JSON.stringify({ error: { code: "last_local_admin", message: "" } }), { status: 409 }));
+    expect(await within(row("Bob")).findByRole("group", { name: /Keep at least one enabled local administrator/ })).toBeInTheDocument();
+  });
+
+  it("keeps an error that came after Cancel shown in its row, though the filter hides the row", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": list(ADA, BOB, CAROL) });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    await userEv.type(within(row("Bob")).getByLabelText("Name"), "!");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    await userEv.keyboard("{Escape}");
+    await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "car");
+    release(new Response(JSON.stringify({ error: { code: "last_local_admin", message: "" } }), { status: 409 }));
+    // The error brings the row back, with the alert in it.
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/Keep at least one enabled local administrator/);
+    expect(alert.closest("li")).toBe(row("Bob"));
+  });
+
+  it("sends only what was changed in a form opened again while an earlier save ran", async () => {
+    let release!: (res: Response) => void;
+    const robert = { ...BOB, name: "Robert" };
+    const fetchMock = mockApi({ "GET /api/admin/users": [list(ADA, BOB), list(ADA, robert)] });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    const name = within(row("Bob")).getByLabelText("Name");
+    await userEv.clear(name);
+    await userEv.type(name, "Robert");
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(within(row("Bob")).getByRole("button", { name: "Save" }));
+    await userEv.keyboard("{Escape}");
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    release(new Response(JSON.stringify({ user: robert }), { status: 200 }));
+    await screen.findByText("Robert", { selector: "p[id$='-title']" });
+    // The open form never touched the name: saving it sends nothing, so the rename stays.
+    await userEv.click(within(row("Robert")).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Robert" })).toHaveFocus());
+    expect(fetchMock.mock.calls.filter((c) => c[1]?.method === "PATCH")).toHaveLength(1);
+  });
+
+  it("closes a panel of a deleted row opened again meanwhile, so Escape on the message leaves the focus there", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": [list(ADA, BOB, CAROL), list(ADA, CAROL)] });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "Delete Bob" }));
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Delete for good" }));
+    await userEv.keyboard("{Escape}");
+    await userEv.click(screen.getByRole("button", { name: "Delete Bob" }));
+    release(new Response(null, { status: 204 }));
+    const tombstone = await screen.findByRole("group", { name: "Bob deleted." });
+    await waitFor(() => expect(tombstone).toHaveFocus());
+    expect(screen.queryByRole("group", { name: "Delete Bob?" })).toBeNull();
+    await userEv.keyboard("{Escape}");
+    expect(tombstone).toHaveFocus();
+  });
+
+  it("puts the message of a deletion where the row was when the focus was lost meanwhile", async () => {
+    let release!: (res: Response) => void;
+    const fetchMock = mockApi({ "GET /api/admin/users": [list(ADA, BOB, CAROL), list(ADA, CAROL)] });
+    renderWithProviders(<AdminUsers me={ME} />);
+    await screen.findByText("Bob", { selector: "p[id$='-title']" });
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole("button", { name: "Delete Carol" }));
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    await userEv.click(screen.getByRole("button", { name: "Delete for good" }));
+    await userEv.keyboard("{Escape}");
+    await userEv.click(screen.getByRole("button", { name: "Edit Bob" }));
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    release(new Response(null, { status: 204 }));
+    expect(await screen.findByRole("group", { name: "Carol deleted." })).toHaveFocus();
+  });
+
   it("selects the secret for Ctrl+C when the clipboard is not available", async () => {
     const { userEv } = await renderPage({
       "GET /api/admin/users": list(ADA, BOB),

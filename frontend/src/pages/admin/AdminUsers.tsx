@@ -59,12 +59,10 @@ export function AdminUsers({ me }: { me: User }) {
 
   const users = collection.data;
   const filter = useMemo(() => prepareFilter(users ?? [], (u) => [u.name, u.email]), [users]);
-  const shown = useMemo(() => {
-    if (!users) return [];
-    const matched = new Set(filter(query).map((u) => u.id));
-    // A row showing a temporary password stays, so the filter never takes the password away.
-    return users.filter((u) => matched.has(u.id) || u.id === feedback.pinned || Object.hasOwn(secrets, u.id));
-  }, [users, filter, query, feedback.pinned, secrets]);
+  const matched = useMemo(() => new Set(filter(query).map((u) => u.id)), [filter, query]);
+  // A row in the middle of something stays whatever the filter: its open panel, an error, a pin, or a temporary
+  // password not noted yet.
+  const shown = (users ?? []).filter((u) => matched.has(u.id) || feedback.kept.has(u.id) || Object.hasOwn(secrets, u.id) || panel.holds(u.id));
   // Read when a request ends, to put a tombstone where its row was.
   const shownRef = useRef(shown);
   useEffect(() => {
@@ -106,8 +104,11 @@ export function AdminUsers({ me }: { me: User }) {
    * the focus is in the row (its panel, or its buttons after Cancel) or lost; elsewhere it is only announced.
    */
   const gone = (user: AdminUser, stillOpen: () => boolean, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
-    if (stillOpen()) panel.close();
-    if (rowHasFocus(`user-${user.id}-title`) || focusIsLost()) {
+    // Any panel of the row goes with it, opened again or not.
+    if (stillOpen() || panel.holds(user.id)) panel.close();
+    if (feedback.isBuried(user.id)) {
+      // Already replaced and read: say nothing twice.
+    } else if (rowHasFocus(`user-${user.id}-title`) || focusIsLost()) {
       feedback.bury({ id: user.id, text, variant, index: Math.max(0, shownRef.current.findIndex((u) => u.id === user.id)) });
     } else announce(text);
     dropSecret(user.id);
@@ -190,7 +191,8 @@ export function AdminUsers({ me }: { me: User }) {
   };
 
   const total = users?.length ?? 0;
-  const count = !users ? "" : query.trim() ? s.countFiltered(shown.length, total) : s.count(total);
+  // Matches only: a row kept for another reason is not a result of the filter.
+  const count = !users ? "" : query.trim() ? s.countFiltered(users.filter((u) => matched.has(u.id)).length, total) : s.count(total);
   const entries = withTombstones(shown, feedback.tombstones);
 
   return (
@@ -410,7 +412,7 @@ type UserFormProps =
   | { mode: "new"; onSubmit: (input: { name: string; email: string; role: Role }) => Promise<void>; onCancel: () => void }
   | { mode: "edit"; user: AdminUser; self: boolean; onSubmit: (changes: UserChanges) => Promise<void>; onCancel: () => void };
 
-/** Return the changes the form makes to the user, leaving out what stays the same. */
+/** Return the changes the form makes to the user as it was when the form opened, leaving out what stays the same. */
 function changesOf(user: AdminUser, form: { name: string; email: string; role: Role; override: Role | ""; disabled: boolean }): UserChanges {
   const changes: UserChanges = {};
   if (form.name.trim() !== user.name) changes.name = form.name;
@@ -425,7 +427,9 @@ function changesOf(user: AdminUser, form: { name: string; email: string; role: R
 function UserForm(props: UserFormProps) {
   const m = useStrings();
   const s = m.users;
-  const edited = props.mode === "edit" ? props.user : null;
+  // As it was on opening: a save of another opening may change the row meanwhile, and untouched fields must not
+  // send its old values back.
+  const [edited] = useState(props.mode === "edit" ? props.user : null);
   const formId = edited ? `user-${edited.id}-form` : "users-new-form";
   const errors = useFormErrors<UserField>(USER_FIELDS, formId);
   const [name, setName] = useState(edited?.name ?? "");
@@ -447,7 +451,7 @@ function UserForm(props: UserFormProps) {
     setPending(true);
     try {
       if (props.mode === "new") await props.onSubmit({ name, email, role });
-      else await props.onSubmit(changesOf(props.user, { name, email, role, override, disabled }));
+      else await props.onSubmit(changesOf(edited!, { name, email, role, override, disabled }));
     } catch (err) {
       errors.failWith(err, {
         codes: {

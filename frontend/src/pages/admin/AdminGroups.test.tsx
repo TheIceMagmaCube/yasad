@@ -211,6 +211,35 @@ describe("AdminGroups", () => {
     expect(screen.queryByText("Staff", { selector: "p[id$='-title']" })).toBeNull();
   });
 
+  it("says once that a group is gone when a second member change finds it deleted after the first", async () => {
+    const { fetchMock, userEv } = await renderPage(
+      routes({
+        "GET /api/admin/groups": [groups(CONTRACTORS, STAFF), groups(CONTRACTORS)],
+        "PUT /api/admin/groups/g2/members/bob": { status: 404, body: { error: { code: "not_found", message: "" } } },
+        "PUT /api/admin/groups/g2/members/carol": { status: 404, body: { error: { code: "not_found", message: "" } } },
+      }),
+    );
+    // Carol's answer comes once the first message is shown.
+    let answerCarol!: () => void;
+    const held = new Promise<void>((resolve) => (answerCarol = resolve));
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/admin/groups/g2/members/carol") await held;
+      return answer(path, init);
+    });
+    await userEv.click(screen.getByRole("button", { name: "Members (0) of Staff" }));
+    await userEv.click(within(row("Staff")).getByRole("button", { name: "Add Carol to Staff" }));
+    await userEv.click(within(row("Staff")).getByRole("button", { name: "Add Bob to Staff" }));
+    const tombstone = await screen.findByRole("group", { name: "This item no longer exists." });
+    await waitFor(() => expect(tombstone).toHaveFocus());
+    answerCarol();
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[0] === "/api/admin/groups")).toHaveLength(3));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.querySelectorAll('[data-slot="tombstone"]')).toHaveLength(1);
+    expect(tombstone).toHaveFocus();
+    expect(getAnnouncer()).not.toHaveTextContent("This item no longer exists.");
+  });
+
   it("shows the progress of an addition on its button", async () => {
     const { fetchMock, userEv } = await renderPage(routes());
     fetchMock.mockImplementationOnce(() => new Promise<Response>(() => {}));
@@ -267,6 +296,31 @@ describe("AdminGroups", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("keeps every pinned row: two groups created under a filter that hides them both stay", async () => {
+    const first: AdminGroup = { id: "g3", name: "Reviewers", source: "local", memberIds: [], categories: 0, links: 0 };
+    const second: AdminGroup = { id: "g4", name: "Auditors", source: "local", memberIds: [], categories: 0, links: 0 };
+    const { userEv } = await renderPage(
+      routes({
+        "GET /api/admin/groups": [groups(CONTRACTORS), groups(CONTRACTORS, first), groups(CONTRACTORS, first, second)],
+        "POST /api/admin/groups": [
+          { status: 201, body: { group: first } },
+          { status: 201, body: { group: second } },
+        ],
+      }),
+    );
+    await userEv.type(screen.getByLabelText("Filter groups"), "contr");
+    for (const name of ["Reviewers", "Auditors"]) {
+      await userEv.click(screen.getByRole("button", { name: "New group" }));
+      await userEv.type(screen.getByLabelText("Name"), name);
+      await userEv.click(screen.getByRole("button", { name: "Create the group" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: `Members (0) of ${name}` })).toHaveFocus());
+    }
+    expect(row("Reviewers")).toBeInTheDocument();
+    expect(row("Auditors")).toBeInTheDocument();
+    // The count says what the filter matches, not the rows kept besides.
+    expect(screen.getByText("1 of 3 groups")).toBeInTheDocument();
   });
 
   it("creates a group and focuses its Members button", async () => {
