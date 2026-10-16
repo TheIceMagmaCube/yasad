@@ -68,7 +68,7 @@ export function Home({ user }: { user: User | null }) {
         <HomeSkeleton />
       ) : state.status === "error" ? (
         <div className="space-y-4">
-          <Alert key={state.attempt} tone="destructive">
+          <Alert key={state.attempt} variant="destructive">
             {m.loadError} {errorMessage(state.error, strings)}
           </Alert>
           <Button variant="outline" pending={retrying} onClick={retryAndRefocus}>

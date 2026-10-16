@@ -5,7 +5,6 @@ export const fr = {
   loading: "Chargement…",
   back: "Retour",
   skipToContent: "Aller au contenu",
-  pending: "Patientez…",
   errors: {
     generic: "Une erreur est survenue. Réessayez.",
     unreachable: "YASAD n'arrive pas à joindre son serveur. Réessayez dans un instant.",

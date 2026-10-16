@@ -4,21 +4,21 @@ import { type ComponentProps, type ReactNode, useEffect, useId, useRef } from "r
 
 import { cn } from "@/lib/utils";
 
-type AlertTone = "info" | "success" | "warning" | "destructive";
+type AlertVariant = "info" | "success" | "warning" | "destructive";
 
 const alertVariants = cva("flex gap-3 rounded-lg border p-4 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring", {
   variants: {
-    tone: {
+    variant: {
       info: "border-info bg-info-surface",
       success: "border-success bg-success-surface",
       warning: "border-warning bg-warning-surface",
       destructive: "border-destructive bg-destructive-surface",
     },
   },
-  defaultVariants: { tone: "info" },
+  defaultVariants: { variant: "info" },
 });
 
-const ICONS: Record<AlertTone, { icon: LucideIcon; className: string }> = {
+const ICONS: Record<AlertVariant, { icon: LucideIcon; className: string }> = {
   info: { icon: Info, className: "text-info" },
   success: { icon: CircleCheck, className: "text-success" },
   warning: { icon: TriangleAlert, className: "text-warning" },
@@ -26,8 +26,10 @@ const ICONS: Record<AlertTone, { icon: LucideIcon; className: string }> = {
 };
 
 type AlertProps = Omit<ComponentProps<"div">, "title" | "ref"> & {
-  tone?: AlertTone;
+  variant?: AlertVariant;
   title?: ReactNode;
+  /** Id of the title element, for a form whose fields point at it; generated when omitted. */
+  titleId?: string;
   /**
    * Focus the alert when it mounts (error summaries). Give it a new `key` to focus it again.
    * The focus announces it, so it becomes a labelled group instead of a live region, which would be read twice.
@@ -36,29 +38,29 @@ type AlertProps = Omit<ComponentProps<"div">, "title" | "ref"> & {
 };
 
 /**
- * Render a message box with a tone icon, an optional title and a body.
+ * Render a message box with a variant icon, an optional title and a body.
  *
  * The role defaults to status for info and success, alert for warning and destructive, and group with
  * `autoFocus`; pass `role` to change it.
  */
-function Alert({ tone = "info", title, autoFocus = false, role, className, children, ...props }: AlertProps) {
+function Alert({ variant = "info", title, titleId: givenTitleId, autoFocus = false, role, className, children, ...props }: AlertProps) {
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
-  const titleId = title ? `${id}-title` : undefined;
+  const titleId = title ? (givenTitleId ?? `${id}-title`) : undefined;
   const bodyId = children ? `${id}-body` : undefined;
   useEffect(() => {
     if (autoFocus) ref.current?.focus();
   }, [autoFocus]);
-  const { icon: Icon, className: iconClassName } = ICONS[tone];
+  const { icon: Icon, className: iconClassName } = ICONS[variant];
   return (
     <div
       ref={ref}
       data-slot="alert"
-      role={role ?? (autoFocus ? "group" : tone === "info" || tone === "success" ? "status" : "alert")}
+      role={role ?? (autoFocus ? "group" : variant === "info" || variant === "success" ? "status" : "alert")}
       aria-labelledby={autoFocus ? (titleId ?? bodyId) : undefined}
       aria-describedby={autoFocus && titleId ? bodyId : undefined}
       tabIndex={autoFocus ? -1 : undefined}
-      className={cn(alertVariants({ tone }), className)}
+      className={cn(alertVariants({ variant }), className)}
       {...props}
     >
       <Icon aria-hidden="true" className={cn("mt-0.5 size-4 shrink-0", iconClassName)} />
@@ -79,4 +81,4 @@ function Alert({ tone = "info", title, autoFocus = false, role, className, child
 }
 
 export { Alert, alertVariants };
-export type { AlertProps, AlertTone };
+export type { AlertProps, AlertVariant };
