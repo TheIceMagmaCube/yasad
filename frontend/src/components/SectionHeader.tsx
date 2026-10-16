@@ -17,7 +17,7 @@ export function SectionHeader({ title, description, actions, id, className }: Se
   return (
     <div className={cn("mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", className)}>
       <div className="min-w-0">
-        <h2 id={id} className="text-section">
+        <h2 id={id} className="text-section wrap-anywhere">
           {title}
         </h2>
         {description && <p className="mt-1 max-w-prose text-sm text-muted-foreground">{description}</p>}

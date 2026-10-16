@@ -14,6 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
+/** Header overrides shared by the account menu trigger and the sign-in link. */
+export const HEADER_BUTTON =
+  "text-header-foreground hover:bg-header-foreground/15 hover:text-header-foreground focus-visible:ring-header-foreground focus-visible:ring-offset-header";
+
 /** Return up to two initials of the name, for the compact trigger. */
 function initials(name: string): string {
   return name
@@ -39,7 +43,7 @@ export function UserMenu({ user, onSignOut }: { user: User; onSignOut: () => voi
         <Button
           variant="ghost"
           aria-label={m.userMenu.open(user.name)}
-          className="max-w-48 text-header-foreground hover:bg-header-foreground/15 hover:text-header-foreground focus-visible:ring-header-foreground focus-visible:ring-offset-header"
+          className={`max-w-48 ${HEADER_BUTTON}`}
         >
           <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full border border-current text-xs">
             {initials(user.name)}

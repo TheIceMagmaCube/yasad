@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, ApiError, onStaleSession, type SetupState, type User } from "./api";
+import { api, ApiError, type HomeData, onStaleSession, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
 import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
@@ -19,8 +19,17 @@ import { ThemeProvider } from "./theme/ThemeProvider";
 
 /** Path showing the password form even when password sign-in is off (local admins only). */
 const LOCAL_SIGN_IN = "/sign-in/local";
+/** Path of the sign-in screen when "/" shows the public links. */
+const SIGN_IN = "/sign-in";
 
-type View = { name: "loading" } | { name: "error" } | { name: "setup" } | { name: "signIn" } | { name: "home"; user: User };
+type View =
+  | { name: "loading" }
+  | { name: "error" }
+  | { name: "setup" }
+  | { name: "signIn" }
+  /** Nobody signed in, and some links are open to everyone: "/" shows them. */
+  | { name: "public"; home: HomeData }
+  | { name: "home"; user: User };
 
 /** Treat the setup state as closed when the API waits for a temporary password to be replaced. */
 function passwordChangePending(err: unknown): SetupState {
@@ -28,15 +37,32 @@ function passwordChangePending(err: unknown): SetupState {
   throw err;
 }
 
-/** Return the screen to show: setup while open and nobody is signed in, then home or sign-in. */
-async function loadView(): Promise<View> {
+/** Return the public home when some links are open to everyone, else null; a failure also gives null, so sign-in stays reachable. */
+async function loadPublicHome(): Promise<HomeData | null> {
   try {
-    const [setup, user] = await Promise.all([api.setupState().catch(passwordChangePending), api.session()]);
-    if (setup.open && !user) return { name: "setup" };
-    return user ? { name: "home", user } : { name: "signIn" };
+    const home = await api.home();
+    return home.categories.length > 0 ? home : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Return the screen to show: setup while open and nobody is signed in, then home for a signed-in person, else the
+ * public links or sign-in. The public links are asked for only once the session is known to be empty.
+ */
+async function loadView(): Promise<View> {
+  let setup: SetupState;
+  let user: User | null;
+  try {
+    [setup, user] = await Promise.all([api.setupState().catch(passwordChangePending), api.session()]);
   } catch {
     return { name: "error" };
   }
+  if (setup.open && !user) return { name: "setup" };
+  if (user) return { name: "home", user };
+  const home = await loadPublicHome();
+  return home ? { name: "public", home } : { name: "signIn" };
 }
 
 /** Return the instance settings, keeping the cached ones when the API does not answer. */
@@ -122,8 +148,8 @@ function Status({ role, text }: { role: "status" | "alert"; text: string }) {
 }
 
 /** Return the page of a signed-in user for a canonical path. */
-function SignedInPage({ user, path }: { user: User; path: string }) {
-  if (path === "/") return <Home user={user} />;
+function SignedInPage({ user, path, refresh }: { user: User; path: string; refresh: () => void }) {
+  if (path === "/") return <Home user={user} onSessionEnded={refresh} />;
   if (path === "/admin" || path.startsWith("/admin/")) {
     if (user.role !== "admin") return <Forbidden />;
     const tab = adminTab(path);
@@ -142,7 +168,7 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
   const rawPath = usePath();
   const path = canonicalPath(rawPath);
   const signedIn = view.name === "home";
-  const target = signedIn && path === LOCAL_SIGN_IN ? "/" : path;
+  const target = signedIn && (path === LOCAL_SIGN_IN || path === SIGN_IN) ? "/" : path;
 
   useEffect(() => {
     if (target !== rawPath) navigate(target + location.search + location.hash, { replace: true });
@@ -157,17 +183,21 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
       return <Status role="alert" text={m.errors.unreachable} />;
     case "setup":
       return <Setup onDone={refresh} onClosed={refresh} />;
+    case "public":
+      if (path === "/") {
+        return (
+          <AppShell user={null} path={path}>
+            <Home user={null} initial={view.home} />
+          </AppShell>
+        );
+      }
+      return <SignIn local={path === LOCAL_SIGN_IN} onSignedIn={refresh} />;
     case "signIn":
-      return (
-        <SignIn
-          local={path === LOCAL_SIGN_IN}
-          onSignedIn={refresh}
-        />
-      );
+      return <SignIn local={path === LOCAL_SIGN_IN} onSignedIn={refresh} />;
     case "home":
       return (
         <AppShell user={view.user} path={target} nav={!view.user.mustChangePassword} onSignOut={() => void api.signOut().finally(refresh)}>
-          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <SignedInPage user={view.user} path={target} />}
+          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <SignedInPage user={view.user} path={target} refresh={refresh} />}
         </AppShell>
       );
   }
