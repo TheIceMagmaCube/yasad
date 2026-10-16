@@ -125,7 +125,7 @@ describe("useAnnounceAfter", () => {
 
 function Counter() {
   const [n, setN] = useState(0);
-  useDebouncedStatus(n === 0 ? "" : `${n} results`);
+  useDebouncedStatus(String(n), `${n} results`);
   return (
     <button type="button" onClick={() => setN((x) => x + 1)}>
       Type
@@ -134,6 +134,64 @@ function Counter() {
 }
 
 describe("useDebouncedStatus", () => {
+  it("announces nothing on the first render", () => {
+    render(
+      <AnnouncerProvider>
+        <Counter />
+      </AnnouncerProvider>,
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    expect(region()).toHaveTextContent("");
+  });
+
+  it("stays silent when only the text changes, the query unchanged", () => {
+    function Reloaded() {
+      const [n, setN] = useState(3);
+      useDebouncedStatus("ken", `${n} people match`);
+      return (
+        <button type="button" onClick={() => setN((x) => x - 1)}>
+          Add
+        </button>
+      );
+    }
+    render(
+      <AnnouncerProvider>
+        <Reloaded />
+      </AnnouncerProvider>,
+    );
+    act(() => screen.getByRole("button").click());
+    act(() => vi.advanceTimersByTime(1000));
+    expect(region()).toHaveTextContent("");
+  });
+
+  it("stays silent when an action changes the text before the delay ends", () => {
+    function Typed() {
+      const [query, setQuery] = useState("");
+      const [n, setN] = useState(1);
+      useDebouncedStatus(query, `${n} people match`);
+      return (
+        <>
+          <button type="button" onClick={() => setQuery("ken")}>
+            Type
+          </button>
+          <button type="button" onClick={() => setN(0)}>
+            Add
+          </button>
+        </>
+      );
+    }
+    render(
+      <AnnouncerProvider>
+        <Typed />
+      </AnnouncerProvider>,
+    );
+    act(() => screen.getByRole("button", { name: "Type" }).click());
+    act(() => vi.advanceTimersByTime(300));
+    act(() => screen.getByRole("button", { name: "Add" }).click());
+    act(() => vi.advanceTimersByTime(1000));
+    expect(region()).toHaveTextContent("");
+  });
+
   it("announces only the count that stays for 500 ms", () => {
     render(
       <AnnouncerProvider>
@@ -152,7 +210,7 @@ describe("useDebouncedStatus", () => {
   it("reads the same count again in a new node, and is emptied by a navigation", () => {
     function Same() {
       const [n, setN] = useState(0);
-      useDebouncedStatus(n % 2 === 0 ? "" : "3 results");
+      useDebouncedStatus(String(n), "3 results");
       return (
         <button type="button" onClick={() => setN((x) => x + 1)}>
           Type

@@ -67,6 +67,16 @@ describe("focusById", () => {
     expect(screen.getByRole("button", { name: "Edit" })).toHaveFocus();
   });
 
+  it("focuses the first element still there among several", async () => {
+    render(
+      <Page>
+        <button id="member-carol-remove">Remove Carol</button>
+      </Page>,
+    );
+    await act(() => focusById(["member-dan-remove", "member-carol-remove", "picker"]));
+    expect(screen.getByRole("button", { name: "Remove Carol" })).toHaveFocus();
+  });
+
   it("falls back to the list filter, then to the heading, never to the body", async () => {
     const { rerender } = render(
       <Page>

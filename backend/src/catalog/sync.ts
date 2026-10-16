@@ -18,6 +18,13 @@ export type CatalogDiff = {
   removed: { categories: string[]; links: string[] };
   groupsCreated: string[];
   warnings: CatalogWarning[];
+  /**
+   * Title of every category and link listed above or named by a warning, with the link's category, and of the
+   * category holding each such link even when that category is unchanged. Added, updated and warned items and
+   * the categories holding them take the title from the file; removed items and the categories holding them,
+   * from the stored catalog, except a category the file renames, which keeps its new title.
+   */
+  labels: { categories: Record<string, string>; links: Record<string, { title: string; categoryId: string }> };
 };
 
 const REVISION_KEY = "catalog.revision";
@@ -121,16 +128,19 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 /** Return what applying `next` over `current` adds, changes and removes, with warnings for the admin. */
 export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Promise<CatalogDiff> {
   const [cur, nxt] = [normalize(current), normalize(next)];
+  const categories = { before: categoriesOf(cur), after: categoriesOf(nxt) };
+  const links = { before: linksOf(cur), after: linksOf(nxt) };
   const diff: CatalogDiff = {
     added: { categories: [], links: [] },
     updated: { categories: [], links: [] },
     removed: { categories: [], links: [] },
     groupsCreated: [],
     warnings: [],
+    labels: { categories: {}, links: {} },
   };
-  for (const [kind, before, after] of [
-    ["categories", categoriesOf(cur), categoriesOf(nxt)],
-    ["links", linksOf(cur), linksOf(nxt)],
+  for (const [kind, { before, after }] of [
+    ["categories", categories],
+    ["links", links],
   ] as const) {
     for (const [id, item] of after) {
       const old = (before as Map<string, unknown>).get(id);
@@ -139,6 +149,17 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
     }
     for (const id of before.keys()) if (!after.has(id)) diff.removed[kind].push(id);
   }
+  const labelled = <T>(kind: "categories" | "links", items: { before: Map<string, T>; after: Map<string, T> }) => [
+    ...[...diff.added[kind], ...diff.updated[kind]].map((id) => ({ id, item: items.after.get(id)!, side: "after" as const })),
+    ...diff.removed[kind].map((id) => ({ id, item: items.before.get(id)!, side: "before" as const })),
+  ];
+  const changedLinks = labelled("links", links);
+  // Holding categories come first, so a category listed in the diff keeps its own title.
+  const holders = changedLinks.map(({ item, side }) => categories[side].get(item.categoryId!)!);
+  diff.labels = {
+    categories: Object.fromEntries([...holders, ...labelled("categories", categories).map(({ item }) => item)].map((cat) => [cat.id, cat.title])),
+    links: Object.fromEntries(changedLinks.map(({ id, item }) => [id, { title: item.title, categoryId: item.categoryId! }])),
+  };
 
   const refs = new Set(nxt.categories.flatMap((cat) => [...cat.groups, ...cat.links.flatMap((lnk) => lnk.groups)]));
   const existing = new Set((await db.select({ source: group.source, name: group.name }).from(group)).map(groupRef));
@@ -159,6 +180,16 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
   }
   for (const variants of byLowerCase.values()) {
     if (variants.size > 1) diff.warnings.push({ code: "groups_differ_by_case", groups: [...variants].sort() });
+  }
+  // Own keys only: an id such as "constructor" must not find the one Object.prototype holds.
+  const { categories: catLabels, links: linkLabels } = diff.labels;
+  for (const warning of diff.warnings) {
+    if (warning.code === "groups_differ_by_case") continue;
+    const categoryId = warning.kind === "category" ? warning.id : links.after.get(warning.id)!.categoryId!;
+    if (warning.kind === "link" && !Object.hasOwn(linkLabels, warning.id)) {
+      linkLabels[warning.id] = { title: links.after.get(warning.id)!.title, categoryId };
+    }
+    if (!Object.hasOwn(catLabels, categoryId)) catLabels[categoryId] = categories.after.get(categoryId)!.title;
   }
   return diff;
 }

@@ -25,6 +25,7 @@ function signedIn(user: object): Routes {
     "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
     "GET /api/admin/users": { status: 200, body: { users: [] } },
     "GET /api/admin/groups": { status: 200, body: { groups: [] } },
+    "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } },
   };
 }
 
@@ -325,7 +326,7 @@ describe("App", () => {
       await waitFor(() => expect(document.title).toBe("My links - YASAD"));
 
       await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" }));
-      const heading = await screen.findByRole("heading", { name: "Administration, Users", level: 1 });
+      const heading = await screen.findByRole("heading", { name: "Users", level: 1 });
       expect(location.pathname).toBe("/admin/users");
       expect(heading).toHaveFocus();
       await waitFor(() => expect(document.title).toBe("Users - Administration - YASAD"));
@@ -337,7 +338,7 @@ describe("App", () => {
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
       expect(location.pathname).toBe("/admin/groups");
       await waitFor(() => expect(document.title).toBe("Groups - Administration - YASAD"));
-      expect(screen.getByRole("heading", { name: "Administration, Groups", level: 1 })).toHaveFocus();
+      expect(screen.getByRole("heading", { name: "Groups", level: 1 })).toHaveFocus();
 
       act(() => {
         history.back();
@@ -439,7 +440,7 @@ describe("App", () => {
       const user = userEvent.setup();
       mockApi(signedIn(ADA));
       renderAt("/admin/users");
-      await screen.findByRole("heading", { name: "Administration, Users" });
+      await screen.findByRole("heading", { name: "Users" });
       const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
       mockApi({
         "GET /api/setup": { status: 200, body: { open: false } },
@@ -447,6 +448,7 @@ describe("App", () => {
       ...NO_PUBLIC_LINKS,
         "GET /api/admin/users": unauthenticated,
         "GET /api/admin/groups": unauthenticated,
+        "GET /api/admin/catalog/state": unauthenticated,
       });
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
@@ -456,7 +458,7 @@ describe("App", () => {
       const user = userEvent.setup();
       mockApi(signedIn(ADA));
       renderAt("/admin/users");
-      await screen.findByRole("heading", { name: "Administration, Users" });
+      await screen.findByRole("heading", { name: "Users" });
       const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
       mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden });
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
@@ -702,7 +704,7 @@ describe("App, views and focus", () => {
     const user = userEvent.setup();
     mockApi(signedIn({ ...ADA, id: "ada" }));
     renderAt("/admin/users");
-    await screen.findByRole("heading", { name: "Administration, Users" });
+    await screen.findByRole("heading", { name: "Users" });
     const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
     mockApi({
       ...signedOut,
@@ -712,6 +714,7 @@ describe("App, views and focus", () => {
       ],
       "GET /api/admin/users": [unauthenticated, { status: 200, body: { users: [] } }],
       "GET /api/admin/groups": [unauthenticated, { status: 200, body: { groups: [] } }],
+      "GET /api/admin/catalog/state": [unauthenticated, { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } }],
       "POST /api/auth/sign-in/email": { status: 200, body: {} },
     });
     await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
@@ -722,7 +725,7 @@ describe("App, views and focus", () => {
     await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
     await user.type(screen.getByLabelText("Password"), "a long enough password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Administration, Groups" })).toHaveFocus();
+    expect(await screen.findByRole("heading", { level: 1, name: "Groups" })).toHaveFocus();
     expect(location.pathname).toBe("/admin/groups");
     expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
   });
@@ -819,13 +822,13 @@ describe("App, views and focus", () => {
     const user = userEvent.setup();
     mockApi(signedIn(ADA));
     renderAt("/admin/users");
-    await screen.findByRole("heading", { name: "Administration, Users" });
+    await screen.findByRole("heading", { name: "Users" });
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise<Response>(() => {})),
     );
     await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
-    expect(screen.getByRole("heading", { level: 1, name: "Administration, Groups" })).toHaveFocus();
+    expect(screen.getByRole("heading", { level: 1, name: "Groups" })).toHaveFocus();
   });
 });
 
@@ -851,7 +854,7 @@ describe("App, temporary password and account", () => {
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
     await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
     await user.click(screen.getByRole("button", { name: "Save password" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Administration, Users" })).toHaveFocus();
+    expect(await screen.findByRole("heading", { level: 1, name: "Users" })).toHaveFocus();
     expect(location.pathname).toBe("/admin/users");
     expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
     await waitFor(() => expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Password saved."));

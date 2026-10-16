@@ -1,246 +1,432 @@
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { Building2, KeyRound, UserPlus } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { type AdminUser, api, ApiError, type Role, type User, type UserChanges } from "../../api";
+import { type AdminUser, api, type Role, type User, type UserChanges } from "../../api";
+import { ConfirmPanel } from "../../components/admin/ConfirmPanel";
+import { DataList, DataRow, ListSkeleton, TombstoneRow } from "../../components/admin/DataList";
+import { SecretPanel } from "../../components/admin/SecretPanel";
+import { Toolbar } from "../../components/admin/Toolbar";
+import { EmptyState } from "../../components/EmptyState";
+import { ErrorSummary } from "../../components/form/ErrorSummary";
 import { Field } from "../../components/form/Field";
-import { NativeSelect } from "../../components/ui/native-select";
+import { FormActions, FormStack } from "../../components/form/FormLayout";
+import { InlineForm } from "../../components/form/InlineForm";
+import { SubmitButton } from "../../components/form/PendingButton";
+import { SelectField } from "../../components/form/SelectField";
+import { LoadError } from "../../components/LoadError";
+import { Page } from "../../components/Page";
+import { Alert } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Label } from "../../components/ui/label";
-import { fieldErrorMessage } from "../../i18n/errors";
+import { CheckboxField } from "../../components/ui/checkbox";
 import { useLocale, useStrings } from "../../i18n/LocaleProvider";
-import { adminErrorText, ConfirmAction, NoticeBox, TemporaryPassword, useNotice } from "./shared";
+import { useAdminCollection } from "../../lib/admin-collection";
+import { focusIfLost, focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
+import { useAnnounce } from "../../lib/announcer";
+import { prepareFilter } from "../../lib/filter";
+import { focusById } from "../../lib/focus";
+import { useFormErrors } from "../../lib/form-errors";
+import { AdminPageHeader } from "./AdminLayout";
+import { adminErrorText, isNotFound } from "./shared";
 
-type Secret = { name: string; password: string };
+const NEW = "new";
+const FILTER_ID = "users-filter";
+
+/** Return the id of the button that opens a panel: `new`, or `<kind>:<user id>` with kind edit, reset or delete. */
+function userTrigger(key: string): string {
+  if (key === NEW) return "users-new";
+  const at = key.indexOf(":");
+  return `user-${key.slice(at + 1)}-${key.slice(0, at)}`;
+}
+
+/** Return whether the focus is in the row of a row panel key (`<kind>:<id>`), or lost. */
+const focusInRow = (key: string) => rowHasFocus(`user-${key.slice(key.indexOf(":") + 1)}-title`) || focusIsLost();
+
+/**
+ * A temporary password shown in its row until noted; `then` is the button that gets the focus once noted, `focus`
+ * whether the panel takes the focus (not when the person had moved on before the request ended).
+ */
+type Secret = { userId: string; password: string; then: "edit" | "reset"; focus: boolean };
 
 /** Admin page: list the accounts, create local ones, change, disable, reset or delete them. */
 export function AdminUsers({ me }: { me: User }) {
   const m = useStrings();
   const s = m.users;
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [notice, say] = useNotice();
-  const [secret, setSecret] = useState<Secret | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [resetting, setResetting] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const announce = useAnnounce();
+  const collection = useAdminCollection(api.users);
+  const feedback = useListFeedback();
+  const panel = useRowPanel(userTrigger, feedback.pin);
+  const [query, setQuery] = useState("");
+  // One per person: a second reset or account never hides a password not noted yet.
+  const [secrets, setSecrets] = useState<Record<string, Secret>>({});
 
-  const load = () =>
-    api.users().then(setUsers, (err: unknown) => {
-      setUsers([]);
-      say(adminErrorText(err, m), "error");
+  const users = collection.data;
+  const filter = useMemo(() => prepareFilter(users ?? [], (u) => [u.name, u.email]), [users]);
+  const matched = useMemo(() => new Set(filter(query).map((u) => u.id)), [filter, query]);
+  // A row in the middle of something stays whatever the filter: its open panel, an error, a pin, or a temporary
+  // password not noted yet.
+  const shown = (users ?? []).filter((u) => matched.has(u.id) || feedback.kept.has(u.id) || Object.hasOwn(secrets, u.id) || panel.holds(u.id));
+  // Read when a request ends, to put a tombstone where its row was.
+  const shownRef = useRef(shown);
+  useEffect(() => {
+    shownRef.current = shown;
+  });
+
+  const changeQuery = (next: string) => {
+    setQuery(next);
+    feedback.clearForFilter();
+  };
+
+  /** Open a panel of a row, or the new user form, clearing what the previous action left. */
+  const toggle = (key: string) => {
+    feedback.clear();
+    panel.toggle(key);
+  };
+
+  /**
+   * After a success: close the panel that ran it and focus its trigger; if the person moved on (`stillOpen` false),
+   * only say it.
+   */
+  const succeed = (stillOpen: () => boolean, key: string, text: string) => {
+    const open = stillOpen();
+    // The focus comes back to the trigger only from the row, not from the filter the person went on typing in.
+    const here = open && focusInRow(key);
+    if (open) panel.close();
+    feedback.say(text, here ? focusById(userTrigger(key)) : undefined);
+    if (!here) focusIfLost(userTrigger(key));
+    void collection.refresh();
+  };
+
+  const putSecret = (secret: Secret) => setSecrets((prev) => ({ ...prev, [secret.userId]: secret }));
+  const dropSecret = (userId: string) =>
+    setSecrets((prev) => {
+      const next = { ...prev };
+      delete next[userId];
+      return next;
     });
 
-  useEffect(() => {
-    void load();
-    // Loaded once; every action reloads the list itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /**
+   * Replace the row of a user the server no longer has by a message, then reload. The message takes the focus when
+   * the focus is in the row (its panel, or its buttons after Cancel) or lost; elsewhere it is only announced.
+   */
+  const gone = (user: AdminUser, stillOpen: () => boolean, text = m.admin.errors.not_found, variant: "success" | "destructive" = "destructive") => {
+    // Any panel of the row goes with it, opened again or not.
+    if (stillOpen() || panel.holds(user.id)) panel.close();
+    if (feedback.isBuried(user.id)) {
+      // Already replaced and read: say nothing twice.
+    } else if (rowHasFocus(`user-${user.id}-title`) || focusIsLost()) {
+      feedback.bury({ id: user.id, text, variant, index: Math.max(0, shownRef.current.findIndex((u) => u.id === user.id)) });
+    } else announce(text);
+    dropSecret(user.id);
+    collection.setData((list) => list.filter((u) => u.id !== user.id));
+    void collection.refresh();
+  };
 
-  /** Run an admin action, then reload the list; a failure is announced, and a vanished item reloads too. */
-  async function act(action: () => Promise<void>) {
-    setBusy(true);
+  /** Report the failure of a row action: in its panel when still open (rethrown), else in the row. */
+  const failed = (user: AdminUser, stillOpen: () => boolean, err: unknown) => {
+    if (isNotFound(err)) return gone(user, stillOpen);
+    if (stillOpen()) throw err;
+    feedback.rowError(user.id, adminErrorText(err, m));
+  };
+
+  async function save(user: AdminUser, changes: UserChanges) {
+    const key = `edit:${user.id}`;
+    if (Object.keys(changes).length === 0) return panel.cancel();
+    const stillOpen = panel.claim(key);
     try {
-      await action();
+      const { user: updated } = await api.updateUser(user.id, changes);
+      collection.setData((list) => list.map((u) => (u.id === updated.id ? updated : u)));
+      feedback.pin(updated.id);
+      succeed(stillOpen, key, s.edited(updated.name));
     } catch (err) {
-      say(adminErrorText(err, m), "error");
-    } finally {
-      setBusy(false);
-      await load();
+      failed(user, stillOpen, err);
     }
   }
 
+  async function create(input: { name: string; email: string; role: Role }) {
+    const stillOpen = panel.claim(NEW);
+    let created: Awaited<ReturnType<typeof api.createUser>>;
+    try {
+      created = await api.createUser(input);
+    } catch (err) {
+      if (stillOpen()) throw err;
+      // The form is gone: say it under the toolbar, where it was; the alert is read as it appears.
+      feedback.rowError(NEW, adminErrorText(err, m));
+      return;
+    }
+    const { user, temporaryPassword } = created;
+    const open = stillOpen();
+    const here = open && focusIsWithin("users-new-panel");
+    if (open) panel.close();
+    // Its temporary password keeps the new row shown, whatever the filter.
+    collection.setData((list) => [...list.filter((u) => u.id !== user.id), user]);
+    putSecret({ userId: user.id, password: temporaryPassword, then: "edit", focus: here });
+    feedback.note(s.created(user.name));
+    if (!here) {
+      announce(s.created(user.name));
+      focusIfLost(`user-${user.id}-edit`);
+    }
+    void collection.refresh();
+  }
+
+  async function reset(user: AdminUser) {
+    const stillOpen = panel.claim(`reset:${user.id}`);
+    try {
+      const { temporaryPassword } = await api.resetPassword(user.id);
+      const open = stillOpen();
+      const here = open && focusInRow(`reset:${user.id}`);
+      if (open) panel.close();
+      putSecret({ userId: user.id, password: temporaryPassword, then: "reset", focus: here });
+      if (!here) {
+        announce(m.admin.temporaryPassword(user.name));
+        focusIfLost(`user-${user.id}-reset`);
+      }
+      void collection.refresh();
+    } catch (err) {
+      failed(user, stillOpen, err);
+    }
+  }
+
+  async function remove(user: AdminUser) {
+    const stillOpen = panel.claim(`delete:${user.id}`);
+    try {
+      await api.deleteUser(user.id);
+    } catch (err) {
+      return failed(user, stillOpen, err);
+    }
+    gone(user, stillOpen, s.deleted(user.name), "success");
+  }
+
+  const noted = (done: Secret) => {
+    dropSecret(done.userId);
+    // Kept shown until the filter changes, so its button can take the focus.
+    feedback.pin(done.userId);
+    void focusById(`user-${done.userId}-${done.then}`);
+  };
+
+  const total = users?.length ?? 0;
+  // Matches only: a row kept for another reason is not a result of the filter.
+  const count = !users ? "" : query.trim() ? s.countFiltered(users.filter((u) => matched.has(u.id)).length, total) : s.count(total);
+  const entries = withTombstones(shown, feedback.tombstones);
+
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">{s.title}</h2>
-        {!adding && (
-          <Button type="button" onClick={() => setAdding(true)}>
-            {s.add}
-          </Button>
+    <Page width="list">
+      <div onKeyDown={panel.onKeyDown}>
+        <AdminPageHeader tab="users" description={s.description} />
+        {collection.status === "error" ? (
+          <LoadError attempt={collection.attempt} message={s.loadError} pending={collection.retrying} onRetry={collection.retry} />
+        ) : (
+          <>
+            <Toolbar
+              filterId={FILTER_ID}
+              filterLabel={s.filter}
+              query={query}
+              onQueryChange={changeQuery}
+              count={count}
+              status={feedback.status}
+              action={
+                <Button id="users-new" aria-expanded={panel.isOpen(NEW)} aria-controls={panel.isOpen(NEW) ? "users-new-panel" : undefined} onClick={() => toggle(NEW)}>
+                  <UserPlus aria-hidden="true" />
+                  {s.add}
+                </Button>
+              }
+            />
+            {panel.isOpen(NEW) && (
+              <div id="users-new-panel" className="mb-4 rounded-xl border bg-muted/40 p-4">
+                <UserForm mode="new" onSubmit={create} onCancel={panel.cancel} />
+              </div>
+            )}
+            {feedback.rowErrors[NEW] && (
+              <Alert variant="destructive" className="mb-4">
+                {feedback.rowErrors[NEW]}
+              </Alert>
+            )}
+            {collection.refreshFailures > 0 && (
+              <Alert key={collection.refreshFailures} variant="warning" className="mb-4">
+                {m.admin.refreshFailed}
+              </Alert>
+            )}
+            {collection.status === "loading" ? (
+              <ListSkeleton />
+            ) : entries.length === 0 ? (
+              <EmptyState
+                title={m.admin.noMatch(query.trim())}
+                actions={
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      changeQuery("");
+                      void focusById(FILTER_ID);
+                    }}
+                  >
+                    {m.admin.clearFilter}
+                  </Button>
+                }
+              />
+            ) : (
+              <DataList label={s.title}>
+                {entries.map((entry) =>
+                  entry.kind === "tombstone" ? (
+                    <TombstoneRow key={`tombstone-${entry.tombstone.id}`} tombstone={entry.tombstone} />
+                  ) : (
+                    <UserRow
+                      key={entry.item.id}
+                      user={entry.item}
+                      self={entry.item.id === me.id}
+                      panel={panel}
+                      error={feedback.rowErrors[entry.item.id]}
+                      secret={Object.hasOwn(secrets, entry.item.id) ? secrets[entry.item.id]! : null}
+                      onToggle={toggle}
+                      onSave={save}
+                      onReset={reset}
+                      onDelete={remove}
+                      onNoted={noted}
+                    />
+                  ),
+                )}
+              </DataList>
+            )}
+          </>
         )}
       </div>
-
-      <NoticeBox notice={notice} />
-      {secret && <TemporaryPassword name={secret.name} password={secret.password} onDone={() => setSecret(null)} />}
-      {adding && (
-        <NewUser
-          onCancel={() => setAdding(false)}
-          onCreated={(user, password) => {
-            setAdding(false);
-            setSecret({ name: user.name, password });
-            void load();
-          }}
-        />
-      )}
-
-      {users === null ? (
-        <p role="status" className="mt-6">
-          {m.loading}
-        </p>
-      ) : (
-        <ul className="mt-6 space-y-3">
-          {users.map((user) => (
-            <li key={user.id} className="rounded-md border border-border p-4">
-              <UserSummary user={user} self={user.id === me.id} />
-              {editing === user.id ? (
-                <EditUser
-                  user={user}
-                  self={user.id === me.id}
-                  busy={busy}
-                  onCancel={() => setEditing(null)}
-                  onSave={(changes) =>
-                    void act(async () => {
-                      await api.updateUser(user.id, changes);
-                      setEditing(null);
-                      say(s.edited(changes.name ?? user.name));
-                    })
-                  }
-                />
-              ) : deleting === user.id ? (
-                <ConfirmAction
-                  question={s.deleteQuestion(user.name)}
-                  confirmLabel={m.admin.confirmDelete}
-                  busy={busy}
-                  onCancel={() => setDeleting(null)}
-                  onConfirm={() =>
-                    void act(async () => {
-                      setDeleting(null);
-                      await api.deleteUser(user.id);
-                      say(s.deleted(user.name));
-                    })
-                  }
-                >
-                  {user.origin === "oidc" && <p className="mt-2">{s.deleteOidcNotice}</p>}
-                </ConfirmAction>
-              ) : resetting === user.id ? (
-                <ConfirmAction
-                  question={s.resetQuestion(user.name)}
-                  confirmLabel={s.resetPassword}
-                  busy={busy}
-                  onCancel={() => setResetting(null)}
-                  onConfirm={() =>
-                    void act(async () => {
-                      setResetting(null);
-                      const { temporaryPassword } = await api.resetPassword(user.id);
-                      setSecret({ name: user.name, password: temporaryPassword });
-                    })
-                  }
-                />
-              ) : (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setEditing(user.id)} aria-label={`${m.admin.edit} ${user.name}`}>
-                    {m.admin.edit}
-                  </Button>
-                  {user.origin === "local" && user.id !== me.id && (
-                    <Button type="button" size="sm" variant="outline" onClick={() => setResetting(user.id)} aria-label={`${s.resetPassword}: ${user.name}`}>
-                      {s.resetPassword}
-                    </Button>
-                  )}
-                  {user.id !== me.id && (
-                    <Button type="button" size="sm" variant="outline" onClick={() => setDeleting(user.id)} aria-label={`${m.admin.delete} ${user.name}`}>
-                      {m.admin.delete}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    </Page>
   );
 }
 
-function UserSummary({ user, self }: { user: AdminUser; self: boolean }) {
+type UserRowProps = {
+  user: AdminUser;
+  self: boolean;
+  panel: RowPanel;
+  error?: string;
+  secret: Secret | null;
+  onToggle: (key: string) => void;
+  onSave: (user: AdminUser, changes: UserChanges) => Promise<void>;
+  onReset: (user: AdminUser) => Promise<void>;
+  onDelete: (user: AdminUser) => Promise<void>;
+  onNoted: (secret: Secret) => void;
+};
+
+function UserRow({ user, self, panel, error, secret, onToggle, onSave, onReset, onDelete, onNoted }: UserRowProps) {
   const m = useStrings();
   const s = m.users;
+  const b = s.badges;
   const { language } = useLocale();
-  const source = s.roleSource[user.roleSource];
+  const id = `user-${user.id}`;
+  const editing = panel.isOpen(`edit:${user.id}`);
+  const resetting = panel.isOpen(`reset:${user.id}`);
+  const deleting = panel.isOpen(`delete:${user.id}`);
+  const open = editing || resetting || deleting;
+  const errorText = (err: unknown) => adminErrorText(err, m);
+
   return (
-    <div>
-      <h3 className="font-semibold break-words">
-        {user.name}
-        {self && <span className="font-normal text-muted-foreground"> ({s.you})</span>}
-        {user.disabled && <span className="ml-2 rounded-sm border border-destructive px-1.5 text-xs text-destructive">{s.disabled}</span>}
-      </h3>
-      <p className="text-sm break-all text-muted-foreground">{user.email}</p>
-      <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-        <dt className="font-semibold">{m.users.roleOverride}</dt>
-        <dd>
-          {s.role[user.role]}
-          {source && <span className="text-muted-foreground"> ({source})</span>}
-          {" · "}
-          {s.origin[user.origin]}
-        </dd>
-        <dt className="font-semibold">{s.groups}</dt>
-        <dd>{user.groups.length > 0 ? user.groups.map((g) => g.name).join(", ") : s.noGroups}</dd>
-        <dt className="font-semibold">{s.lastSignIn}</dt>
-        <dd>
-          {user.lastSignInAt
-            ? new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(user.lastSignInAt))
-            : s.never}
-        </dd>
-      </dl>
-    </div>
+    <DataRow
+      titleId={`${id}-title`}
+      title={user.name}
+      badges={
+        <>
+          {self && <Badge variant="neutral">{b.you}</Badge>}
+          {user.role === "admin" && <Badge variant="info">{b.admin}</Badge>}
+          <Badge variant="outline">
+            {user.origin === "local" ? <KeyRound aria-hidden="true" /> : <Building2 aria-hidden="true" />}
+            {b.origin[user.origin]}
+          </Badge>
+          {user.roleSource === "override" && <Badge variant="outline">{b.forced}</Badge>}
+          {user.mustChangePassword && <Badge variant="warning">{b.temporary}</Badge>}
+          {user.disabled && <Badge variant="destructive">{b.disabled}</Badge>}
+        </>
+      }
+      meta={
+        <>
+          <p className="wrap-anywhere">{user.email}</p>
+          <p>
+            {user.lastSignInAt ? (
+              <>
+                {s.lastSignIn}{" "}
+                <time dateTime={user.lastSignInAt}>
+                  {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(user.lastSignInAt))}
+                </time>
+              </>
+            ) : (
+              s.never
+            )}
+          </p>
+          <p className="wrap-anywhere">
+            {s.groups} {user.groups.length > 0 ? user.groups.map((g) => (g.source === "oidc" ? `${g.name} ${s.fromProvider}` : g.name)).join(", ") : s.noGroups}
+          </p>
+        </>
+      }
+      actions={
+        <>
+          <Button
+            id={`${id}-edit`}
+            size="sm"
+            variant="outline"
+            aria-label={s.editLabel(user.name)}
+            aria-expanded={editing}
+            aria-controls={editing ? `${id}-panel` : undefined}
+            onClick={() => onToggle(`edit:${user.id}`)}
+          >
+            {s.edit}
+          </Button>
+          {user.origin === "local" && !self && (
+            <Button id={`${id}-reset`} size="sm" variant="outline" aria-label={s.resetLabel(user.name)} onClick={() => onToggle(`reset:${user.id}`)}>
+              {s.resetPassword}
+            </Button>
+          )}
+          {!self && (
+            <Button id={`${id}-delete`} size="sm" variant="destructive-ghost" aria-label={s.deleteLabel(user.name)} onClick={() => onToggle(`delete:${user.id}`)}>
+              {m.admin.delete}
+            </Button>
+          )}
+        </>
+      }
+      error={error}
+      panel={
+        (secret || open) && (
+          <div id={`${id}-panel`} className="flex flex-col gap-4">
+            {secret && <SecretPanel key={`${user.id}:${secret.password}`} name={user.name} password={secret.password} autoFocus={secret.focus} onDone={() => onNoted(secret)} />}
+            {editing && <UserForm mode="edit" user={user} self={self} onSubmit={(changes) => onSave(user, changes)} onCancel={panel.cancel} />}
+            {resetting && (
+              <ConfirmPanel
+                variant="default"
+                question={s.resetQuestion(user.name)}
+                confirmLabel={s.reset}
+                pendingLabel={s.resetting}
+                onConfirm={() => onReset(user)}
+                onCancel={panel.cancel}
+                errorText={errorText}
+              >
+                <p>{s.resetDetails}</p>
+              </ConfirmPanel>
+            )}
+            {deleting && (
+              <ConfirmPanel
+                question={s.deleteQuestion(user.name)}
+                confirmLabel={m.admin.confirmDelete}
+                pendingLabel={m.admin.deleting}
+                onConfirm={() => onDelete(user)}
+                onCancel={panel.cancel}
+                errorText={errorText}
+              >
+                <p>{s.deleteDetails}</p>
+                {user.origin === "oidc" && <p>{s.deleteOidcNotice}</p>}
+              </ConfirmPanel>
+            )}
+          </div>
+        )
+      }
+    />
   );
 }
 
-function NewUser({ onCancel, onCreated }: { onCancel: () => void; onCreated: (user: AdminUser, password: string) => void }) {
-  const m = useStrings();
-  const s = m.users;
-  const id = useId();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [admin, setAdmin] = useState(false);
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+type UserField = "name" | "email" | "role" | "roleOverride" | "disabled";
+const USER_FIELDS = ["name", "email", "role", "roleOverride", "disabled"] as const;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const { user, temporaryPassword } = await api.createUser({ name, email, role: admin ? "admin" : "user" });
-      onCreated(user, temporaryPassword);
-    } catch (err) {
-      if (err instanceof ApiError && err.body.fields) {
-        setFields(Object.fromEntries(Object.entries(err.body.fields).map(([k, code]) => [k, fieldErrorMessage(code, m)])));
-        setError(m.forms.checkFields);
-      } else setError(adminErrorText(err, m));
-    } finally {
-      setBusy(false);
-    }
-  }
+type UserFormProps =
+  | { mode: "new"; onSubmit: (input: { name: string; email: string; role: Role }) => Promise<void>; onCancel: () => void }
+  | { mode: "edit"; user: AdminUser; self: boolean; onSubmit: (changes: UserChanges) => Promise<void>; onCancel: () => void };
 
-  return (
-    <form onSubmit={submit} noValidate aria-labelledby={`${id}-title`} className="mt-4 max-w-md rounded-md border border-border p-4">
-      <h3 id={`${id}-title`} className="font-semibold">
-        {s.add}
-      </h3>
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <Field className="mt-4" id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} />
-      <Field className="mt-4" id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} error={fields.email} />
-      <div className="mt-4 flex items-center gap-2">
-        <input id={`${id}-admin`} type="checkbox" checked={admin} onChange={(e) => setAdmin(e.target.checked)} className="size-4 accent-primary" />
-        <Label htmlFor={`${id}-admin`}>{s.makeAdmin}</Label>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Button type="submit" disabled={busy}>
-          {s.create}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          {m.admin.cancel}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-/** Return the changes the form makes to the user, leaving out what stays the same. */
+/** Return the changes the form makes to the user as it was when the form opened, leaving out what stays the same. */
 function changesOf(user: AdminUser, form: { name: string; email: string; role: Role; override: Role | ""; disabled: boolean }): UserChanges {
   const changes: UserChanges = {};
   if (form.name.trim() !== user.name) changes.name = form.name;
@@ -251,60 +437,89 @@ function changesOf(user: AdminUser, form: { name: string; email: string; role: R
   return changes;
 }
 
-function EditUser({ user, self, busy, onCancel, onSave }: { user: AdminUser; self: boolean; busy: boolean; onCancel: () => void; onSave: (changes: UserChanges) => void }) {
+/** Form creating a local account, or changing one in its row; it opens on its first field. */
+function UserForm(props: UserFormProps) {
   const m = useStrings();
   const s = m.users;
-  const id = useId();
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [role, setRole] = useState<Role>(user.role);
-  const [override, setOverride] = useState<Role | "">(user.roleOverride ?? "");
-  const [disabled, setDisabled] = useState(user.disabled);
+  // As it was on opening: a save of another opening may change the row meanwhile, and untouched fields must not
+  // send its old values back.
+  const [edited] = useState(props.mode === "edit" ? props.user : null);
+  const formId = edited ? `user-${edited.id}-form` : "users-new-form";
+  const errors = useFormErrors<UserField>(USER_FIELDS, formId);
+  const [name, setName] = useState(edited?.name ?? "");
+  const [email, setEmail] = useState(edited?.email ?? "");
+  const [role, setRole] = useState<Role>(edited?.role ?? "user");
+  const [override, setOverride] = useState<Role | "">(edited?.roleOverride ?? "");
+  const [disabled, setDisabled] = useState(edited?.disabled ?? false);
+  const [pending, setPending] = useState(false);
+  const local = !edited || edited.origin === "local";
+  const self = props.mode === "edit" && props.self;
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const ok = errors.check({
+      name: name.trim() === "" && m.fieldErrors.required,
+      email: local && email.trim() === "" && m.fieldErrors.required,
+    });
+    if (!ok) return;
+    setPending(true);
+    try {
+      if (props.mode === "new") await props.onSubmit({ name, email, role });
+      else await props.onSubmit(changesOf(edited!, { name, email, role, override, disabled }));
+    } catch (err) {
+      errors.failWith(err, {
+        codes: {
+          last_local_admin: { message: m.admin.errors.last_local_admin },
+          cannot_change_self: { message: m.admin.errors.cannot_change_self },
+        },
+        fallback: adminErrorText,
+      });
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(changesOf(user, { name, email, role, override, disabled }));
-      }}
-      noValidate
-      aria-label={`${m.admin.edit} ${user.name}`}
-      className="mt-3 max-w-md"
-    >
-      <Field className="mt-4" id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
-      {user.origin === "local" && (
-        <Field className="mt-4" id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
-      )}
-      {!self && user.origin === "local" && (
-        <div className="mt-4 flex items-center gap-2">
-          <input id={`${id}-admin`} type="checkbox" checked={role === "admin"} onChange={(e) => setRole(e.target.checked ? "admin" : "user")} className="size-4 accent-primary" />
-          <Label htmlFor={`${id}-admin`}>{s.makeAdmin}</Label>
-        </div>
-      )}
-      {!self && user.origin === "oidc" && (
-        <div className="mt-4">
-          <Label htmlFor={`${id}-override`}>{s.roleOverride}</Label>
-          <NativeSelect id={`${id}-override`} className="mt-1.5" value={override} onChange={(e) => setOverride(e.target.value === "admin" || e.target.value === "user" ? e.target.value : "")}>
+    <InlineForm id={formId} aria-label={edited ? s.editLabel(edited.name) : s.newTitle} onSubmit={submit} onCancel={props.onCancel} className="max-w-md">
+      <FormStack>
+        <ErrorSummary errors={errors} labels={{ name: s.name, email: s.email }} />
+        <Field {...errors.field("name")} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+        {local ? (
+          <Field {...errors.field("email")} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
+        ) : (
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-semibold">{s.emailFromProvider}</p>
+            <p className="text-sm wrap-anywhere">{edited?.email}</p>
+          </div>
+        )}
+        {self && <p className="text-sm text-muted-foreground">{s.selfNote}</p>}
+        {!self && local && (
+          <CheckboxField id={errors.fieldId("role")} label={s.makeAdmin} checked={role === "admin"} onChange={(e) => setRole(e.target.checked ? "admin" : "user")} />
+        )}
+        {!self && !local && (
+          <SelectField
+            {...errors.field("roleOverride")}
+            label={s.roleOverride}
+            value={override}
+            onChange={(e) => setOverride(e.target.value === "admin" || e.target.value === "user" ? e.target.value : "")}
+          >
             <option value="">{s.roleOverrideOptions.provider}</option>
             <option value="admin">{s.roleOverrideOptions.admin}</option>
             <option value="user">{s.roleOverrideOptions.user}</option>
-          </NativeSelect>
-        </div>
-      )}
-      {!self && (
-        <div className="mt-4 flex items-center gap-2">
-          <input id={`${id}-disabled`} type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} className="size-4 accent-primary" />
-          <Label htmlFor={`${id}-disabled`}>{s.disabled}</Label>
-        </div>
-      )}
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Button type="submit" disabled={busy}>
-          {m.admin.save}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          {m.admin.cancel}
-        </Button>
-      </div>
-    </form>
+          </SelectField>
+        )}
+        {!self && edited && (
+          <CheckboxField id={errors.fieldId("disabled")} label={s.disabled} hint={s.disabledHint} checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
+        )}
+        <FormActions>
+          <SubmitButton pending={pending} pendingLabel={edited ? m.admin.saving : s.creating}>
+            {edited ? m.admin.save : s.create}
+          </SubmitButton>
+          <Button type="button" variant="outline" onClick={props.onCancel}>
+            {m.admin.cancel}
+          </Button>
+        </FormActions>
+      </FormStack>
+    </InlineForm>
   );
 }

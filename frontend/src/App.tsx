@@ -11,7 +11,7 @@ import { AnnouncerProvider } from "./lib/announcer";
 import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
 import { navigate, normalizePath, useNavigations, usePath } from "./lib/router";
 import { Account } from "./pages/Account";
-import { AdminCatalog } from "./pages/AdminCatalog";
+import { AdminCatalog } from "./pages/admin/AdminCatalog";
 import { AdminGroups } from "./pages/admin/AdminGroups";
 import { adminTab, AdminLayout } from "./pages/admin/AdminLayout";
 import { AdminUsers } from "./pages/admin/AdminUsers";
