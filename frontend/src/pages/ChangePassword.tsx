@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import { Field, SubmitButton } from "../components/Field";
 import { errorMessage, fieldErrorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
+import { useDocumentTitle } from "../lib/page";
 
 type Fields = { current?: string; new?: string; confirm?: string };
 
@@ -11,6 +12,7 @@ type Fields = { current?: string; new?: string; confirm?: string };
 export function ChangePassword({ onChanged }: { onChanged: () => void }) {
   const m = useStrings();
   const s = m.changePassword;
+  useDocumentTitle(s.title);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -48,7 +50,9 @@ export function ChangePassword({ onChanged }: { onChanged: () => void }) {
 
   return (
     <div className="max-w-sm">
-      <h1 className="text-2xl font-bold">{s.title}</h1>
+      <h1 tabIndex={-1} className="text-2xl font-bold outline-none">
+        {s.title}
+      </h1>
       <p className="mt-2 text-sm text-muted-foreground">{s.intro}</p>
       {error && (
         <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-destructive p-3 text-sm text-destructive outline-none">

@@ -1,7 +1,7 @@
 // Runs before the stylesheet so the first paint uses the right theme, mode and language.
 // A file rather than an inline script: the Content-Security-Policy forbids inline scripts.
 (function () {
-  var THEMES = ["default", "dusk"];
+  var THEMES = ["default", "dusk", "night"];
   var LANGUAGES = ["en", "fr"];
   function read(key) {
     try {

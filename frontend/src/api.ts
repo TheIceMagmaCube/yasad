@@ -52,10 +52,24 @@ export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
 export type AdminInput = { name: string; email: string; password: string; passwordConfirm: string };
 
+/** Error codes saying the session the app holds is out of date: signed out, temporary password set, or no longer an admin. */
+const STALE_SESSION_CODES = new Set(["unauthenticated", "password_change_required", "forbidden"]);
+
+let staleSessionListener: ((code: string) => void) | null = null;
+
+/** Call `listener` whenever an API answer says the session has changed on the server; return the unsubscribe function. */
+export function onStaleSession(listener: (code: string) => void): () => void {
+  staleSessionListener = listener;
+  return () => {
+    if (staleSessionListener === listener) staleSessionListener = null;
+  };
+}
+
 /**
  * Call the API and return the parsed body.
  *
  * Throws ApiError on an error status. YASAD routes answer `{ error: {...} }`; Better Auth answers `{ code, message }`.
+ * An error code from STALE_SESSION_CODES is also reported to the onStaleSession listener.
  */
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -65,7 +79,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: ApiErrorBody; code?: string; message?: string } | null;
-    throw new ApiError(res.status, data?.error ?? { code: data?.code ?? "unknown", message: data?.message ?? "" });
+    const err = new ApiError(res.status, data?.error ?? { code: data?.code ?? "unknown", message: data?.message ?? "" });
+    if (STALE_SESSION_CODES.has(err.body.code)) staleSessionListener?.(err.body.code);
+    throw err;
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
