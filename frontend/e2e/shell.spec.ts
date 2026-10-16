@@ -2,26 +2,12 @@ import { readFileSync } from "node:fs";
 
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 
-import { SETUP_CODE } from "../playwright.config";
 import { ICONS_BASE } from "../src/icons-base";
-import { addTemporaryUser, ADMIN, expectAccessible, MODES, setInstanceTheme, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
-/** Open the page with the given system colour scheme and width, after setting the instance theme. */
-async function open(page: Page, path: string, theme: string, mode: string, width: number): Promise<void> {
-  setInstanceTheme(theme);
-  await page.emulateMedia({ colorScheme: mode as "light" | "dark" });
-  await page.setViewportSize({ width, height: 800 });
-  await page.goto(path);
-  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-  await expect(page.locator("html")).toHaveAttribute("data-mode", mode);
-}
-
-async function signIn(page: Page): Promise<void> {
-  const res = await page.request.post("/api/auth/sign-in/email", { data: { email: ADMIN.email, password: ADMIN.password } });
-  expect(res.ok()).toBe(true);
-}
+const signIn = signInAsAdmin;
 
 /** Import a catalog file through the admin API: preview, then apply with the preview's base version. */
 async function importCatalog(request: APIRequestContext, path: string): Promise<void> {
@@ -71,37 +57,6 @@ async function expectSearchAccessible(page: Page, query: string, width: number, 
 for (const theme of THEMES) {
   for (const mode of MODES) {
     for (const width of WIDTHS) {
-      test(`setup screen is accessible (${theme}, ${mode}, ${width}px)`, async ({ page }) => {
-        const csp = watchCsp(page);
-        await open(page, "/", theme, mode, width);
-        await expect(page.getByRole("heading", { name: "Set up YASAD" })).toBeVisible();
-        await expectAccessible(page, "setup, code step");
-        await page.getByLabel("Setup code").fill(SETUP_CODE);
-        await page.getByRole("button", { name: "Continue" }).click();
-        await expect(page.getByLabel("Confirm password")).toBeVisible();
-        await expectAccessible(page, "setup, admin step");
-        expect(csp).toEqual([]);
-      });
-    }
-  }
-}
-
-test("setup creates the administrator", async ({ page }) => {
-  setInstanceTheme("default");
-  await page.goto("/");
-  await page.getByLabel("Setup code").fill(SETUP_CODE);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("Name").fill(ADMIN.name);
-  await page.getByLabel("E-mail").fill(ADMIN.email);
-  await page.getByLabel("Password", { exact: true }).fill(ADMIN.password);
-  await page.getByLabel("Confirm password").fill(ADMIN.password);
-  await page.getByRole("button", { name: "Create administrator" }).click();
-  await expect(page.getByRole("heading", { name: "YASAD is ready" })).toBeVisible();
-});
-
-for (const theme of THEMES) {
-  for (const mode of MODES) {
-    for (const width of WIDTHS) {
       test(`sign-in and home are accessible (${theme}, ${mode}, ${width}px)`, async ({ page }) => {
         const csp = watchCsp(page);
         await open(page, "/", theme, mode, width);
@@ -138,7 +93,7 @@ test("the catalog page previews and imports a file, accessibly", async ({ page }
     }
   }
   await page.getByRole("button", { name: "Import" }).click();
-  await expect(page.getByRole("status")).toHaveText("Catalog imported.");
+  await expect(page.getByRole("main").getByRole("status")).toHaveText("Catalog imported.");
 });
 
 test("the home fixture imports through the admin API", async ({ page }) => {
@@ -391,17 +346,29 @@ test("the users and groups pages create an account and a group, accessibly", asy
   expect(csp).toEqual([]);
 });
 
-test("the temporary password screen is accessible", async ({ page }) => {
+test("the temporary password screen is accessible, with field errors too", async ({ page }) => {
+  test.setTimeout(180_000);
   await addTemporaryUser();
   const res = await page.request.post("/api/auth/sign-in/email", { data: TEMPORARY });
   expect(res.ok()).toBe(true);
   for (const theme of THEMES) {
     for (const mode of MODES) {
-      const csp = watchCsp(page);
-      await open(page, "/", theme, mode, 320);
-      await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
-      await expectAccessible(page, `change password (${theme}, ${mode})`);
-      expect(csp).toEqual([]);
+      for (const width of WIDTHS) {
+        const label = `change password (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/", theme, mode, width);
+        await expect(page.getByRole("heading", { name: "Choose your password" })).toBeVisible();
+        await expectAccessible(page, label);
+        // Errors under every field, with a password shown, without sending anything.
+        await page.getByLabel("New password", { exact: true }).fill("short");
+        await page.getByRole("button", { name: "Show password" }).nth(1).click();
+        await page.getByRole("button", { name: "Save password" }).click();
+        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+        await expect(page.getByLabel("New password", { exact: true })).toHaveAttribute("aria-invalid", "true");
+        await expectAccessible(page, `${label}, field errors`);
+        await expectNoHorizontalScroll(page, `${label}, field errors`);
+        expect(csp).toEqual([]);
+      }
     }
   }
 });

@@ -11,8 +11,8 @@ describe("Alert", () => {
     ["success", "status", "bg-success-surface", "border-success"],
     ["warning", "alert", "bg-warning-surface", "border-warning"],
     ["destructive", "alert", "bg-destructive-surface", "border-destructive"],
-  ] as const)("gives the %s tone the %s role and its tokens", (tone, role, surface, border) => {
-    render(<Alert tone={tone}>Body</Alert>);
+  ] as const)("gives the %s variant the %s role and its tokens", (variant, role, surface, border) => {
+    render(<Alert variant={variant}>Body</Alert>);
     const alert = screen.getByRole(role);
     expect(alert).toHaveTextContent("Body");
     expect(alert).toHaveClass(surface, border);
@@ -21,7 +21,7 @@ describe("Alert", () => {
 
   it("lets the role be overridden", () => {
     render(
-      <Alert tone="warning" role="note">
+      <Alert variant="warning" role="note">
         Body
       </Alert>,
     );
@@ -31,7 +31,7 @@ describe("Alert", () => {
 
   it("shows the title before the body", () => {
     render(
-      <Alert tone="success" title="Saved">
+      <Alert variant="success" title="Saved">
         The link is updated.
       </Alert>,
     );
@@ -39,14 +39,14 @@ describe("Alert", () => {
   });
 
   it("is not focusable without autoFocus", () => {
-    render(<Alert tone="destructive">Error</Alert>);
+    render(<Alert variant="destructive">Error</Alert>);
     expect(screen.getByRole("alert")).not.toHaveAttribute("tabindex");
     expect(screen.getByRole("alert")).not.toHaveFocus();
   });
 
   it("takes focus on mount with autoFocus, as a labelled group rather than a live region", () => {
     render(
-      <Alert tone="destructive" title="Check the highlighted fields." autoFocus>
+      <Alert variant="destructive" title="Check the highlighted fields." autoFocus>
         Two fields need attention.
       </Alert>,
     );
@@ -58,10 +58,20 @@ describe("Alert", () => {
 
   it("names a focused alert without a title after its body", () => {
     render(
-      <Alert tone="warning" autoFocus>
+      <Alert variant="warning" autoFocus>
         The server did not answer.
       </Alert>,
     );
     expect(screen.getByRole("group", { name: "The server did not answer." })).toHaveFocus();
+  });
+
+  it("uses the given title id, so fields can point at the title", () => {
+    render(
+      <Alert variant="destructive" title="Check the highlighted fields." titleId="form-summary-title" autoFocus>
+        Body
+      </Alert>,
+    );
+    expect(document.getElementById("form-summary-title")).toHaveTextContent("Check the highlighted fields.");
+    expect(screen.getByRole("group", { name: "Check the highlighted fields." })).toHaveAttribute("aria-labelledby", "form-summary-title");
   });
 });

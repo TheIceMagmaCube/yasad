@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { primeHome, useHomeEntry } from "../lib/home-store";
-import { mockApi, renderWithProviders, sentBody } from "../test-utils";
+import { findStatus, mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { AdminCatalog } from "./AdminCatalog";
 
 afterEach(() => {
@@ -43,7 +43,7 @@ describe("AdminCatalog", () => {
     expect(sentBody(fetchMock, 0)).toEqual({ yaml: YAML, dryRun: true });
 
     await user.click(screen.getByRole("button", { name: "Import" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Catalog imported.");
+    expect(await findStatus()).toHaveTextContent("Catalog imported.");
     expect(sentBody(fetchMock, 1)).toEqual({ yaml: YAML, dryRun: false, baseVersion: "v1" });
     // The home and the search load the new catalog next time.
     expect(cached.result.current).toBeNull();

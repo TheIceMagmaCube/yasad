@@ -1,12 +1,13 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { type AdminUser, api, ApiError, type Role, type User, type UserChanges } from "../../api";
-import { Field } from "../../components/Field";
+import { Field } from "../../components/form/Field";
+import { NativeSelect } from "../../components/ui/native-select";
 import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { fieldErrorMessage } from "../../i18n/errors";
 import { useLocale, useStrings } from "../../i18n/LocaleProvider";
-import { adminErrorText, ConfirmAction, NoticeBox, selectClass, TemporaryPassword, useNotice } from "./shared";
+import { adminErrorText, ConfirmAction, NoticeBox, TemporaryPassword, useNotice } from "./shared";
 
 type Secret = { name: string; password: string };
 
@@ -204,7 +205,7 @@ function NewUser({ onCancel, onCreated }: { onCancel: () => void; onCreated: (us
     } catch (err) {
       if (err instanceof ApiError && err.body.fields) {
         setFields(Object.fromEntries(Object.entries(err.body.fields).map(([k, code]) => [k, fieldErrorMessage(code, m)])));
-        setError(m.setup.checkFields);
+        setError(m.forms.checkFields);
       } else setError(adminErrorText(err, m));
     } finally {
       setBusy(false);
@@ -221,8 +222,8 @@ function NewUser({ onCancel, onCreated }: { onCancel: () => void; onCreated: (us
           {error}
         </p>
       )}
-      <Field id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} />
-      <Field id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} error={fields.email} />
+      <Field className="mt-4" id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} />
+      <Field className="mt-4" id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} error={fields.email} />
       <div className="mt-4 flex items-center gap-2">
         <input id={`${id}-admin`} type="checkbox" checked={admin} onChange={(e) => setAdmin(e.target.checked)} className="size-4 accent-primary" />
         <Label htmlFor={`${id}-admin`}>{s.makeAdmin}</Label>
@@ -270,9 +271,9 @@ function EditUser({ user, self, busy, onCancel, onSave }: { user: AdminUser; sel
       aria-label={`${m.admin.edit} ${user.name}`}
       className="mt-3 max-w-md"
     >
-      <Field id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+      <Field className="mt-4" id={`${id}-name`} label={s.name} required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
       {user.origin === "local" && (
-        <Field id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Field className="mt-4" id={`${id}-email`} label={s.email} type="email" required autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
       )}
       {!self && user.origin === "local" && (
         <div className="mt-4 flex items-center gap-2">
@@ -283,11 +284,11 @@ function EditUser({ user, self, busy, onCancel, onSave }: { user: AdminUser; sel
       {!self && user.origin === "oidc" && (
         <div className="mt-4">
           <Label htmlFor={`${id}-override`}>{s.roleOverride}</Label>
-          <select id={`${id}-override`} className={selectClass} value={override} onChange={(e) => setOverride(e.target.value === "admin" || e.target.value === "user" ? e.target.value : "")}>
+          <NativeSelect id={`${id}-override`} className="mt-1.5" value={override} onChange={(e) => setOverride(e.target.value === "admin" || e.target.value === "user" ? e.target.value : "")}>
             <option value="">{s.roleOverrideOptions.provider}</option>
             <option value="admin">{s.roleOverrideOptions.admin}</option>
             <option value="user">{s.roleOverrideOptions.user}</option>
-          </select>
+          </NativeSelect>
         </div>
       )}
       {!self && (

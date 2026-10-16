@@ -174,15 +174,19 @@ describe("App", () => {
     history.replaceState(null, "", "/sign-in/local");
     mockApi(routes);
     render(<App />);
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.getByText(/reserved to administrators/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Administrator sign-in" })).toBeInTheDocument();
+    expect(screen.getByText("Reserved to administrators.")).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("Administrator sign-in - YASAD"));
     history.replaceState(null, "", "/");
   });
 
-  it("says so when the server cannot be reached", async () => {
+  it("says so when the server cannot be reached, in the sign-in layout", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("cannot reach its server");
+    expect(await screen.findByRole("heading", { level: 1, name: "Server unreachable" })).toBeInTheDocument();
+    expect(screen.getByText(/cannot reach its server/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("Server unreachable - YASAD"));
   });
 
   describe("anonymous visitor", () => {
@@ -434,7 +438,7 @@ describe("App", () => {
       const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
       mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden });
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
-      expect(await screen.findByRole("heading", { name: "Admins only" })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Admins only" })).toHaveFocus();
       expect(within(screen.getByRole("navigation", { name: "Main" })).queryByRole("link", { name: "Admin" })).toBeNull();
     });
 
@@ -454,7 +458,7 @@ describe("App", () => {
         "POST /api/auth/sign-in/email": { status: 200, body: {} },
       });
       renderAt("/sign-in/local");
-      await screen.findByRole("heading", { name: "Sign in" });
+      await screen.findByRole("heading", { name: "Administrator sign-in" });
       const seen: string[] = [];
       const observer = new MutationObserver(() => {
         const heading = document.querySelector("h1")?.textContent;
@@ -584,5 +588,221 @@ describe("App", () => {
       await user.type(search()!, "vault");
       expect(await screen.findByText("No link matches vault")).toBeInTheDocument();
     });
+  });
+});
+
+describe("App, views and focus", () => {
+  const signedOut: Routes = {
+    "GET /api/setup": { status: 200, body: { open: false } },
+    "GET /api/auth/get-session": { status: 200, body: null },
+    ...NO_PUBLIC_LINKS,
+  };
+
+  it("shows the minimal shell while loading, titled and announced only after 300 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => new Promise<Response>(() => {})),
+      );
+      render(<App />);
+      const shell = document.querySelector('[data-slot="loading-shell"]');
+      expect(shell).toHaveClass("appear-delayed");
+      expect(screen.getByRole("link", { name: "YASAD" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+      expect(screen.queryByRole("contentinfo")).toBeNull();
+      expect(screen.queryByRole("combobox", { name: "Search links" })).toBeNull();
+      act(() => vi.advanceTimersByTime(299));
+      expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("");
+      act(() => vi.advanceTimersByTime(1));
+      expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Loading…");
+      expect(document.title).toBe("Loading… - YASAD");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the focus on Try again when the server is still down, then reloads the instance and focuses the heading", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    render(<App />);
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    await user.click(retry);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The server still does not respond.");
+    expect(retry).toHaveFocus();
+    const firstAlert = screen.getByRole("alert");
+    await user.click(retry);
+    await waitFor(() => expect(screen.getByRole("alert")).not.toBe(firstAlert));
+    expect(retry).toHaveFocus();
+
+    const fetchMock = mockApi({
+      ...signedOut,
+      "GET /api/instance": { status: 200, body: { title: "Home lab", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true } },
+    });
+    await user.click(retry);
+    const heading = await screen.findByRole("heading", { level: 1, name: "Sign in" });
+    expect(heading).toHaveFocus();
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/instance")).toBe(true);
+    await waitFor(() => expect(document.title).toBe("Sign in - Home lab"));
+  });
+
+  it("focuses the page heading after signing in, then after signing out", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      ...signedOut,
+      "GET /api/auth/get-session": [
+        { status: 200, body: null },
+        { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [
+        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+        { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+      ],
+      "POST /api/auth/sign-in/email": { status: 200, body: {} },
+      "POST /api/auth/sign-out": { status: 200, body: {} },
+    });
+    renderAt("/");
+    await screen.findByRole("heading", { name: "Sign in" });
+    expect(document.activeElement).toBe(document.body);
+    await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
+    await user.type(screen.getByLabelText("Password"), "a long enough password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "My links" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Sign out" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toHaveFocus();
+  });
+
+  it("says the session ended on the sign-in screen, then brings the person back to the same page", async () => {
+    const user = userEvent.setup();
+    mockApi(signedIn({ ...ADA, id: "ada" }));
+    renderAt("/admin/users");
+    await screen.findByRole("heading", { name: "Administration, Users" });
+    const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
+    mockApi({
+      ...signedOut,
+      "GET /api/auth/get-session": [
+        { status: 200, body: null },
+        { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } },
+      ],
+      "GET /api/admin/users": [unauthenticated, { status: 200, body: { users: [] } }],
+      "GET /api/admin/groups": [unauthenticated, { status: 200, body: { groups: [] } }],
+      "POST /api/auth/sign-in/email": { status: 200, body: {} },
+    });
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    const notice = await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." });
+    expect(notice).toHaveFocus();
+    expect(location.pathname).toBe("/admin/groups");
+
+    await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
+    await user.type(screen.getByLabelText("Password"), "a long enough password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Administration, Groups" })).toHaveFocus();
+    expect(location.pathname).toBe("/admin/groups");
+    expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
+  });
+
+  it("says the session ended over the public links, with a sign-in link, until the next navigation", async () => {
+    const user = userEvent.setup();
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    mockApi({
+      ...signedIn({ ...BOB, id: "bob" }),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+    });
+    renderAt("/");
+    const notice = await screen.findByRole("note");
+    expect(notice).toHaveTextContent("Your session has ended. Sign in again to continue.");
+    expect(screen.getByRole("heading", { level: 1, name: "Links" })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Your session has ended."));
+    expect(within(notice).getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/sign-in");
+
+    await user.click(within(notice).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Links" })).toHaveFocus();
+  });
+
+  it("stops saying the session ended once the notice is gone", async () => {
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    mockApi({
+      ...signedIn({ ...BOB, id: "bob" }),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+    });
+    renderAt("/");
+    await screen.findByRole("note");
+    act(() => navigate("/elsewhere"));
+    act(() => navigate("/sign-in"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
+  });
+
+  it("clears the shell notice on the next navigation", async () => {
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    mockApi({
+      ...signedIn({ ...BOB, id: "bob" }),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+    });
+    renderAt("/");
+    await screen.findByRole("note");
+    act(() => navigate("/sign-in"));
+    act(() => navigate("/"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Links" })).toBeInTheDocument();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("sends /sign-in/local to /sign-in when password sign-in is on", async () => {
+    mockApi(signedOut);
+    renderAt("/sign-in/local");
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toBeInTheDocument();
+    await waitFor(() => expect(location.pathname).toBe("/sign-in"));
+  });
+
+  it("focuses the heading of the guided home after setup", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/setup": [{ status: 200, body: { open: true } }, { status: 200, body: { open: false } }],
+      "GET /api/auth/get-session": [{ status: 200, body: null }, { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } }],
+      "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
+      "POST /api/setup/verify-code": { status: 204 },
+      "POST /api/setup": { status: 201, body: { user: ADA } },
+    });
+    renderAt("/");
+    await user.type(await screen.findByLabelText("Setup code"), "a-setup-code-that-is-long-enough");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.type(screen.getByLabelText("Name"), ADA.name);
+    await user.type(screen.getByLabelText("E-mail"), ADA.email);
+    await user.type(screen.getByLabelText("Password"), "correct horse battery");
+    await user.type(screen.getByLabelText("Confirm password"), "correct horse battery");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "YASAD is ready" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Go to YASAD" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "My links" })).toHaveFocus();
+  });
+
+  it("focuses the heading when an admin tab is opened while the list is still loading", async () => {
+    const user = userEvent.setup();
+    mockApi(signedIn(ADA));
+    renderAt("/admin/users");
+    await screen.findByRole("heading", { name: "Administration, Users" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Administration, Groups" })).toHaveFocus();
   });
 });

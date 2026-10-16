@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData, HomeLink } from "@/api";
 import { primeHome } from "@/lib/home-store";
-import { mockApi, renderWithProviders } from "@/test-utils";
+import { getStatus, mockApi, renderWithProviders } from "@/test-utils";
 
 import { SearchBox } from "./SearchBox";
 
@@ -402,7 +402,7 @@ describe("SearchBox, status region", () => {
   it("announces the count 300 ms after typing, and empties when the query does", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { input } = setup();
-    const status = screen.getByRole("status");
+    const status = getStatus();
     expect(status).toBeEmptyDOMElement();
     act(() => input.focus());
     typeIn(input, "mail");
@@ -429,7 +429,7 @@ describe("SearchBox, status region", () => {
     act(() => input.focus());
     typeIn(input, "tool");
     wait(300);
-    expect(screen.getByRole("status")).toHaveTextContent("Showing 8 of 12. Type more to narrow down.");
+    expect(getStatus()).toHaveTextContent("Showing 8 of 12. Type more to narrow down.");
     expect(options()).toHaveLength(8);
     // The status region and the visible footer under the list.
     expect(screen.getAllByText("Showing 8 of 12. Type more to narrow down.")).toHaveLength(2);

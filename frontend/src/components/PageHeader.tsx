@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { ShellNotice } from "./ShellNotice";
+
 type PageHeaderProps = {
   title: ReactNode;
   description?: ReactNode;
@@ -12,10 +14,14 @@ type PageHeaderProps = {
   className?: string;
 };
 
-/** Render the page heading: an h1 the router can focus (tabIndex -1), with optional eyebrow, description and actions. */
+/**
+ * Render the page heading: an h1 the router can focus (tabIndex -1), with optional eyebrow, description and
+ * actions, followed by the app shell notice when there is one.
+ */
 export function PageHeader({ title, description, eyebrow, actions, className }: PageHeaderProps) {
   return (
-    <header className={cn("mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", className)}>
+    <>
+      <header className={cn("mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", className)}>
       <div className="min-w-0">
         {eyebrow && <p className="text-caption mb-1 text-muted-foreground">{eyebrow}</p>}
         <h1 tabIndex={-1} className="text-title outline-none">
@@ -24,6 +30,8 @@ export function PageHeader({ title, description, eyebrow, actions, className }: 
         {description && <p className="mt-2 max-w-prose text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
-    </header>
+      </header>
+      <ShellNotice />
+    </>
   );
 }

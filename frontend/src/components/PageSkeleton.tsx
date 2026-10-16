@@ -1,9 +1,14 @@
-import { LINK_GRID } from "./CategorySection";
+import { cn } from "@/lib/utils";
 
-/** Render the decorative placeholder shown while the links load: a heading bar and three cards. */
-export function HomeSkeleton() {
+import { LINK_GRID } from "./home/CategorySection";
+
+/**
+ * Render the decorative placeholder shown while a page loads: a heading bar and three cards. It appears only
+ * after 300 ms, so a quick load shows nothing.
+ */
+export function PageSkeleton({ className }: { className?: string }) {
   return (
-    <div aria-hidden="true" data-slot="home-skeleton" className="motion-safe:animate-pulse">
+    <div aria-hidden="true" data-slot="page-skeleton" className={cn("appear-delayed motion-safe:animate-pulse", className)}>
       <div className="mb-4 h-7 w-40 rounded-md bg-muted" />
       <div className={LINK_GRID}>
         {[0, 1, 2].map((i) => (

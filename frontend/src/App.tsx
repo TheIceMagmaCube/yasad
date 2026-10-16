@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError, onStaleSession, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
-import { LocaleProvider, useStrings } from "./i18n/LocaleProvider";
-import { cachedInstance, cacheInstance, type Instance, InstanceContext } from "./instance";
+import { LoadingShell } from "./components/LoadingShell";
+import { type Notice, ShellNoticeProvider } from "./components/ShellNotice";
+import { LocaleProvider } from "./i18n/LocaleProvider";
+import { cachedInstance, cacheInstance, type Instance, InstanceContext, useInstance } from "./instance";
 import { invalidateHome, onViewerChanged, primeHome } from "./lib/home-store";
-import { useDocumentTitle, useFocusOnNavigation } from "./lib/page";
-import { navigate, normalizePath, usePath } from "./lib/router";
+import { AnnouncerProvider } from "./lib/announcer";
+import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
+import { navigate, normalizePath, useNavigations, usePath } from "./lib/router";
 import { AdminCatalog } from "./pages/AdminCatalog";
 import { AdminGroups } from "./pages/admin/AdminGroups";
 import { adminTab, AdminLayout } from "./pages/admin/AdminLayout";
@@ -16,6 +19,7 @@ import { Forbidden, NotFound } from "./pages/ErrorViews";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
 import { SignIn } from "./pages/SignIn";
+import { Unreachable } from "./pages/Unreachable";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 /** Path showing the password form even when password sign-in is off (local admins only). */
@@ -80,27 +84,55 @@ async function loadInstance(fallback: Instance): Promise<Instance> {
   }
 }
 
+/** A notice for the app shell, kept until the next navigation (`navigations` is the count when it was set). */
+type ShellNoticeState = Notice & { navigations: number };
+
 export function App() {
   const [instance, setInstance] = useState(cachedInstance);
   const [view, setView] = useState<View>({ name: "loading" });
+  /**
+   * The navigation count when the session of this browser ended on the server: the sign-in screen says so until
+   * the next navigation, or until the shell notice saying the same is closed.
+   */
+  const [expiredAt, setExpiredAt] = useState<number | null>(null);
+  const [notice, setNotice] = useState<ShellNoticeState | null>(null);
 
   const viewRef = useRef(view);
   const pending = useRef(0);
+  const navigations = useNavigations();
+  const navigationsRef = useRef(navigations);
   useEffect(() => {
     viewRef.current = view;
-  }, [view]);
+    navigationsRef.current = navigations;
+  }, [view, navigations]);
 
   // Every session change goes through here (expired session, sign-in, sign-out, password changed, setup done):
-  // the cached home data of the previous viewer is dropped before anything else is shown.
-  const refresh = useCallback(() => {
+  // the cached home data of the previous viewer is dropped before anything else is shown. Leaving the
+  // unreachable screen reloads the instance settings too. With `sessionEnded`, a signed-out view says the session
+  // ended. Resolve to the new view.
+  const refresh = useCallback(async ({ sessionEnded = false }: { sessionEnded?: boolean } = {}): Promise<View> => {
     invalidateHome();
     pending.current += 1;
-    void loadView()
-      .then(setView)
-      .finally(() => {
-        pending.current -= 1;
-      });
+    try {
+      const leavingError = viewRef.current.name === "error";
+      const [next, nextInstance] = await Promise.all([loadView(), leavingError ? loadInstance(cachedInstance()) : null]);
+      if (nextInstance) setInstance(nextInstance);
+      if (next.name === "home") {
+        setExpiredAt(null);
+        setNotice((current) => (current?.kind === "sessionExpired" ? null : current));
+      } else if (sessionEnded) {
+        setExpiredAt(navigationsRef.current);
+        if (next.name === "public") setNotice({ kind: "sessionExpired", navigations: navigationsRef.current });
+      }
+      setView(next);
+      return next;
+    } finally {
+      pending.current -= 1;
+    }
   }, []);
+
+  /** Say that the session ended, then reload it: on the sign-in screen, or as a notice over the public links. */
+  const sessionEnded = useCallback(() => void refresh({ sessionEnded: true }), [refresh]);
 
   // Client-side navigation keeps the session loaded at start: reload it when the API says it changed
   // (signed out, password reset by an admin, admin rights removed), so the right screen replaces the stale one.
@@ -110,9 +142,10 @@ export function App() {
         const current = viewRef.current;
         if (current.name !== "home" || pending.current > 0) return;
         if (code === "password_change_required" && current.user.mustChangePassword) return;
-        refresh();
+        if (code === "unauthenticated") sessionEnded();
+        else void refresh();
       }),
-    [refresh],
+    [refresh, sessionEnded],
   );
 
   // The home store got an answer for another viewer (signed in or out in another tab, session expired): it
@@ -120,9 +153,11 @@ export function App() {
   useEffect(
     () =>
       onViewerChanged(() => {
-        if (pending.current === 0) refresh();
+        if (pending.current > 0) return;
+        if (viewRef.current.name === "home") sessionEnded();
+        else void refresh();
       }),
-    [refresh],
+    [refresh, sessionEnded],
   );
 
   useEffect(() => {
@@ -137,11 +172,21 @@ export function App() {
     };
   }, []);
 
+  const shownNotice = notice && notice.navigations === navigations ? notice : null;
+  const expired = expiredAt === navigations;
+  const dismissNotice = () => {
+    setNotice(null);
+    setExpiredAt(null);
+  };
   return (
     <InstanceContext value={instance}>
       <LocaleProvider defaultLanguage={instance.defaultLanguage}>
         <ThemeProvider instanceTheme={instance.theme}>
-          <Screen view={view} refresh={refresh} />
+          <AnnouncerProvider>
+            <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: dismissNotice }}>
+              <Screen view={view} refresh={refresh} expired={expired} />
+            </ShellNoticeProvider>
+          </AnnouncerProvider>
         </ThemeProvider>
       </LocaleProvider>
     </InstanceContext>
@@ -152,16 +197,6 @@ export function App() {
 function canonicalPath(path: string): string {
   const normalized = normalizePath(path);
   return normalized === "/admin" ? "/admin/users" : normalized;
-}
-
-/** Say "loading" or "unreachable" under the instance title. */
-function Status({ role, text }: { role: "status" | "alert"; text: string }) {
-  useDocumentTitle();
-  return (
-    <p role={role} className="p-8">
-      {text}
-    </p>
-  );
 }
 
 /** Return the page of a signed-in user for a canonical path. */
@@ -180,26 +215,44 @@ function SignedInPage({ user, path }: { user: User; path: string }) {
   return <NotFound />;
 }
 
-function Screen({ view, refresh }: { view: View; refresh: () => void }) {
-  const m = useStrings();
+/**
+ * Return the key of a view for the focus rule: the temporary password step, else the view, the person and their
+ * role, since a new role can replace the page (administration becomes "Admins only").
+ */
+function viewKeyOf(view: View): string {
+  if (view.name !== "home") return view.name;
+  return view.user.mustChangePassword ? "temporary" : `home:${view.user.id}:${view.user.role}`;
+}
+
+function Screen({ view, refresh, expired }: { view: View; refresh: () => Promise<View>; expired: boolean }) {
+  const { passwordSignIn } = useInstance();
   const rawPath = usePath();
   const path = canonicalPath(rawPath);
   const signedIn = view.name === "home";
-  const target = signedIn && (path === LOCAL_SIGN_IN || path === SIGN_IN) ? "/" : path;
+  // A signed-in person has nothing to do on the sign-in paths. /sign-in/local only matters with password sign-in
+  // off, known once the first view is loaded (the instance settings come with it).
+  const signedOut = view.name === "signIn" || view.name === "public";
+  const target =
+    signedIn && (path === LOCAL_SIGN_IN || path === SIGN_IN) ? "/" : signedOut && path === LOCAL_SIGN_IN && passwordSignIn ? SIGN_IN : path;
 
   useEffect(() => {
     if (target !== rawPath) navigate(target + location.search + location.hash, { replace: true });
   }, [target, rawPath]);
 
   useFocusOnNavigation();
+  useFocusOnViewChange(viewKeyOf(view));
 
+  const reload = () => void refresh();
+  const signIn = (
+    <SignIn local={path === LOCAL_SIGN_IN} expired={expired} publicHome={view.name === "public"} onSignedIn={reload} />
+  );
   switch (view.name) {
     case "loading":
-      return <Status role="status" text={m.loading} />;
+      return <LoadingShell />;
     case "error":
-      return <Status role="alert" text={m.errors.unreachable} />;
+      return <Unreachable onRetry={async () => (await refresh()).name === "error"} />;
     case "setup":
-      return <Setup onDone={refresh} onClosed={refresh} />;
+      return <Setup onDone={reload} onClosed={reload} />;
     case "public":
       if (path === "/") {
         return (
@@ -208,13 +261,13 @@ function Screen({ view, refresh }: { view: View; refresh: () => void }) {
           </AppShell>
         );
       }
-      return <SignIn local={path === LOCAL_SIGN_IN} onSignedIn={refresh} />;
+      return signIn;
     case "signIn":
-      return <SignIn local={path === LOCAL_SIGN_IN} onSignedIn={refresh} />;
+      return signIn;
     case "home":
       return (
-        <AppShell user={view.user} path={target} nav={!view.user.mustChangePassword} onSignOut={() => void api.signOut().finally(refresh)}>
-          {view.user.mustChangePassword ? <ChangePassword onChanged={refresh} /> : <SignedInPage user={view.user} path={target} />}
+        <AppShell user={view.user} path={target} minimal={view.user.mustChangePassword} onSignOut={() => void api.signOut().finally(reload)}>
+          {view.user.mustChangePassword ? <ChangePassword onChanged={reload} /> : <SignedInPage user={view.user} path={target} />}
         </AppShell>
       );
   }

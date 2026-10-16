@@ -6,9 +6,6 @@ import type { Messages } from "../../i18n/en";
 import { errorMessage, fieldErrorMessage } from "../../i18n/errors";
 import { useStrings } from "../../i18n/LocaleProvider";
 
-export const selectClass =
-  "mt-1.5 block w-full rounded-md border border-input bg-background px-2 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
 export type Notice = { text: string; tone: "info" | "error"; n: number };
 
 /** Return the text for an error of the admin API: its own messages first, then field and generic ones. */

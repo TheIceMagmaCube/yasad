@@ -1,28 +1,39 @@
+import { Check } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 import { type AdminInput, api, ApiError, type User } from "../api";
 import { AuthLayout } from "../components/AuthLayout";
-import { Field, SubmitButton } from "../components/Field";
+import { ErrorSummary } from "../components/form/ErrorSummary";
+import { Field } from "../components/form/Field";
+import { FormActions, FormStack } from "../components/form/FormLayout";
+import { PasswordField } from "../components/form/PasswordField";
+import { SubmitButton } from "../components/form/PendingButton";
+import { Alert } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import type { Messages } from "../i18n/en";
-import { errorMessage, fieldErrorMessage } from "../i18n/errors";
 import { useStrings } from "../i18n/LocaleProvider";
+import { focusPage } from "../lib/focus";
+import { type CodeRule, confirmationProblem, newPasswordProblem, useFormErrors } from "../lib/form-errors";
 import { useDocumentTitle } from "../lib/page";
 
-type Step = "code" | "admin" | "done";
-type FieldErrors = Partial<Record<keyof AdminInput, string>>;
+type Step = "code" | "admin" | "done" | "closed";
 
-const FIELD_ORDER: (keyof AdminInput)[] = ["name", "email", "password", "passwordConfirm"];
+const CODE_FIELDS = ["code"] as const;
+const ADMIN_FIELDS = ["name", "email", "password", "passwordConfirm"] as const satisfies readonly (keyof AdminInput)[];
 const EMPTY_ADMIN: AdminInput = { name: "", email: "", password: "", passwordConfirm: "" };
 
-/** Return the message for an API error on the setup code. */
-function codeError(err: unknown, m: Messages): string {
-  if (err instanceof ApiError && err.body.code === "invalid_code") return m.setup.invalidCode(err.body.attemptsLeft ?? 0);
-  if (err instanceof ApiError && err.body.code === "setup_closed") return m.setup.closed;
-  return errorMessage(err, m);
+/** Return how a wrong setup code shows: on the code field, with the attempts left. */
+function codeRules(m: Messages): Record<string, CodeRule<"code">> {
+  return { invalid_code: { field: "code", message: (err: ApiError) => m.setup.invalidCode(err.body.attemptsLeft ?? 0) } };
 }
 
-function Steps({ step }: { step: Step }) {
+/** Return whether the API says setup is closed (an administrator exists). */
+const isClosed = (err: unknown) => err instanceof ApiError && err.body.code === "setup_closed";
+
+/** Ordered list of the setup steps: done ones muted with a check, the current one marked. */
+function Steps({ step }: { step: "code" | "admin" }) {
   const s = useStrings().setup;
   const items = [
     { key: "code", label: s.steps.code },
@@ -30,64 +41,71 @@ function Steps({ step }: { step: Step }) {
   ] as const;
   const current = step === "code" ? 0 : 1;
   return (
-    <ol className="mt-3 flex gap-2 text-xs">
+    <ol aria-label={s.progress} className="mt-3 flex gap-2 text-sm">
       {items.map((item, i) => (
         <li
           key={item.key}
           aria-current={i === current ? "step" : undefined}
-          className={`flex-1 border-t-4 pt-1 ${
-            i < current ? "border-primary" : i === current ? "border-primary font-semibold" : "border-border text-muted-foreground"
-          }`}
+          className={cn(
+            "flex flex-1 items-center gap-1.5 border-t-4 pt-1.5",
+            i < current && "border-primary/40 text-muted-foreground",
+            i === current && "border-primary font-semibold",
+            i > current && "border-border text-muted-foreground",
+          )}
         >
-          <span className="sr-only">{s.stepLabel(i + 1, items.length)}: </span>
-          {i < current ? "✓ " : `${i + 1}. `}
-          {item.label}
+          {i < current && <Check aria-hidden="true" className="size-4 shrink-0" />}
+          <span>
+            <span className="sr-only">{s.stepLabel(i + 1, items.length)}: </span>
+            {item.label}
+            {i < current && <span className="sr-only">, {s.stepDone}</span>}
+          </span>
         </li>
       ))}
     </ol>
   );
 }
 
+/** Return the title of a step, for the heading and the document title. */
+function stepTitle(step: Step, s: Messages["setup"]): string {
+  if (step === "done") return s.doneTitle;
+  if (step === "closed") return s.closedTitle;
+  return s.title;
+}
+
+/**
+ * First-run setup: the setup code, then the first administrator, then a final notice. `onDone` opens the app
+ * (signed in); `onClosed` goes to sign-in when an administrator already exists.
+ */
 export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () => void }) {
   const m = useStrings();
   const s = m.setup;
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
   const [admin, setAdmin] = useState<AdminInput>(EMPTY_ADMIN);
-  const [error, setError] = useState<{ text: string; fields: FieldErrors; n: number } | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<User | null>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const errorRef = useRef<HTMLDivElement>(null);
-  const firstRender = useRef(true);
-  useDocumentTitle(...(step === "done" ? [s.doneTitle] : [s.steps[step], s.title]));
+  const codeErrors = useFormErrors(CODE_FIELDS, "setup");
+  const adminErrors = useFormErrors(ADMIN_FIELDS, "setup-admin");
+  const previousStep = useRef(step);
+  useDocumentTitle(...(step === "code" || step === "admin" ? [s.steps[step], s.title] : [stepTitle(step, s)]));
 
+  // A new step focuses the heading, unless an error summary of the same commit took the focus.
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    headingRef.current?.focus();
+    if (previousStep.current === step) return;
+    previousStep.current = step;
+    focusPage();
   }, [step]);
-
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
-
-  /** Show an error summary and move the focus to it, even when the message repeats. */
-  const fail = (text: string, fields: FieldErrors = {}) => setError((prev) => ({ text, fields, n: (prev?.n ?? 0) + 1 }));
 
   async function submitCode(e: FormEvent) {
     e.preventDefault();
+    if (!codeErrors.check({ code: code.trim() === "" && m.fieldErrors.required })) return;
     setBusy(true);
     try {
       await api.verifyCode(code);
-      setError(null);
       setStep("admin");
     } catch (err) {
-      fail(codeError(err, m));
-      if (err instanceof ApiError && err.body.code === "setup_closed") onClosed();
+      if (isClosed(err)) setStep("closed");
+      else codeErrors.failWith(err, { codes: codeRules(m) });
     } finally {
       setBusy(false);
     }
@@ -95,142 +113,126 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
 
   async function submitAdmin(e: FormEvent) {
     e.preventDefault();
-    const local: FieldErrors = {};
-    if (admin.password.length < 12) local.password = s.passwordTooShort;
-    if (admin.passwordConfirm !== admin.password) local.passwordConfirm = s.passwordMismatch;
-    setFieldErrors(local);
-    if (Object.keys(local).length > 0) return fail(s.checkFields, local);
-
+    const ok = adminErrors.check({
+      name: admin.name.trim() === "" && m.fieldErrors.required,
+      email: admin.email.trim() === "" && m.fieldErrors.required,
+      password: newPasswordProblem(admin.password, m),
+      passwordConfirm: confirmationProblem(admin.password, admin.passwordConfirm, m),
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const { user } = await api.completeSetup(code, admin);
-      setError(null);
       setCreated(user);
       setStep("done");
     } catch (err) {
-      if (err instanceof ApiError && err.body.code === "invalid_input") {
-        const fields = Object.fromEntries(Object.entries(err.body.fields ?? {}).map(([id, code]) => [id, fieldErrorMessage(code, m)]));
-        setFieldErrors(fields);
-        fail(s.checkFields, fields);
-      } else if (err instanceof ApiError && err.body.code === "invalid_code") {
+      if (isClosed(err)) setStep("closed");
+      else if (err instanceof ApiError && err.body.code === "invalid_code") {
+        adminErrors.reset();
         setStep("code");
-        fail(codeError(err, m));
-      } else {
-        fail(codeError(err, m));
-        if (err instanceof ApiError && err.body.code === "setup_closed") onClosed();
-      }
+        codeErrors.failWith(err, { codes: codeRules(m) });
+      } else adminErrors.failWith(err);
     } finally {
       setBusy(false);
     }
   }
 
-  const update = (key: keyof AdminInput) => (e: { target: { value: string } }) =>
-    setAdmin((prev) => ({ ...prev, [key]: e.target.value }));
+  const update = (key: keyof AdminInput) => (e: { target: { value: string } }) => setAdmin((prev) => ({ ...prev, [key]: e.target.value }));
 
   return (
     <AuthLayout>
-      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold outline-none">
-        {step === "done" ? s.doneTitle : s.title}
+      <h1 tabIndex={-1} className="text-title outline-none">
+        {stepTitle(step, s)}
       </h1>
-      {step !== "done" && <Steps step={step} />}
-
-      {error && (
-        <div ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-md border border-destructive p-3 text-sm text-destructive outline-none">
-          <p>{error.text}</p>
-          {FIELD_ORDER.some((id) => error.fields[id]) && (
-            <ul className="mt-2 list-disc pl-5">
-              {FIELD_ORDER.filter((id) => error.fields[id]).map((id) => (
-                <li key={id}>
-                  <a
-                    href={`#${id}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      document.getElementById(id)?.focus();
-                    }}
-                    className="underline"
-                  >
-                    {error.fields[id]}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      {(step === "code" || step === "admin") && <Steps step={step} />}
 
       {step === "code" && (
-        <form onSubmit={submitCode} noValidate>
-          <p className="mt-4 text-sm text-muted-foreground">{s.codeHint}</p>
-          <Field
-            id="code"
-            label={s.codeLabel}
-            type="password"
-            autoComplete="off"
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <SubmitButton busy={busy}>{s.continue}</SubmitButton>
+        <form onSubmit={submitCode} noValidate className="mt-6">
+          <FormStack>
+            <ErrorSummary errors={codeErrors} />
+            <Field
+              label={s.codeLabel}
+              hint={s.codeHint}
+              type="text"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-select-on-error=""
+              required
+              inputClassName="font-mono"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              {...codeErrors.field("code")}
+            />
+            <FormActions stretch>
+              <SubmitButton pending={busy} pendingLabel={s.verifying}>
+                {s.continue}
+              </SubmitButton>
+            </FormActions>
+          </FormStack>
         </form>
       )}
 
       {step === "admin" && (
-        <form onSubmit={submitAdmin} noValidate>
-          <Field id="name" label={s.name} autoComplete="name" required value={admin.name} onChange={update("name")} error={fieldErrors.name} />
-          <Field
-            id="email"
-            label={s.email}
-            type="email"
-            autoComplete="email"
-            required
-            value={admin.email}
-            onChange={update("email")}
-            error={fieldErrors.email}
-          />
-          <Field
-            id="password"
-            label={s.password}
-            type="password"
-            autoComplete="new-password"
-            required
-            hint={s.passwordHint}
-            value={admin.password}
-            onChange={update("password")}
-            error={fieldErrors.password}
-          />
-          <Field
-            id="passwordConfirm"
-            label={s.passwordConfirm}
-            type="password"
-            autoComplete="new-password"
-            required
-            value={admin.passwordConfirm}
-            onChange={update("passwordConfirm")}
-            error={fieldErrors.passwordConfirm}
-          />
-          <SubmitButton busy={busy}>{s.create}</SubmitButton>
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => {
-              setError(null);
-              setStep("code");
-            }}
-            className="mt-3 w-full"
-          >
-            {m.back}
-          </Button>
+        <form onSubmit={submitAdmin} noValidate className="mt-6">
+          <FormStack>
+            <ErrorSummary errors={adminErrors} />
+            <Field label={s.name} autoComplete="name" required value={admin.name} onChange={update("name")} {...adminErrors.field("name")} />
+            <Field label={s.email} type="email" autoComplete="email" required value={admin.email} onChange={update("email")} {...adminErrors.field("email")} />
+            <PasswordField
+              label={s.password}
+              autoComplete="new-password"
+              required
+              hint={s.passwordHint}
+              value={admin.password}
+              onChange={update("password")}
+              {...adminErrors.field("password")}
+            />
+            <PasswordField
+              label={s.passwordConfirm}
+              autoComplete="new-password"
+              required
+              value={admin.passwordConfirm}
+              onChange={update("passwordConfirm")}
+              {...adminErrors.field("passwordConfirm")}
+            />
+            <FormActions stretch>
+              <SubmitButton pending={busy} pendingLabel={s.creating}>
+                {s.create}
+              </SubmitButton>
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => {
+                  adminErrors.reset();
+                  setStep("code");
+                }}
+              >
+                {m.back}
+              </Button>
+            </FormActions>
+          </FormStack>
         </form>
       )}
 
       {step === "done" && created && (
-        <div>
-          <p className="mt-4 rounded-md border border-primary p-3 text-sm">{s.doneSignedIn(created.name)}</p>
-          <p className="mt-3 rounded-md border-2 border-primary bg-muted p-3 text-sm">
-            <strong>{s.doneNoticeTitle}</strong> {s.doneNotice}
-          </p>
-          <Button type="button" onClick={onDone} className="mt-6 w-full">
+        <div className="mt-6 flex flex-col gap-4">
+          <Alert variant="success">{s.doneSignedIn(created.name)}</Alert>
+          <Alert variant="warning" role="note" title={s.doneNoticeTitle}>
+            {s.doneNotice}
+          </Alert>
+          <Button type="button" onClick={onDone} className="mt-2 w-full">
             {s.goToApp}
+          </Button>
+        </div>
+      )}
+
+      {step === "closed" && (
+        <div className="mt-4 flex flex-col gap-6">
+          <p>{s.closedBody}</p>
+          <Button type="button" onClick={onClosed} className="w-full">
+            {s.goToSignIn}
           </Button>
         </div>
       )}

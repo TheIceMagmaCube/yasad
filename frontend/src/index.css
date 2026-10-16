@@ -89,6 +89,20 @@
   letter-spacing: 0.01em;
 }
 
+/* Show an element only after 300 ms, so a quick load never flashes a placeholder. */
+@utility appear-delayed {
+  animation: appear-delayed 1ms linear 300ms both;
+}
+
+@keyframes appear-delayed {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
 :root {
   color-scheme: light;
 }

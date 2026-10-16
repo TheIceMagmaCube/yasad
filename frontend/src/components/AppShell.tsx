@@ -47,21 +47,20 @@ function NavLink({ href, current, label, short }: { href: string; current: boole
 
 /**
  * Frame of the app screens: skip link, header with the instance title, the section links, the link search and the
- * user menu, main content. `path` is the current path; `nav` hides the section links and the search when false
- * (temporary password screen). Without `user` (anonymous home),
- * the header has no section links and a sign-in link instead of the menu, and a footer holds the language and
- * appearance choices.
+ * user menu, main content. `path` is the current path. `minimal` keeps the brand alone, with the user menu when
+ * someone is signed in (loading, temporary password). Without `user` (anonymous home), the header has no section
+ * links and a sign-in link instead of the menu, and a footer holds the language and appearance choices.
  */
 export function AppShell({
   user,
   path,
-  nav = true,
+  minimal = false,
   onSignOut,
   children,
 }: {
   user: User | null;
   path: string;
-  nav?: boolean;
+  minimal?: boolean;
   onSignOut?: () => void;
   children: ReactNode;
 }) {
@@ -75,7 +74,7 @@ export function AppShell({
             screens while staying one element, after the toggle and before the account menu in focus order. */}
         <div className="mx-auto grid max-w-5xl grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)_auto_auto] grid-rows-[3.5rem_auto] items-center gap-x-2 px-4 sm:grid-rows-[3.5rem] sm:gap-x-6 sm:px-8">
           <Brand className="col-start-1 row-start-1" />
-          {nav && user && (
+          {!minimal && user && (
             <nav aria-label={m.nav.label} className="col-start-2 row-start-1 h-full">
               <ul className="flex h-full gap-1 sm:gap-2">
                 <li className="h-full">
@@ -89,7 +88,7 @@ export function AppShell({
               </ul>
             </nav>
           )}
-          {(user ? nav : true) && (
+          {!minimal && (
             <SearchBox
               key={homeKey(user)}
               homeKey={homeKey(user)}
@@ -100,7 +99,7 @@ export function AppShell({
           <div className="col-start-5 row-start-1">
             {user ? (
               <UserMenu user={user} onSignOut={onSignOut ?? (() => {})} />
-            ) : (
+            ) : minimal ? null : (
               <Link href="/sign-in" className={buttonVariants({ variant: "ghost", size: "sm", className: HEADER_BUTTON })}>
                 {m.signIn.title}
               </Link>
@@ -111,7 +110,7 @@ export function AppShell({
       <main id="content" tabIndex={-1} className="mx-auto max-w-5xl p-4 outline-none sm:p-8">
         {children}
       </main>
-      {!user && (
+      {!user && !minimal && (
         <footer className="border-t">
           <div className="mx-auto max-w-5xl p-4 sm:px-8">
             <PreferenceSelects />
