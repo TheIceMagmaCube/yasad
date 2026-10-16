@@ -20,7 +20,7 @@ describe("apiFormError", () => {
     });
     expect(failure).toEqual({
       title: "Check the highlighted fields.",
-      fields: { new: "Choose a password different from the current one.", current: "Use 12 to 128 characters." },
+      fields: { new: "Choose a new password, different from the old one.", current: "Use 12 to 128 characters." },
       invalid: [],
       links: [],
       extra: ["This value is not valid."],

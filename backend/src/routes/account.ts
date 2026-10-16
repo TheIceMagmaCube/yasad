@@ -39,7 +39,7 @@ accountRoutes.get("/", async (c) => {
  * the others.
  *
  * A new e-mail needs the current password, counted like a password change, and must not belong to another
- * account. Answer the updated profile.
+ * account; an address already taken counts as an attempt too. Answer the updated profile.
  */
 accountRoutes.patch("/", async (c) => {
   const { db } = c.var;
@@ -63,7 +63,8 @@ accountRoutes.patch("/", async (c) => {
 
   const taken = () => apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { email: "email_taken" } });
   if (emailChanges) {
-    // The password comes first, so a session alone cannot tell which addresses have an account.
+    // The password comes first, so a session alone cannot tell which addresses have an account, and a taken
+    // address still counts as an attempt, so the password alone cannot list them either.
     const key = `password:${userId}`;
     const attempt = await reserveAttempt(db, key, PASSWORD_CHANGE_LIMIT);
     if (!attempt.allowed) {
@@ -74,8 +75,8 @@ accountRoutes.patch("/", async (c) => {
     if (!(await password.verify({ hash: credential.password, password: currentPassword }))) {
       return apiError(c, 403, "invalid_password", "The current password is not correct.");
     }
-    await releaseAttempt(db, key);
     if (await emailTaken(db, email, userId)) return taken();
+    await releaseAttempt(db, key);
   }
 
   try {

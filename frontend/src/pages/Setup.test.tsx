@@ -153,10 +153,10 @@ describe("Setup", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(summary()).toHaveFocus();
     expect(within(summary()).getAllByRole("link").map((a) => a.textContent)).toEqual([
-      "Fill in this field.",
-      "Fill in this field.",
-      "Use 12 to 128 characters.",
-      "The passwords do not match.",
+      "Name: Fill in this field.",
+      "E-mail: Fill in this field.",
+      "Password: Use 12 to 128 characters.",
+      "Confirm password: The passwords do not match.",
     ]);
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Confirm password")).toHaveAccessibleDescription("Error: The passwords do not match.");
@@ -171,7 +171,7 @@ describe("Setup", () => {
     await fillAdmin(user, "correct horse battery", "correct horse battery!");
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
     expect(summary()).not.toHaveTextContent("Something went wrong");
-    await user.click(within(summary()).getByRole("link", { name: "The passwords do not match." }));
+    await user.click(within(summary()).getByRole("link", { name: "Confirm password: The passwords do not match." }));
     expect(screen.getByLabelText("Confirm password")).toHaveFocus();
   });
 

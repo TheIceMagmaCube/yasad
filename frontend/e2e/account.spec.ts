@@ -104,16 +104,33 @@ test("a local account changes its password and its profile from the account page
   await expect(page.getByRole("region", { name: "Password" }).getByRole("status")).toHaveText("Password changed. Your other sessions were closed.");
 
   const edit = page.getByRole("button", { name: "Edit profile" });
-  await edit.click();
-  await page.getByLabel("Name", { exact: true }).fill("Carol Ann Shaw");
-  await page.getByLabel("E-mail", { exact: true }).fill(ADMIN.email);
-  await page.getByLabel("Current password", { exact: true }).fill("carol's second passphrase");
-  await page.getByRole("button", { name: "Save profile" }).click();
-  await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
-  await expect(page.getByLabel("E-mail", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await edit.focus();
+  await page.keyboard.press("Enter");
+  const name = page.getByLabel("Name", { exact: true });
+  const email = page.getByLabel("E-mail", { exact: true });
+  await expect(name).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("Carol Ann Shaw");
+  await page.keyboard.press("Tab");
+  await expect(email).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(ADMIN.email);
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Current password", { exact: true })).toBeFocused();
+  await page.keyboard.type("carol's second passphrase");
+  await page.keyboard.press("Enter");
+  const summary = page.getByRole("group", { name: "Check the highlighted fields." });
+  await expect(summary).toBeFocused();
+  await expect(email).toHaveAttribute("aria-invalid", "true");
 
-  await page.getByLabel("E-mail", { exact: true }).fill("carol.shaw@example.invalid");
-  await page.getByRole("button", { name: "Save profile" }).click();
+  // The summary link leads back to the field.
+  await page.keyboard.press("Tab");
+  await expect(summary.getByRole("link", { name: "E-mail: This e-mail address is already used by another account." })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(email).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("carol.shaw@example.invalid");
+  await page.keyboard.press("Enter");
   await expect(edit).toBeFocused();
   await expect(page.getByRole("region", { name: "Profile" }).getByRole("status")).toHaveText("Profile saved.");
   await expect(page.getByRole("button", { name: "Account menu for Carol Ann Shaw" })).toBeVisible();

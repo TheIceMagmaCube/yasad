@@ -212,6 +212,26 @@ describe("PATCH /api/account", () => {
     expect(res.headers.get("retry-after")).not.toBeNull();
   });
 
+  it("counts a taken address as an attempt, so the password cannot list the accounts", async () => {
+    const app = await localUser();
+    await addUser(app, { id: "u2", email: "carol@example.invalid" });
+    for (let i = 0; i < 5; i++) {
+      const res = await patchAccount(app, { email: "carol@example.invalid", currentPassword: PASSWORD });
+      expect((await errorOf(res)).fields).toEqual({ email: "email_taken" });
+    }
+    const res = await patchAccount(app, { email: "carol@example.invalid", currentPassword: PASSWORD });
+    expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).not.toBeNull();
+  });
+
+  it("releases the attempt once the e-mail is saved", async () => {
+    const app = await localUser();
+    for (let i = 0; i < 6; i++) {
+      const email = i % 2 === 0 ? "robert@example.invalid" : "bob@example.invalid";
+      expect((await patchAccount(app, { email, currentPassword: PASSWORD })).status).toBe(200);
+    }
+  });
+
   it("leaves the profile of an identity provider account alone", async () => {
     const app = await testApp();
     await addOidcUser(app, { id: "olga", email: "olga@example.invalid" });

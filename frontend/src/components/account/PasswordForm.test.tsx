@@ -40,20 +40,23 @@ describe("PasswordForm, temporary password", () => {
     expect(screen.getByLabelText("Confirm new password")).toHaveAccessibleDescription(/The passwords do not match./);
     const summary = screen.getByRole("group", { name: "Check the highlighted fields." });
     expect(summary).toHaveFocus();
-    expect(within(summary).getAllByRole("link")).toHaveLength(3);
+    expect(within(summary).getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Temporary password: Fill in this field.",
+      "New password: Use 12 to 128 characters.",
+      "Confirm new password: The passwords do not match.",
+    ]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("shows a wrong current password once in the summary and once under the field", async () => {
+  it("shows a wrong temporary password once in the summary and once under the field", async () => {
     mockApi({ "POST /api/account/password": { status: 403, body: { error: { code: "invalid_password", message: "" } } } });
     const onDone = vi.fn();
     renderWithProviders(<PasswordForm mode="temporary" user={BOB} onDone={onDone} />);
     await fill("wrong password!", "a brand new passphrase");
     const summary = await screen.findByRole("group", { name: "Check the highlighted fields." });
     expect(summary).toHaveFocus();
-    expect(within(summary).getByRole("link", { name: "The current password is not correct." })).toBeInTheDocument();
-    expect(screen.getAllByText("The current password is not correct.")).toHaveLength(2);
-    expect(screen.getByLabelText("Temporary password")).toHaveAccessibleDescription("Error: The current password is not correct.");
+    expect(within(summary).getByRole("link", { name: "Temporary password: The temporary password is not correct." })).toBeInTheDocument();
+    expect(screen.getByLabelText("Temporary password")).toHaveAccessibleDescription("Error: The temporary password is not correct.");
     expect(onDone).not.toHaveBeenCalled();
   });
 
@@ -66,7 +69,7 @@ describe("PasswordForm, temporary password", () => {
     });
     renderWithProviders(<PasswordForm mode="temporary" user={BOB} onDone={vi.fn()} />);
     await fill("a brand new passphrase!", "a brand new passphrase");
-    expect(await screen.findByLabelText("New password")).toHaveAccessibleDescription(/different from the current one/);
+    expect(await screen.findByLabelText("New password")).toHaveAccessibleDescription(/different from the old one/);
   });
 
   it("calls onDone once saved", async () => {
@@ -90,6 +93,14 @@ describe("PasswordForm, account page", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("calls a wrong first password the current one", async () => {
+    mockApi({ "POST /api/account/password": { status: 403, body: { error: { code: "invalid_password", message: "" } } } });
+    renderWithProviders(<PasswordForm mode="account" onDone={vi.fn()} onCancel={vi.fn()} />);
+    await fill("wrong password!", "a brand new passphrase", undefined, "Current password");
+    const summary = await screen.findByRole("group", { name: "Check the highlighted fields." });
+    expect(within(summary).getByRole("link", { name: "Current password: The current password is not correct." })).toBeInTheDocument();
   });
 
   it("says when the account has no password here", async () => {

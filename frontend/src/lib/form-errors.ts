@@ -99,6 +99,8 @@ export type FormErrors<F extends string> = {
    * every problem and return false when there is one; clear the errors and return true otherwise.
    */
   check: (rules: Partial<Record<F, string | false | null | undefined>>) => boolean;
+  /** Drop the problems of a field that is no longer shown; clear the errors when nothing else is left. */
+  clear: (field: F) => void;
   reset: () => void;
 };
 
@@ -145,6 +147,15 @@ export function useFormErrors<F extends string>(fields: readonly F[], formId?: s
         show({ title: m.forms.checkFields, fields: problems, invalid: [], links: [], extra: [] });
         return false;
       },
+      clear: (field) =>
+        setState((prev) => {
+          if (!prev) return prev;
+          const fields = { ...prev.fields };
+          delete fields[field];
+          const next = { ...prev, fields, invalid: prev.invalid.filter((f) => f !== field), links: prev.links.filter((l) => l.field !== field) };
+          const empty = Object.keys(next.fields).length + next.invalid.length + next.links.length + next.extra.length === 0;
+          return empty ? null : next;
+        }),
       reset: () => setState(null),
     };
   }, [id, state, show, m, order]);

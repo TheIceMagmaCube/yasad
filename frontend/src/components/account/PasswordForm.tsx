@@ -30,6 +30,7 @@ export function PasswordForm(props: PasswordFormProps) {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const errors = useFormErrors(FIELDS, props.mode === "temporary" ? "change-password" : (props.id ?? "account-password"));
+  const currentLabel = props.mode === "temporary" ? s.temporary : s.current;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -45,7 +46,7 @@ export function PasswordForm(props: PasswordFormProps) {
     } catch (err) {
       errors.failWith(err, {
         codes: {
-          invalid_password: { message: s.wrongCurrent, field: "current" },
+          invalid_password: { message: props.mode === "temporary" ? s.wrongTemporary : s.wrongCurrent, field: "current" },
           no_local_password: { message: m.admin.errors.no_local_password },
         },
         rename: { newPassword: "new", currentPassword: "current" },
@@ -59,9 +60,9 @@ export function PasswordForm(props: PasswordFormProps) {
 
   const fields: ReactNode = (
     <FormStack>
-      <ErrorSummary errors={errors} />
+      <ErrorSummary errors={errors} labels={{ current: currentLabel, new: s.new, confirm: s.confirm }} />
       <PasswordField
-        label={props.mode === "temporary" ? s.temporary : s.current}
+        label={currentLabel}
         autoComplete="current-password"
         required
         value={current}

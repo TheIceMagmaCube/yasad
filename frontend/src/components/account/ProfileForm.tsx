@@ -39,6 +39,12 @@ export function ProfileForm({ id, user, onSaved, onCancel }: ProfileFormProps) {
   const errors = useFormErrors(FIELDS, id);
   const emailChanges = normalized(email) !== normalized(user.email);
 
+  /** Follow the e-mail; once it is back to the saved one, the password field goes, and its error with it. */
+  function changeEmail(value: string) {
+    setEmail(value);
+    if (normalized(value) === normalized(user.email)) errors.clear("currentPassword");
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     const ok = errors.check({
@@ -71,9 +77,9 @@ export function ProfileForm({ id, user, onSaved, onCancel }: ProfileFormProps) {
   return (
     <InlineForm id={id} onSubmit={submit} onCancel={onCancel}>
       <FormStack>
-        <ErrorSummary errors={errors} />
+        <ErrorSummary errors={errors} labels={{ name: a.name, email: a.email, currentPassword: a.currentPassword }} />
         <Field label={a.name} autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} {...errors.field("name")} />
-        <Field label={a.email} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} {...errors.field("email")} />
+        <Field label={a.email} type="email" autoComplete="email" required value={email} onChange={(e) => changeEmail(e.target.value)} {...errors.field("email")} />
         {emailChanges && (
           <PasswordField
             label={a.currentPassword}

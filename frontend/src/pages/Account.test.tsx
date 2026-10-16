@@ -169,12 +169,40 @@ describe("Account, profile form", () => {
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     const summary = await screen.findByRole("group", { name: "Check the highlighted fields." });
     expect(summary).toHaveFocus();
-    await user.click(within(summary).getByRole("link", { name: "This e-mail address is already used by another account." }));
+    await user.click(within(summary).getByRole("link", { name: "E-mail: This e-mail address is already used by another account." }));
     expect(email).toHaveFocus();
     expect(email).toHaveAttribute("aria-invalid", "true");
 
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() => expect(screen.getByLabelText("Current password")).toHaveAccessibleDescription(/The current password is not correct./));
+  });
+
+  it("names the field of each link when the same problem shows twice", async () => {
+    mockApi(LOCAL);
+    renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
+    const { user } = await openProfile();
+    await user.clear(screen.getByLabelText("Name"));
+    await user.clear(screen.getByLabelText("E-mail"));
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    const summary = screen.getByRole("group", { name: "Check the highlighted fields." });
+    expect(within(summary).getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Name: Fill in this field.",
+      "E-mail: Fill in this field.",
+      "Current password: Fill in this field.",
+    ]);
+  });
+
+  it("drops the current password problem once the e-mail is back to the saved one", async () => {
+    mockApi(LOCAL);
+    renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
+    const { user } = await openProfile();
+    const email = screen.getByLabelText("E-mail");
+    await user.type(email, "x");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(within(screen.getByRole("group", { name: "Check the highlighted fields." })).getByRole("link")).toHaveTextContent("Current password");
+    await user.type(email, "{Backspace}");
+    expect(screen.queryByLabelText("Current password")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Check the highlighted fields." })).toBeNull();
   });
 
   it("closes like Cancel when nothing changed, and on Escape", async () => {
