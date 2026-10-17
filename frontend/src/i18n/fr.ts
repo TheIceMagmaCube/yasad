@@ -117,6 +117,27 @@ export const fr = {
     backToLinks: "Retour aux liens",
     adminsOnly: "Réservé aux administrateurs.",
     expired: "Votre session a pris fin. Reconnectez-vous pour continuer.",
+    withProvider: (name: string) => `Se connecter avec ${name}`,
+    redirecting: (name: string) => `Redirection vers ${name}…`,
+    or: "ou",
+    providerErrors: {
+      notAllowed: "Votre compte n'a pas accès à ce portail.",
+      emailInUse: "Un autre compte utilise déjà cette adresse, contactez votre administrateur.",
+      providerUnavailable: (name: string) => `${name} ne répond pas. Réessayez dans un instant.`,
+      rateLimited: (seconds: number | null) => {
+        if (seconds === null) return "Trop de tentatives de connexion. Réessayez plus tard.";
+        if (seconds < 60) return `Trop de tentatives de connexion. Réessayez dans ${seconds} seconde${seconds > 1 ? "s" : ""}.`;
+        const minutes = Math.ceil(seconds / 60);
+        return `Trop de tentatives de connexion. Réessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.`;
+      },
+      failed: "La connexion a échoué. Réessayez.",
+    },
+  },
+  signedOut: {
+    title: "Vous êtes déconnecté",
+    body: "Votre session YASAD est fermée.",
+    signInAgain: "Se reconnecter",
+    withPassword: "Se connecter avec un mot de passe",
   },
   catalog: {
     summary: (categories, links, groups) =>

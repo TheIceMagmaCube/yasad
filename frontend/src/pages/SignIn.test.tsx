@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InstanceContext } from "../instance";
+import { leavePage } from "../lib/sign-in";
 import { getAnnouncer, mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { SignIn } from "./SignIn";
 
@@ -11,7 +12,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const INSTANCE = { title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true } as const;
+const INSTANCE = { title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true, oidc: null } as const;
 
 async function signIn(password: string, email = "ada@example.invalid") {
   const user = userEvent.setup();
@@ -167,6 +168,80 @@ describe("SignIn", () => {
       expect(screen.getByRole("heading", { level: 1, name: "Administrator sign-in" })).toBeInTheDocument();
       expect(screen.getByText("Reserved to administrators.")).toBeInTheDocument();
       await waitFor(() => expect(document.title).toBe("Administrator sign-in - YASAD"));
+    });
+  });
+
+  describe("with an identity provider", () => {
+    const AUTHORIZE = "https://idp.example.invalid/authorize";
+    const withOidc = (passwordSignIn: boolean) => ({ ...INSTANCE, passwordSignIn, oidc: { name: "Okta" } });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      history.replaceState(null, "", "/");
+    });
+
+    it("puts the provider button first, then the password form after \"or\"", () => {
+      renderWithProviders(
+        <InstanceContext value={withOidc(true)}>
+          <SignIn onSignedIn={vi.fn()} />
+        </InstanceContext>,
+      );
+      const button = screen.getByRole("button", { name: "Sign in with Okta" });
+      const or = screen.getByText("or");
+      const email = screen.getByLabelText("E-mail");
+      expect(button.compareDocumentPosition(or) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(or.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("offers only the provider and the administrator link when password sign-in is off", () => {
+      renderWithProviders(
+        <InstanceContext value={withOidc(false)}>
+          <SignIn onSignedIn={vi.fn()} />
+        </InstanceContext>,
+      );
+      expect(screen.getByRole("heading", { level: 1, name: "Sign in" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+      expect(screen.queryByText("Ask your administrator how to sign in.")).toBeNull();
+      expect(screen.queryByLabelText("Password")).toBeNull();
+      expect(screen.getByRole("link", { name: "Administrator? Sign in with a password" })).toHaveAttribute("href", "/sign-in/local");
+    });
+
+    it("keeps the fallback link on screen while it redirects, and comes back to the page it is on", async () => {
+      const replace = vi.spyOn(leavePage, "replace").mockImplementation(() => {});
+      const fetchMock = mockApi({ "POST /api/auth/sign-in/social": { status: 200, body: { url: AUTHORIZE } } });
+      history.replaceState(null, "", "/admin/groups");
+      renderWithProviders(
+        <InstanceContext value={withOidc(false)}>
+          <SignIn onSignedIn={vi.fn()} autoRedirect />
+        </InstanceContext>,
+      );
+      expect(screen.getByText("Redirecting to Okta…")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Administrator? Sign in with a password" })).toBeInTheDocument();
+      await waitFor(() => expect(replace).toHaveBeenCalledWith(AUTHORIZE));
+      expect(sentBody(fetchMock, 0)).toEqual({ returnTo: "/admin/groups" });
+    });
+
+    it("comes back to the home page from a sign-in path", async () => {
+      const assign = vi.spyOn(leavePage, "assign").mockImplementation(() => {});
+      const fetchMock = mockApi({ "POST /api/auth/sign-in/social": { status: 200, body: { url: AUTHORIZE } } });
+      history.replaceState(null, "", "/sign-in");
+      renderWithProviders(
+        <InstanceContext value={withOidc(true)}>
+          <SignIn onSignedIn={vi.fn()} />
+        </InstanceContext>,
+      );
+      await userEvent.setup().click(screen.getByRole("button", { name: "Sign in with Okta" }));
+      await waitFor(() => expect(assign).toHaveBeenCalledWith(AUTHORIZE));
+      expect(sentBody(fetchMock, 0)).toEqual({});
+    });
+
+    it("shows the error from the address, focused", () => {
+      renderWithProviders(
+        <InstanceContext value={withOidc(false)}>
+          <SignIn onSignedIn={vi.fn()} error={{ code: "account_disabled" }} />
+        </InstanceContext>,
+      );
+      expect(screen.getByRole("group", { name: "This account is disabled. Ask your administrator." })).toHaveFocus();
     });
   });
 });

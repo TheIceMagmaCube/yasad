@@ -1,0 +1,22 @@
+# Catalog of the OIDC instance: nothing open to everyone, so "/" shows the sign-in screen, and one category per
+# provider group, so the home shows only what the groups in the ID token allow.
+version: 1
+
+categories:
+  - id: everyday
+    title: Everyday
+    groups: ["oidc:portal-users"]
+    links:
+      - id: mail
+        title: Mail
+        url: https://mail.example.org
+        groups: ["oidc:portal-users"]
+
+  - id: finance
+    title: Finance
+    groups: ["oidc:finance"]
+    links:
+      - id: payroll
+        title: Payroll
+        url: https://payroll.example.org
+        groups: ["oidc:finance"]

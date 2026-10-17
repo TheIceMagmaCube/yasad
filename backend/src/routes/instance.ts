@@ -30,5 +30,6 @@ instance.get("/", async (c) => {
     theme: knownTheme(values.get("instance.theme")),
     defaultLanguage: c.var.config.defaultLanguage,
     passwordSignIn: c.var.config.passwordSignIn,
+    oidc: c.var.config.oidc ? { name: c.var.config.oidc.providerName } : null,
   });
 });

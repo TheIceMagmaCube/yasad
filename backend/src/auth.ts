@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
@@ -11,8 +11,14 @@ import { account, session, user, verification } from "./schema";
 export const MIN_PASSWORD = 12;
 export const MAX_PASSWORD = 128;
 
-export function createAuth(db: DB, config: Config) {
-  return betterAuth({
+/**
+ * Return the options every Better Auth instance shares.
+ *
+ * The OIDC instance (oidc.ts) builds on them, so both write the same session cookie and read the
+ * same user fields.
+ */
+export function sharedOptions(db: DB, config: Config) {
+  return {
     appName: "YASAD",
     baseURL: config.publicUrl,
     basePath: "/api/auth",
@@ -48,7 +54,11 @@ export function createAuth(db: DB, config: Config) {
     rateLimit: { enabled: false },
     advanced: { useSecureCookies: config.publicUrl.startsWith("https://") },
     telemetry: { enabled: false },
-  });
+  } satisfies BetterAuthOptions;
+}
+
+export function createAuth(db: DB, config: Config) {
+  return betterAuth(sharedOptions(db, config));
 }
 
 export type Auth = ReturnType<typeof createAuth>;

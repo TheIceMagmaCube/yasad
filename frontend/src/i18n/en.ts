@@ -115,6 +115,27 @@ export const en = {
     backToLinks: "Back to the links",
     adminsOnly: "Reserved to administrators.",
     expired: "Your session has ended. Sign in again to continue.",
+    withProvider: (name: string) => `Sign in with ${name}`,
+    redirecting: (name: string) => `Redirecting to ${name}…`,
+    or: "or",
+    providerErrors: {
+      notAllowed: "Your account does not have access to this portal.",
+      emailInUse: "Another account already uses this e-mail address. Contact your administrator.",
+      providerUnavailable: (name: string) => `${name} is not responding. Try again in a moment.`,
+      rateLimited: (seconds: number | null) => {
+        if (seconds === null) return "Too many sign-in attempts. Try again later.";
+        if (seconds < 60) return `Too many sign-in attempts. Try again in ${seconds} second${seconds === 1 ? "" : "s"}.`;
+        const minutes = Math.ceil(seconds / 60);
+        return `Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+      },
+      failed: "Sign-in failed. Try again.",
+    },
+  },
+  signedOut: {
+    title: "You are signed out",
+    body: "Your YASAD session is closed.",
+    signInAgain: "Sign in again",
+    withPassword: "Sign in with a password",
   },
   catalog: {
     summary: (categories: number, links: number, groups: number) =>

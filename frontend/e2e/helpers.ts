@@ -12,9 +12,9 @@ export const WIDTHS = [320, 1280] as const;
 
 export const ADMIN = { name: "Ada Lovelace", email: "ada@example.invalid", password: "correct horse battery" };
 
-/** Set the instance theme directly in the database, as the future admin screen will. */
-export function setInstanceTheme(theme: string): void {
-  const db = new DatabaseSync(E2E_DB);
+/** Set the instance theme directly in the database (the first server's unless `file` names another one). */
+export function setInstanceTheme(theme: string, file = E2E_DB): void {
+  const db = new DatabaseSync(file);
   try {
     db.prepare(
       "insert into setting (key, value) values ('instance.theme', ?) on conflict(key) do update set value = excluded.value, updated_at = unixepoch() * 1000",
@@ -61,9 +61,9 @@ export async function expectAccessible(page: Page, label: string): Promise<void>
   expect(summary, label).toEqual([]);
 }
 
-/** Open `path` with the instance theme, the system colour scheme and the width given. */
-export async function open(page: Page, path: string, theme: string, mode: string, width: number): Promise<void> {
-  setInstanceTheme(theme);
+/** Open `path` with the instance theme (set in the database `file`), the system colour scheme and the width given. */
+export async function open(page: Page, path: string, theme: string, mode: string, width: number, file = E2E_DB): Promise<void> {
+  setInstanceTheme(theme, file);
   await page.emulateMedia({ colorScheme: mode as "light" | "dark" });
   await page.setViewportSize({ width, height: 800 });
   await page.goto(path);
