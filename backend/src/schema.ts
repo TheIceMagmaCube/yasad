@@ -104,7 +104,7 @@ export const group = sqliteTable(
   (t) => [uniqueIndex("group_source_name_idx").on(t.source, t.name)],
 );
 
-/** Members of local groups; OIDC memberships come from the identity provider. */
+/** Group members; memberships of `oidc` groups are rewritten from the ID token at each OIDC sign-in. */
 export const userGroup = sqliteTable(
   "user_group",
   {

@@ -6,7 +6,7 @@ describe("GET /api/instance", () => {
     const res = await (await testApp()).request("/api/instance");
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toEqual({ title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true });
+    expect(await res.json()).toEqual({ title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true, oidc: null });
   });
 
   it("returns the stored title, logo and theme, and DEFAULT_LANGUAGE", async () => {
@@ -20,6 +20,7 @@ describe("GET /api/instance", () => {
       theme: "dusk",
       defaultLanguage: "fr",
       passwordSignIn: false,
+      oidc: null,
     });
   });
 

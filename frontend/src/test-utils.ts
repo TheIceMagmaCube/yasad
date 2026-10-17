@@ -40,9 +40,12 @@ function Providers({ children }: { children: ReactNode }) {
   });
 }
 
-/** Render inside the language, theme and announcer providers, which `rerender` keeps. */
-export function renderWithProviders(ui: ReactNode) {
-  return render(ui, { wrapper: Providers });
+/**
+ * Render inside the language, theme and announcer providers, which `rerender` keeps. `strict` puts StrictMode at
+ * the root, where it runs every effect twice on mount, as in development.
+ */
+export function renderWithProviders(ui: ReactNode, { strict = false }: { strict?: boolean } = {}) {
+  return render(ui, { wrapper: Providers, reactStrictMode: strict });
 }
 
 /** Return the one status region of the component under test, the app's announcer left out. */

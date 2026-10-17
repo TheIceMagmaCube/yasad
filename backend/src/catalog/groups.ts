@@ -1,5 +1,3 @@
-import { and, eq } from "drizzle-orm";
-
 import type { DB } from "../db";
 import { group } from "../schema";
 
@@ -24,20 +22,4 @@ export function insertGroupIfMissing(db: DB, { source, name }: GroupKey) {
     .insert(group)
     .values({ id: crypto.randomUUID(), source, name })
     .onConflictDoNothing({ target: [group.source, group.name] });
-}
-
-/**
- * Return the id of the group, creating it when it does not exist yet.
- *
- * The catalog import and the OIDC sign-in both go through the (source, name) pair, so a group
- * created by an import is the one its members get at their first sign-in.
- */
-export async function findOrCreateGroup(db: DB, key: GroupKey): Promise<string> {
-  await insertGroupIfMissing(db, key);
-  const row = await db
-    .select({ id: group.id })
-    .from(group)
-    .where(and(eq(group.source, key.source), eq(group.name, key.name)))
-    .get();
-  return row!.id;
 }

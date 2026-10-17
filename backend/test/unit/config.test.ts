@@ -28,6 +28,7 @@ describe("loadConfig", () => {
       defaultLanguage: "en",
       passwordSignIn: true,
       catalogFile: null,
+      oidc: null,
     });
   });
 
@@ -83,6 +84,61 @@ describe("loadConfig", () => {
     expect(problemsOf(example)).toEqual([expect.stringContaining("AUTH_SECRET")]);
     expect(problemsOf({ ...valid, SETUP_CODE: "dev-only-setup-code-0123456789" })).toEqual([expect.stringContaining("SETUP_CODE")]);
     expect(problemsOf({ ...example, PUBLIC_URL: "http://localhost:5173" })).toEqual([]);
+  });
+
+  const oidc = {
+    OIDC_DISCOVERY_URL: "https://idp.example.org/.well-known/openid-configuration",
+    OIDC_CLIENT_ID: "yasad",
+    OIDC_CLIENT_SECRET: "secret",
+  };
+
+  it("leaves OIDC off when none of its required settings is set", () => {
+    expect(loadConfig({ ...valid, OIDC_PROVIDER_NAME: "Okta", OIDC_ADMIN_GROUPS: "admins" }).oidc).toBeNull();
+  });
+
+  it("reads the OIDC settings with their defaults", () => {
+    expect(loadConfig({ ...valid, ...oidc }).oidc).toEqual({
+      discoveryUrl: oidc.OIDC_DISCOVERY_URL,
+      clientId: "yasad",
+      clientSecret: "secret",
+      providerName: "SSO",
+      groupsClaim: "groups",
+      allowedGroups: [],
+      adminGroups: [],
+      scopes: ["openid", "email", "profile"],
+    });
+    const config = loadConfig({
+      ...valid,
+      ...oidc,
+      OIDC_PROVIDER_NAME: " Okta ",
+      OIDC_GROUPS_CLAIM: "roles",
+      OIDC_ALLOWED_GROUPS: " portal-users, ,staff,portal-users ",
+      OIDC_ADMIN_GROUPS: "IT Admins",
+      OIDC_SCOPES: "openid email profile groups",
+    });
+    expect(config.oidc).toMatchObject({
+      providerName: "Okta",
+      groupsClaim: "roles",
+      allowedGroups: ["portal-users", "staff"],
+      adminGroups: ["IT Admins"],
+      scopes: ["openid", "email", "profile", "groups"],
+    });
+  });
+
+  it("refuses a partial OIDC configuration", () => {
+    for (const name of Object.keys(oidc)) {
+      const partial: Record<string, string | undefined> = { ...valid, ...oidc, [name]: " " };
+      expect(problemsOf(partial), name).toEqual([expect.stringContaining(name)]);
+    }
+    expect(problemsOf({ ...valid, OIDC_CLIENT_ID: "yasad" })).toEqual([expect.stringContaining("OIDC_DISCOVERY_URL, OIDC_CLIENT_SECRET")]);
+  });
+
+  it("requires an https discovery URL when PUBLIC_URL is https", () => {
+    expect(problemsOf({ ...valid, ...oidc, OIDC_DISCOVERY_URL: "http://idp.example.org/.well-known/openid-configuration" })).toEqual([
+      expect.stringContaining("OIDC_DISCOVERY_URL"),
+    ]);
+    expect(problemsOf({ ...valid, ...oidc, OIDC_DISCOVERY_URL: "idp.example.org" })).toEqual([expect.stringContaining("OIDC_DISCOVERY_URL")]);
+    expect(problemsOf({ ...valid, ...oidc, PUBLIC_URL: "http://localhost:3000", OIDC_DISCOVERY_URL: "http://localhost:9000/x" })).toEqual([]);
   });
 
   it("reports every problem at once", () => {

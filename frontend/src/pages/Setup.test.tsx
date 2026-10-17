@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getStatus, mockApi, renderWithProviders, sentBody } from "../test-utils";
+import { InstanceContext } from "../instance";
 import { Setup } from "./Setup";
 
 const CODE = "setup-code-for-the-tests-0123456789";
@@ -219,5 +220,23 @@ describe("Setup", () => {
     expect(onClosed).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Go to sign-in" }));
     expect(onClosed).toHaveBeenCalledOnce();
+  });
+
+  it("offers the provider on the first step when OIDC is configured, without starting it", () => {
+    const fetchMock = mockApi({});
+    renderWithProviders(
+      <InstanceContext value={{ title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true, oidc: { name: "Okta" } }}>
+        <Setup onDone={vi.fn()} onClosed={vi.fn()} providerError={{ code: "not_allowed" }} />
+      </InstanceContext>,
+    );
+    expect(screen.getByLabelText("Setup code")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Your account does not have access to this portal." })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("offers no provider without OIDC", () => {
+    renderWithProviders(<Setup onDone={vi.fn()} onClosed={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Sign in with/ })).toBeNull();
   });
 });
