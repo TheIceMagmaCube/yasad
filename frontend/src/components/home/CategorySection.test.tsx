@@ -28,12 +28,13 @@ describe("CategorySection", () => {
     expect(within(region).getByRole("list")).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
   });
 
-  it("colours the bar and tiles from the index, cycling after six", () => {
+  it("colours the marker, tiles and card bases from the index, cycling after six", () => {
     const { container } = renderWithProviders(<CategorySection category={CATEGORY} index={7} />);
     // Read from categoryTone so a change of palette classes leaves this test alone.
     const tone = categoryTone(1);
     const selector = (classes: string) => classes.split(" ").map((c) => `.${CSS.escape(c)}`).join("");
-    expect(container.querySelector(`.h-5${selector(tone.bar)}`)).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector(`h2 .size-4${selector(tone.bar)}`)).toHaveAttribute("aria-hidden", "true");
     expect(container.querySelectorAll(`[data-slot="link-icon"]${selector(tone.tile)}`)).toHaveLength(3);
+    expect(container.querySelectorAll(`a${selector(tone.card)}`)).toHaveLength(3);
   });
 });

@@ -115,20 +115,12 @@ describe("theme contract", () => {
 // against what touches it (WCAG 1.4.11, 2.4.13). axe checks text it renders but not these.
 
 describe("category colours", () => {
-  // The tile is bg-category-N/12 on a card with a text-category-N icon or initial. The tile is aria-hidden and its
-  // initial repeats the title next to it, so it is checked as a graphic (3:1, WCAG 1.4.11), not as text.
-  it("keep 3:1 between the icon or initial and its tinted tile", () => {
-    eachMode((color, label) => {
-      const card = color("card");
-      for (let n = 1; n <= 6; n++) {
-        const tint = color(`category-${n}`);
-        const tile = tint.map((c, i) => 0.12 * c + 0.88 * card[i]!) as Rgb;
-        expect(contrast(tint, tile), `${label} category-${n}`).toBeGreaterThanOrEqual(3);
-      }
-    });
-  });
-
-  it("keep 4.5:1 between on-fill text and each solid category fill", () => {
+  // A link's icon tile is a solid category fill with its icon or initial in on-fill: the 4.5:1 below covers the 3:1
+  // the icon needs as a graphic (WCAG 1.4.11).
+  it("keep 4.5:1 between on-fill text and each solid category fill", async () => {
+    // The pair only covers the tile while the tile draws it.
+    const tones = await readFile("src/lib/category-tone.ts", "utf8");
+    for (let n = 1; n <= 6; n++) expect(tones, `category-${n}`).toContain(`tile: "bg-category-${n}-fill text-on-fill"`);
     eachMode((color, label) => {
       for (let n = 1; n <= 6; n++) {
         expect(contrast(color("on-fill"), color(`category-${n}-fill`)), `${label} category-${n}-fill`).toBeGreaterThanOrEqual(4.5);

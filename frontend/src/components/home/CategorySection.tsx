@@ -22,7 +22,7 @@ export function CategorySection({ category, index }: { category: HomeCategory; i
         id={id}
         title={
           <span className="flex items-center gap-2">
-            <span aria-hidden="true" className={`h-5 w-1 shrink-0 rounded-full ${tone.bar}`} />
+            <span aria-hidden="true" className={`pixel-corners size-4 shrink-0 ${tone.bar}`} />
             <span className="min-w-0">{category.title}</span>
           </span>
         }
@@ -30,7 +30,7 @@ export function CategorySection({ category, index }: { category: HomeCategory; i
       <ul role="list" className={LINK_GRID}>
         {category.links.map((link) => (
           <li key={link.id} className="min-w-0">
-            <LinkCard link={link} tile={tone.tile} />
+            <LinkCard link={link} tone={tone} />
           </li>
         ))}
       </ul>
