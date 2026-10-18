@@ -6,6 +6,11 @@ import { expect, type Page } from "@playwright/test";
 
 import { E2E_DB } from "../playwright.config";
 
+/** Open a server's database, waiting while the running server holds its write lock. */
+function openDb(file: string): DatabaseSync {
+  return new DatabaseSync(file, { timeout: 5000 });
+}
+
 export const THEMES = ["default", "dusk", "night"] as const;
 export const MODES = ["light", "dark"] as const;
 export const WIDTHS = [320, 1280] as const;
@@ -14,7 +19,7 @@ export const ADMIN = { name: "Ada Lovelace", email: "ada@example.invalid", passw
 
 /** Set the instance theme directly in the database (the first server's unless `file` names another one). */
 export function setInstanceTheme(theme: string, file = E2E_DB): void {
-  const db = new DatabaseSync(file);
+  const db = openDb(file);
   try {
     db.prepare(
       "insert into setting (key, value) values ('instance.theme', ?) on conflict(key) do update set value = excluded.value, updated_at = unixepoch() * 1000",
@@ -31,7 +36,7 @@ type LocalUser = { id: string; name: string; email: string; password: string; mu
 /** Insert a local user with a known password straight into the database. */
 export async function addLocalUser({ id, name, email, password, mustChangePassword = false }: LocalUser): Promise<void> {
   const hash = await hashPassword(password);
-  const db = new DatabaseSync(E2E_DB);
+  const db = openDb(E2E_DB);
   try {
     db.prepare(`insert into "user" (id, name, email, must_change_password) values (?, ?, ?, ?)`).run(id, name, email, mustChangePassword ? 1 : 0);
     db.prepare(`insert into account (id, account_id, provider_id, user_id, password) values (?, ?, 'credential', ?, ?)`).run(`acc-${id}`, id, id, hash);
@@ -113,7 +118,7 @@ export function announcer(page: Page) {
 
 /** Insert an account with no password, as an OIDC sign-in creates it. */
 export function addOidcUser({ id, name, email }: { id: string; name: string; email: string }): void {
-  const db = new DatabaseSync(E2E_DB);
+  const db = openDb(E2E_DB);
   try {
     db.prepare(`insert into "user" (id, name, email) values (?, ?, ?)`).run(id, name, email);
   } finally {
@@ -123,7 +128,7 @@ export function addOidcUser({ id, name, email }: { id: string; name: string; ema
 
 /** Insert `n` accounts with no password, named "<prefix> 001" onwards, in one transaction. */
 export function addUsers(n: number, prefix: string): void {
-  const db = new DatabaseSync(E2E_DB);
+  const db = openDb(E2E_DB);
   try {
     const insert = db.prepare(`insert into "user" (id, name, email) values (?, ?, ?)`);
     db.exec("begin");
@@ -140,7 +145,7 @@ export function addUsers(n: number, prefix: string): void {
 
 /** Insert a group and its members. */
 export function addGroup({ id, name, source = "local", memberIds = [] }: { id: string; name: string; source?: "local" | "oidc"; memberIds?: string[] }): void {
-  const db = new DatabaseSync(E2E_DB);
+  const db = openDb(E2E_DB);
   try {
     db.prepare(`insert into "group" (id, name, source) values (?, ?, ?)`).run(id, name, source);
     for (const userId of memberIds) db.prepare(`insert into user_group (user_id, group_id) values (?, ?)`).run(userId, id);
