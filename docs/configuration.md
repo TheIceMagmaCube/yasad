@@ -57,7 +57,7 @@ On Cloudflare Workers, the client IP always comes from the `CF-Connecting-IP` he
 
 | Variable | Default | Example | Description |
 |---|---|---|---|
-| `CATALOG_FILE` | unset | `/config/catalog.yaml` | Docker only. Path, inside the container, of a catalog file applied at every start. The catalog then matches the file, and the Catalog page no longer imports files. An invalid file stops the start. Do not set it on Workers: no file is loaded there, but catalog imports, and renaming or deleting the groups the catalog uses, are still refused. |
+| `CATALOG_FILE` | unset | `/config/catalog.yaml` | Docker only. Path, inside the container, of a catalog file applied at every start. The catalog then matches the file, and the Catalog page no longer imports files; categories and links cannot be changed in the app either. An invalid file stops the start. Do not set it on Workers: no file is loaded there, but catalog imports and edits, and renaming or deleting the groups the catalog uses, are still refused. |
 
 The file has the format of [catalog.example.yaml](catalog.example.yaml). To use it with the example compose files, put it at `config/catalog.yaml` next to `compose.yaml`, add `CATALOG_FILE=/config/catalog.yaml` to `.env`, and mount the folder in the `yasad` service:
 

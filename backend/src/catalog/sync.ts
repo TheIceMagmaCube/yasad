@@ -1,10 +1,10 @@
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
 
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, setting } from "../schema";
 import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog, parseKeywords } from "./format";
-import { groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
+import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 
 /** A point the admin should check before applying, as a code the interface translates. */
 export type CatalogWarning =
@@ -49,6 +49,16 @@ export function bumpRevision(db: DB) {
     .onConflictDoUpdate({ target: setting.key, set: { value: sql`cast(${setting.value} as integer) + 1`, updatedAt: new Date() } });
 }
 
+/**
+ * Return a statement that fails on a primary key conflict when `condition` holds, rolling its batch back.
+ *
+ * It copies the revision row onto itself, so it only fails once that row exists: put it after
+ * {@link bumpRevision} unless the missing row is meant to pass.
+ */
+export function guard(db: DB, condition: SQL) {
+  return db.insert(setting).select(db.select().from(setting).where(and(eq(setting.key, REVISION_KEY), condition)));
+}
+
 /** Return the list cut into slices short enough to bind in one statement. */
 function chunks<T>(items: T[]): T[][] {
   return Array.from({ length: Math.ceil(items.length / MAX_IDS_PER_STATEMENT) }, (_, i) => items.slice(i * MAX_IDS_PER_STATEMENT, (i + 1) * MAX_IDS_PER_STATEMENT));
@@ -57,8 +67,8 @@ function chunks<T>(items: T[]): T[][] {
 /** Return the catalog stored in the database, in display order. */
 export async function readCatalog(db: DB): Promise<Catalog> {
   const [categories, links, categoryGroups, linkGroups] = await Promise.all([
-    db.select().from(category).orderBy(asc(category.position)),
-    db.select().from(link).orderBy(asc(link.position)),
+    db.select().from(category).orderBy(asc(category.position), asc(category.id)),
+    db.select().from(link).orderBy(asc(link.position), asc(link.id)),
     db.select({ id: categoryGroup.categoryId, source: group.source, name: group.name }).from(categoryGroup).innerJoin(group, eq(group.id, categoryGroup.groupId)),
     db.select({ id: linkGroup.linkId, source: group.source, name: group.name }).from(linkGroup).innerJoin(group, eq(group.id, linkGroup.groupId)),
   ]);
@@ -173,14 +183,7 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
       if (lnk.icon && !resolveIcon(lnk.icon)) diff.warnings.push({ code: "unknown_icon", kind: "link", id: lnk.id });
     }
   }
-  const byLowerCase = new Map<string, Set<string>>();
-  for (const ref of new Set([...refs, ...existing])) {
-    const key = ref.toLowerCase();
-    byLowerCase.set(key, (byLowerCase.get(key) ?? new Set()).add(ref));
-  }
-  for (const variants of byLowerCase.values()) {
-    if (variants.size > 1) diff.warnings.push({ code: "groups_differ_by_case", groups: [...variants].sort() });
-  }
+  for (const groups of caseVariants(new Set([...refs, ...existing]))) diff.warnings.push({ code: "groups_differ_by_case", groups });
   // Own keys only: an id such as "constructor" must not find the one Object.prototype holds.
   const { categories: catLabels, links: linkLabels } = diff.labels;
   for (const warning of diff.warnings) {
@@ -200,7 +203,7 @@ export function isEmpty(diff: CatalogDiff): boolean {
 }
 
 /** Return the statements linking one category to its groups, matched by (source, name). */
-function categoryGroupRows(db: DB, categoryId: string, refs: string[]) {
+export function categoryGroupRows(db: DB, categoryId: string, refs: string[]) {
   return [...new Set(refs)].map((ref) => {
     const { source, name } = parseGroupRef(ref);
     return db
@@ -210,7 +213,7 @@ function categoryGroupRows(db: DB, categoryId: string, refs: string[]) {
 }
 
 /** Return the statements linking one link to its groups, matched by (source, name). */
-function linkGroupRows(db: DB, linkId: string, refs: string[]) {
+export function linkGroupRows(db: DB, linkId: string, refs: string[]) {
   return [...new Set(refs)].map((ref) => {
     const { source, name } = parseGroupRef(ref);
     return db
@@ -225,18 +228,16 @@ function linkGroupRows(db: DB, linkId: string, refs: string[]) {
  * The batch starts with a guard that fails on a primary key conflict when the revision is no longer
  * `revision`, so it rolls back whole if another write came first, and ends by increasing the revision.
  * Missing groups are created first; group links are matched by (source, name), so a group created
- * concurrently is still the one used.
+ * concurrently is still the one used. Each updated item gets a new revision, so an edit started in
+ * the app before the import is refused.
  */
 export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, revision: string): Promise<void> {
   if (isEmpty(diff)) return;
   const now = new Date();
   const cats = categoriesOf(next);
   const lnks = linksOf(next);
-  // Copying the revision row onto itself conflicts exactly when its value is no longer `revision`. A
-  // missing row is revision "0": it cannot appear without a write, which stores "1" or more.
-  const statements: unknown[] = [
-    db.insert(setting).select(db.select().from(setting).where(and(eq(setting.key, REVISION_KEY), ne(setting.value, revision)))),
-  ];
+  // A missing revision row is revision "0": it cannot appear without a write, which stores "1" or more.
+  const statements: unknown[] = [guard(db, ne(setting.value, revision))];
 
   for (const ref of diff.groupsCreated) statements.push(insertGroupIfMissing(db, parseGroupRef(ref)));
 
@@ -246,7 +247,10 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, rev
       db
         .insert(category)
         .values({ id, title: cat.title, position: cat.position, createdAt: now, updatedAt: now })
-        .onConflictDoUpdate({ target: category.id, set: { title: cat.title, position: cat.position, updatedAt: now } }),
+        .onConflictDoUpdate({
+          target: category.id,
+          set: { title: cat.title, position: cat.position, revision: sql`${category.revision} + 1`, updatedAt: now },
+        }),
       db.delete(categoryGroup).where(eq(categoryGroup.categoryId, id)),
       ...categoryGroupRows(db, id, cat.groups),
     );
@@ -265,7 +269,10 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, rev
       updatedAt: now,
     };
     statements.push(
-      db.insert(link).values({ id, ...values, createdAt: now }).onConflictDoUpdate({ target: link.id, set: values }),
+      db
+        .insert(link)
+        .values({ id, ...values, createdAt: now })
+        .onConflictDoUpdate({ target: link.id, set: { ...values, revision: sql`${link.revision} + 1` } }),
       db.delete(linkGroup).where(eq(linkGroup.linkId, id)),
       ...linkGroupRows(db, id, lnk.groups),
     );

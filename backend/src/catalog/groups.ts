@@ -16,6 +16,16 @@ export function groupRef({ source, name }: GroupKey): string {
   return source === "system" ? `@${name}` : `${source}:${name}`;
 }
 
+/** Return each set of references that differ only by case, sorted, among `refs`. */
+export function caseVariants(refs: Iterable<string>): string[][] {
+  const byLowerCase = new Map<string, Set<string>>();
+  for (const ref of refs) {
+    const key = ref.toLowerCase();
+    byLowerCase.set(key, (byLowerCase.get(key) ?? new Set()).add(ref));
+  }
+  return [...byLowerCase.values()].filter((variants) => variants.size > 1).map((variants) => [...variants].sort());
+}
+
 /** Return the statement creating the group unless it exists; usable in db.batch. */
 export function insertGroupIfMissing(db: DB, { source, name }: GroupKey) {
   return db

@@ -1,5 +1,5 @@
 import { and, asc, eq, exists, ne, type SQL } from "drizzle-orm";
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
 
 import { authFor, sessionFor } from "../auth";
 import type { AppEnv } from "../context";
@@ -7,6 +7,7 @@ import type { DB } from "../db";
 import { apiError } from "../errors";
 import { account, group, session, user, userGroup } from "../schema";
 import { temporaryPassword } from "../temporary-password";
+import { readJson } from "./body";
 import { requireAdmin } from "./require-admin";
 import { EMAIL } from "./setup";
 
@@ -28,11 +29,6 @@ export type AdminUser = {
 };
 
 const isRole = (v: unknown): v is Role => v === "admin" || v === "user";
-
-async function readJson(c: Context): Promise<Record<string, unknown>> {
-  const body: unknown = await c.req.json().catch(() => null);
-  return body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-}
 
 /** Return the users with their origin and groups, sorted by name, or only the one with `id`. */
 async function listUsers(db: DB, id?: string): Promise<AdminUser[]> {

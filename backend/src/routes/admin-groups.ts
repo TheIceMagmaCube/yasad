@@ -6,6 +6,7 @@ import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { apiError } from "../errors";
 import { categoryGroup, group, linkGroup, user, userGroup } from "../schema";
+import { readJson } from "./body";
 import { requireAdmin } from "./require-admin";
 
 export type AdminGroup = {
@@ -17,11 +18,6 @@ export type AdminGroup = {
   categories: number;
   links: number;
 };
-
-async function readJson(c: Context): Promise<Record<string, unknown>> {
-  const body: unknown = await c.req.json().catch(() => null);
-  return body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-}
 
 /** Return every group with its members and catalog use, system groups first, then by name. */
 async function listGroups(db: DB): Promise<AdminGroup[]> {
