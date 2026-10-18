@@ -24,7 +24,7 @@ describe("loadConfig", () => {
       publicUrl: "https://yasad.example.org",
       setupCode: null,
       trustProxy: 0,
-      sessionMaxAge: 604800,
+      sessionMaxAge: 86400,
       defaultLanguage: "en",
       passwordSignIn: true,
       catalogFile: null,

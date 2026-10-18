@@ -41,7 +41,7 @@ export class ConfigError extends Error {
 
 export const MIN_AUTH_SECRET = 32;
 export const MIN_SETUP_CODE = 24;
-const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24;
 /** Prefix of the values in .env.example and .dev.vars.example. */
 const EXAMPLE_PREFIX = "dev-only-";
 const OIDC_REQUIRED = ["OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"] as const;
