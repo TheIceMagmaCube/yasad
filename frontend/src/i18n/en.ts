@@ -127,6 +127,8 @@ export const en = {
       "No captcha, no traffic lights to click. Promise.",
       "The links are polished, the pixels aligned. Only you are missing.",
       "Every portal needs a hero. Today, it's you.",
+      "42 baguette, oui oui.",
+      "621 reasons to think you are about to sign in.",
     ],
     expired: "Your session has ended. Sign in again to continue.",
     withProvider: (name: string) => `Sign in with ${name}`,
