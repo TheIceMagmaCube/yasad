@@ -31,6 +31,19 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Remove" })).toHaveClass("text-destructive", "hover:bg-destructive-surface");
   });
 
+  it("keeps a pending button at full opacity, its label being the progress text, but dims any other aria-disabled one", () => {
+    render(
+      <>
+        <Button pending pendingLabel="Signing in">Sign in</Button>
+        <Button aria-disabled>Rename</Button>
+      </>,
+    );
+    const pending = screen.getByRole("button", { name: "Signing in" });
+    expect(pending).toHaveClass("aria-disabled:opacity-100");
+    expect(pending).not.toHaveClass("aria-disabled:opacity-60");
+    expect(screen.getByRole("button", { name: "Rename" })).toHaveClass("aria-disabled:opacity-60");
+  });
+
   it("keeps focus and ignores clicks and submission while pending", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();

@@ -42,7 +42,8 @@ describe("AuthLayout", () => {
     const tagline = within(banner).getByText("One clean screen with the links each person is allowed to see.");
     for (const text of [brand, tagline]) {
       expect(scene.contains(text)).toBe(false);
-      expect(text.closest(".pixel-corners")).toHaveClass("bg-header", "text-header-foreground");
+      // The edge is drawn in header-active: the night sky is as dark as the box itself.
+      expect(text.closest(".border-header-active")).toHaveClass("bg-header", "text-header-foreground");
     }
   });
 

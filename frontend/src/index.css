@@ -283,3 +283,9 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(1px); }
 }
+
+/* Wordmark of the sign-in panel: Nabla from Google Fonts (OFL), instanced and subset to Latin with its COLR, CPAL and
+   SVG colour tables, which the fontsource build drops (the face then renders plain white). Its default palette keeps
+   every layer at 3:1 on the header plate in both themes and modes. */
+@font-face { font-family: Nabla; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/nabla-latin.woff2") format("woff2"); }
+.wordmark { font-family: "Nabla", var(--font-heading); font-weight: 400; letter-spacing: 0.02em; }

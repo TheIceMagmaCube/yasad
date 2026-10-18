@@ -10,7 +10,7 @@ const BASE =
 /** Classes of each size: the header bar, or the sign over the pixel panel of the sign-in screens. */
 const SIZES = {
   header: { root: "gap-2", logo: "size-6", title: "" },
-  panel: { root: "gap-3", logo: "size-8 md:size-10", title: "text-pixel text-2xl md:text-3xl" },
+  panel: { root: "gap-3 md:gap-4", logo: "size-11 md:size-16", title: "wordmark text-3xl md:text-5xl" },
 } as const;
 
 type BrandProps = {

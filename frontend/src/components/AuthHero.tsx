@@ -21,8 +21,9 @@ const DESK: readonly Cell[] = [
   ["fill-foreground", 21, 2, 22, 14],
   ["fill-foreground", 30, 16, 4, 2],
   ["fill-foreground", 27, 18, 10, 1],
-  // Keyboard with its keys.
-  ["fill-muted-foreground", 10, 17, 12, 2],
+  // Keyboard with its keys. In dark mode muted-foreground is too pale for the yellow key pressed into it, so the
+  // body is mixed halfway with the page: 3:1 against the key and against the page in every theme.
+  ["fill-muted-foreground dark:fill-[color-mix(in_srgb,var(--muted-foreground)_50%,var(--background))]", 10, 17, 12, 2],
   ["fill-card", 11, 17, 1, 1],
   ["fill-card", 13, 17, 1, 1],
   ["fill-card", 17, 17, 1, 1],
@@ -84,21 +85,24 @@ const SNORES = [
   { cells: zed(50, 0), motion: "motion-safe:animate-[pixel-float_3s_steps(6)_2s_infinite]" },
 ];
 
-/** Single cells that move in both states: steam, sparkles, the power light, a pressed key and the cat's tail. */
+/**
+ * Single cells that move in both states: steam, sparkles, the power light, a pressed key and the cat's tail. The big
+ * sparkle sits right of the snores' path, so a rising "z" never passes under it.
+ */
 const MOVING: readonly MovingCell[] = [
   ["fill-muted-foreground", 48, 11, 1, 1, "motion-safe:animate-[pixel-steam_2.4s_steps(5)_infinite]"],
   ["fill-muted-foreground", 50, 11, 1, 1, "motion-safe:animate-[pixel-steam_2.4s_steps(5)_800ms_infinite]"],
   ["fill-muted-foreground", 49, 12, 1, 1, "motion-safe:animate-[pixel-steam_2.4s_steps(5)_1600ms_infinite]"],
-  ["fill-primary", 45, 2, 1, 3, "motion-safe:animate-[pixel-twinkle_1.8s_steps(2)_infinite]"],
-  ["fill-primary", 44, 3, 3, 1, "motion-safe:animate-[pixel-twinkle_1.8s_steps(2)_infinite]"],
+  ["fill-primary", 57, 1, 1, 3, "motion-safe:animate-[pixel-twinkle_1.8s_steps(2)_infinite]"],
+  ["fill-primary", 56, 2, 3, 1, "motion-safe:animate-[pixel-twinkle_1.8s_steps(2)_infinite]"],
   ["fill-primary", 16, 4, 1, 1, "motion-safe:animate-[pixel-twinkle_2.6s_steps(2)_900ms_infinite]"],
   ["fill-primary", 12, 1, 1, 1, "motion-safe:animate-[pixel-twinkle_2.2s_steps(2)_400ms_infinite]"],
   ["fill-primary", 15, 16, 1, 1, "motion-safe:animate-[pixel-type_0.5s_steps(2)_infinite]"],
   ["fill-foreground", 8, 12, 2, 1, "motion-safe:animate-[pixel-sway_2s_steps(2)_infinite]"],
 ];
 
-/** The power light of the monitor, lit while awake only. */
-const POWER: MovingCell = ["fill-primary", 39, 14, 2, 1, "motion-safe:animate-[pixel-twinkle_3s_steps(2)_infinite]"];
+/** The power light of the monitor, lit while awake only; on the cream bezel of dark mode, yellow would not show. */
+const POWER: MovingCell = ["fill-primary dark:fill-primary-shade", 39, 14, 2, 1, "motion-safe:animate-[pixel-twinkle_3s_steps(2)_infinite]"];
 
 function cells(list: readonly Cell[]) {
   return list.map(([fill, x, y, w, h], i) => <rect key={i} className={fill} x={x} y={y} width={w} height={h} />);

@@ -12,8 +12,11 @@ type AuthLayoutProps = {
   children: ReactNode;
 };
 
-/** Solid sign over the pixel scene: text never sits on the artwork itself, so its contrast does not depend on it. */
-const PLATE = "pixel-corners border-2 border-header-border bg-header text-header-foreground";
+/**
+ * Solid box over the pixel scene: text never sits on the artwork itself, so its contrast does not depend on it. The
+ * night sky is as dark as the box, so its edge is drawn in header-active, which keeps 3:1 against the header.
+ */
+const PLATE = "rounded-lg border-2 border-header-active bg-header text-header-foreground";
 
 /** Give the small controls at the top of the column a 44 px target. */
 const TARGETS = "[&_:is(button,select)]:h-11";
@@ -30,10 +33,10 @@ export function AuthLayout({ actions, children }: AuthLayoutProps) {
       <SkipLink />
       <header className="relative isolate flex h-32 flex-col items-start justify-between overflow-hidden bg-header p-3 md:sticky md:top-0 md:h-screen md:p-8">
         <PixelScene className="absolute inset-0 -z-10" />
-        <div className={`${PLATE} max-w-full p-2 pr-3 md:p-3 md:pr-5`}>
+        <div className={`${PLATE} flex max-w-full flex-col gap-3 p-2 pr-3 md:max-w-sm md:p-4 md:pr-6`}>
           <Brand size="panel" />
+          <p className="hidden text-lg leading-snug text-header-muted md:block">{m.tagline}</p>
         </div>
-        <p className={`${PLATE} text-pixel hidden max-w-xs px-4 py-3 text-lg leading-snug md:block`}>{m.tagline}</p>
       </header>
       <div className="flex min-w-0 flex-col">
         <div className={`flex flex-wrap items-center justify-end gap-3 px-4 pt-3 md:px-10 md:pt-6 ${TARGETS}`}>

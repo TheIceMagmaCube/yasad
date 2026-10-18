@@ -148,7 +148,7 @@ Issues and ideas are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). To report 
 
 GNU Affero General Public License v3.0 (AGPL-3.0).
 
-Fonts are served by YASAD itself, from [Fontsource](https://fontsource.org), under the SIL Open Font License 1.1: [Inter](https://github.com/rsms/inter), [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), [Azeret Mono](https://github.com/displaay/azeret) and [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans).
+Fonts are served by YASAD itself, from [Fontsource](https://fontsource.org), under the SIL Open Font License 1.1: [Inter](https://github.com/rsms/inter), [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), [Azeret Mono](https://github.com/displaay/azeret) and [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans). The sign-in wordmark uses [Nabla](https://github.com/justvanrossum/nabla) (same licence), subset from the Google Fonts build to keep its colour tables; its licence is in `frontend/src/fonts/nabla-OFL.txt`.
 
 Catalog icons are generated at build time (`scripts/generate-icons.mjs`), with their licences in `icons/<hash>/NOTICE.txt` next to them:
 

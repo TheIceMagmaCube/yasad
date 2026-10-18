@@ -25,6 +25,7 @@ type Slot =
   | "star"
   | "starHi"
   | "cloud"
+  | "cloudLow"
   | "sun"
   | "sunHi"
   | "bird"
@@ -58,6 +59,7 @@ const DAY: Palette = {
   star: null,
   starHi: null,
   cloud: "#fffdf8",
+  cloudLow: "#fffdf8",
   sun: "#ffd84d",
   sunHi: "#fff0b8",
   bird: "#4a4560",
@@ -78,29 +80,30 @@ const DAY: Palette = {
 const DUSK: Palette = {
   sky0: "#0e0d14",
   sky1: "#1b1230",
-  sky2: "#2a1744",
-  sky3: "#4a1f4f",
+  sky2: "#3f1d62",
+  sky3: "#6a2a6a",
   sky4: "#8a3b4a",
   sky5: "#d8693f",
   sky6: "#ff9a3c",
   star: "#fbf5e9",
   starHi: "#ffd84d",
-  cloud: "#5c2450",
+  cloud: "#b0608e",
+  cloudLow: "#e0806a",
   sun: "#ffd84d",
   sunHi: "#ffe58a",
-  bird: "#0b0a10",
-  hill: "#2a1744",
-  cityFar: "#1b1230",
+  bird: "#b07a9e",
+  hill: "#5a2350",
+  cityFar: "#34163c",
   city: "#0b0a10",
   window: "#ffd84d",
   windowHi: "#fbf5e9",
   tower: "#0b0a10",
   beacon: "#ff5a4d",
   ground: "#0b0a10",
-  lane: "#3a3448",
-  lamp: "#1e1c28",
+  lane: "#5e5874",
+  lamp: "#8a7f9e",
   lampLight: "#ffd84d",
-  pool: "#3b2f16",
+  pool: "#b8902a",
 };
 
 /** Sky bands from the top; each boundary is dithered over two rows. */
@@ -166,7 +169,8 @@ function draw(): [Slot, string][] {
     rect(dy < -11 ? "sunHi" : "sun", SUN.cx - half, SUN.cy + dy, half * 2, 1);
   }
 
-  // Long thin clouds, one of them across the sun.
+  // Long thin clouds, one of them across the sun. The low ones have their own slot: at dusk they stand dark against
+  // the glow while the high ones catch the light.
   for (const [x, y, w] of [
     [12, 30, 26],
     [20, 31, 12],
@@ -178,7 +182,7 @@ function draw(): [Slot, string][] {
     [58, 64, 22],
     [86, 62, 18],
   ] as const) {
-    rect("cloud", x, y, w, 1);
+    rect(y > 55 ? "cloudLow" : "cloud", x, y, w, 1);
   }
 
   // A few birds heading home.

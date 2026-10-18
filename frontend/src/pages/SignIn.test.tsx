@@ -210,7 +210,7 @@ describe("SignIn", () => {
       expect(button.compareDocumentPosition(or) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(or.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       // The provider is the one main action: the password submit steps down to the outline style.
-      expect(screen.getByRole("button", { name: "Sign in" })).toHaveClass("border-input");
+      expect(screen.getByRole("button", { name: "Sign in" })).toHaveClass("bg-card");
       expect(screen.getByRole("button", { name: "Sign in" })).not.toHaveClass("bg-primary");
     });
 
