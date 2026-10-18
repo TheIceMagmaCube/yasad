@@ -12,8 +12,7 @@
   }
   var root = document.documentElement;
   // An unknown id (a removed theme) is skipped like an absent one, as ThemeProvider does, so nothing flashes.
-  var devTheme = root.hasAttribute("data-dev") ? read("devTheme") : null;
-  var theme = THEMES.indexOf(devTheme) >= 0 ? devTheme : read("instanceTheme");
+  var theme = read("instanceTheme");
   root.setAttribute("data-theme", THEMES.indexOf(theme) >= 0 ? theme : "default");
 
   var mode = read("mode");

@@ -10,7 +10,7 @@ export type Theme = (typeof THEMES)[number];
 export const MODES = ["system", "light", "dark"] as const;
 export type Mode = (typeof MODES)[number];
 
-type Key = "language" | "mode" | "devTheme" | "instanceTheme" | "instanceLanguage";
+type Key = "language" | "mode" | "instanceTheme" | "instanceLanguage";
 
 /** Return the stored value when it is one of `allowed`, otherwise null (also when storage is unavailable). */
 export function readPreference<T extends string>(key: Key, allowed: readonly T[]): T | null {

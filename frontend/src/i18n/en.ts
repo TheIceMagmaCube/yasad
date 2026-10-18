@@ -43,7 +43,6 @@ export const en = {
     language: "Language",
     appearance: "Appearance",
     modes: { system: "System", light: "Light", dark: "Dark" },
-    theme: "Theme (dev only)",
     label: "Preferences",
     savedHere: "Saved on this device.",
   },
