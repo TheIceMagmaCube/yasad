@@ -20,13 +20,13 @@ export function LinkCard({ link, tile, className }: { link: HomeLink; tile: stri
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       className={cn(
-        "group flex h-full items-start gap-3 rounded-xl border bg-card p-4 text-card-foreground shadow-card transition-[box-shadow,border-color,translate] hover:border-input hover:shadow-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0",
+        "relief flex h-full items-start gap-3 rounded-2xl bg-card p-4 text-card-foreground [--relief-ring:var(--border)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
         className,
       )}
     >
       <LinkIcon icon={link.icon} title={link.title} className={tile} />
       <span className="min-w-0 flex-1">
-        <span id={titleId} className="block font-semibold wrap-anywhere group-hover:underline">
+        <span id={titleId} className="block font-heading font-bold wrap-anywhere">
           {link.title}
         </span>
         {link.description && (

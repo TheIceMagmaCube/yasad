@@ -1,6 +1,9 @@
+import { cn } from "@/lib/utils";
+
 import { ApiError } from "../../api";
 import type { Messages } from "../../i18n/en";
 import { errorMessage, fieldErrorMessage } from "../../i18n/errors";
+import { categoryTone } from "../../lib/category-tone";
 
 /** Return the text for an error of the admin API: its own messages first, then field and generic ones. */
 export function adminErrorText(err: unknown, m: Messages): string {
@@ -14,4 +17,41 @@ export function adminErrorText(err: unknown, m: Messages): string {
 /** Return whether the API said the item an action targets no longer exists. */
 export function isNotFound(err: unknown): boolean {
   return err instanceof ApiError && err.body.code === "not_found";
+}
+
+/** Return up to two initials of a name (first and last word), whole characters only. */
+export function initialsOf(name: string, language: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = (word: string | undefined) => (word ? Array.from(word)[0]! : "");
+  const initials = words.length > 1 ? first(words[0]) + first(words[words.length - 1]) : first(words[0]);
+  return initials.toLocaleUpperCase(language) || "?";
+}
+
+/** Return a stable index for a key, so a person keeps the same colour from one visit to the next. */
+function hashIndex(key: string): number {
+  let h = 0;
+  for (const ch of key) h = (h * 31 + ch.codePointAt(0)!) | 0;
+  return Math.abs(h);
+}
+
+/**
+ * Render the pixel tile of a person: initials on a colour of their own, or on a dithered grey when the account is
+ * disabled. It is decorative: the row names the person and says the account is disabled in words.
+ */
+export function PersonTile({ id, name, language, disabled = false, className }: { id: string; name: string; language: string; disabled?: boolean; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="person-tile"
+      className={cn(
+        "pixel-corners text-pixel flex size-10 shrink-0 items-center justify-center text-base leading-none select-none",
+        disabled
+          ? "bg-[image:repeating-conic-gradient(var(--border)_0_25%,var(--muted)_0_50%)] bg-[length:4px_4px] text-foreground line-through decoration-2"
+          : categoryTone(hashIndex(id)).tile,
+        className,
+      )}
+    >
+      {initialsOf(name, language)}
+    </span>
+  );
 }

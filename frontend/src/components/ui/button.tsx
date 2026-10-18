@@ -5,17 +5,24 @@ import type { ComponentProps, MouseEvent } from "react";
 
 import { cn } from "@/lib/utils";
 
+const RAISED = "relief border-[1.5px] border-transparent";
+
 const variants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-semibold whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-heading text-sm font-bold whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        // Raised keys: a hard base in a darker shade of the face, and in light mode a ring that keeps the yellow
+        // face distinct from the cream page. RAISED's transparent border is what forced colors mode draws, since
+        // it drops the box shadows.
+        default:
+          `${RAISED} bg-primary text-primary-foreground [--relief-base:var(--primary-shade)] [--relief-inset:rgb(255_255_255/0.55)] [--relief-ring:var(--control-primary-ring)]`,
+        secondary: `${RAISED} bg-secondary text-secondary-foreground [--relief-base:var(--control-depth)] [--relief-ring:var(--control-ring)]`,
+        outline:
+          `${RAISED} bg-card text-card-foreground [--relief-base:var(--control-depth)] [--relief-ring:var(--control-ring)] hover:bg-accent hover:text-accent-foreground`,
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-foreground underline underline-offset-4 hover:no-underline",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        link: "text-foreground underline decoration-link-decoration decoration-2 underline-offset-4 hover:decoration-foreground",
+        destructive: `${RAISED} bg-destructive text-destructive-foreground [--relief-color:var(--destructive)]`,
         "destructive-ghost": "text-destructive hover:bg-destructive-surface",
       },
       size: {

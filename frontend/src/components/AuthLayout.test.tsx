@@ -13,20 +13,20 @@ afterEach(() => {
 const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe("AuthLayout", () => {
-  it("puts the actions and the language before the content, and the appearance in the footer", () => {
+  it("puts the actions, the language and the appearance before the content, with no footer", () => {
     renderWithProviders(
       <AuthLayout actions={<button type="button">Sign out</button>}>
         <h1>Sign in</h1>
       </AuthLayout>,
     );
     const preferences = screen.getByRole("group", { name: "Preferences" });
-    const [action, language] = preferences.querySelectorAll("button, select");
-    expect(action).toHaveAccessibleName("Sign out");
-    expect(language).toHaveAccessibleName("Language / Langue");
+    const action = screen.getByRole("button", { name: "Sign out" });
+    expect(follows(action, preferences)).toBe(true);
+    expect(within(preferences).getByRole("combobox")).toHaveAccessibleName("Language / Langue");
+    expect(within(preferences).getByRole("group", { name: "Appearance" })).toBeInTheDocument();
+    expect(within(preferences).getAllByRole("radio")).toHaveLength(3);
     expect(follows(preferences, screen.getByRole("main"))).toBe(true);
-    const footer = screen.getByRole("contentinfo");
-    expect(within(footer).getByLabelText("Appearance")).toBeInTheDocument();
-    expect(within(footer).queryByLabelText(/Language/)).toBeNull();
+    expect(screen.queryByRole("contentinfo")).toBeNull();
     expect(screen.getByRole("banner")).toHaveTextContent("One clean screen");
   });
 

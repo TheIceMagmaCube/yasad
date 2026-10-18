@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import { api, ApiError } from "../api";
+import { AuthHero } from "../components/AuthHero";
 import { AuthLayout } from "../components/AuthLayout";
 import { ErrorSummary } from "../components/form/ErrorSummary";
 import { Field } from "../components/form/Field";
@@ -91,9 +92,7 @@ export function SignIn({ onSignedIn, local = false, expired = false, publicHome 
   if (!passwordSignIn && !local) {
     return (
       <AuthLayout>
-        <h1 tabIndex={-1} className="text-title outline-none">
-          {title}
-        </h1>
+        <AuthHero title={title} lines={s.greetings} />
         {oidc ? (
           <div className="mt-6 flex flex-col gap-4">
             {expired && (
@@ -107,7 +106,7 @@ export function SignIn({ onSignedIn, local = false, expired = false, publicHome 
           <p className="mt-3">{s.disabled}</p>
         )}
         <div className="mt-6 flex flex-col items-start gap-3">
-          <Link href={LOCAL_SIGN_IN} className={buttonVariants({ variant: "outline", className: "h-auto min-h-10 whitespace-normal" })}>
+          <Link href={LOCAL_SIGN_IN} className={buttonVariants({ variant: "outline", className: "h-auto min-h-11 whitespace-normal" })}>
             {s.adminSignIn}
           </Link>
           {publicHome && (
@@ -122,9 +121,7 @@ export function SignIn({ onSignedIn, local = false, expired = false, publicHome 
 
   return (
     <AuthLayout>
-      <h1 tabIndex={-1} className="text-title outline-none">
-        {title}
-      </h1>
+      <AuthHero title={title} lines={s.greetings} />
       {!passwordSignIn && <p className="mt-2 text-sm text-muted-foreground">{s.adminsOnly}</p>}
       {expired && !submitted && (
         <Alert variant="warning" autoFocus className="mt-6">
@@ -150,7 +147,8 @@ export function SignIn({ onSignedIn, local = false, expired = false, publicHome 
             {...errors.field("password")}
           />
           <FormActions stretch>
-            <SubmitButton pending={busy} pendingLabel={s.submitting}>
+            {/* With a provider, its button is the one main action; the password form is the second way in. */}
+            <SubmitButton variant={provider ? "outline" : "default"} pending={busy} pendingLabel={s.submitting}>
               {s.submit}
             </SubmitButton>
           </FormActions>

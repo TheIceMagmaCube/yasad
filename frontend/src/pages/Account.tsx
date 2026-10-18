@@ -7,7 +7,6 @@ import { LoadError } from "../components/LoadError";
 import { Page } from "../components/Page";
 import { PageHeader } from "../components/PageHeader";
 import { AppearanceRadios } from "../components/preferences/AppearanceRadios";
-import { DevThemeSelect } from "../components/preferences/DevThemeSelect";
 import { LanguageSelect } from "../components/preferences/LanguageSelect";
 import { SectionHeader } from "../components/SectionHeader";
 import { Badge } from "../components/ui/badge";
@@ -72,9 +71,6 @@ export function Account({ user, onProfileChanged }: { user: User; onProfileChang
           <SectionHeader id="account-preferences" title={m.preferences.label} className="mb-0" />
           <LanguageSelect variant="field" className="max-w-sm" />
           <AppearanceRadios legend={m.preferences.appearance} />
-          <div className="max-w-sm">
-            <DevThemeSelect />
-          </div>
         </section>
         {origin !== "oidc" && (
           <section aria-labelledby="account-password" aria-busy={state.status === "loading" || undefined}>

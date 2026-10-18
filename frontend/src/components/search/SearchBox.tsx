@@ -316,7 +316,7 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
           ) : (
             <kbd
               aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border border-header-muted px-1.5 font-sans text-xs text-header-muted md:inline-block"
+              className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border border-header-muted px-1.5 font-mono text-xs text-header-muted md:inline-block"
             >
               {apple ? "⌘ K" : "Ctrl K"}
             </kbd>
@@ -325,7 +325,7 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
             hidden={!showPopup || (!listShown && !message)}
             // Keep the focus in the field when the list, its scrollbar or its footer is pressed.
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute inset-x-0 top-full z-40 mt-1 max-h-[min(28rem,calc(100dvh-8rem))] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-raised sm:right-0 sm:left-auto sm:w-[min(28rem,calc(100vw-2rem))]"
+            className="absolute inset-x-0 top-full z-40 mt-1 max-h-[min(28rem,calc(100dvh-8rem))] overflow-y-auto rounded-lg bg-popover text-popover-foreground shadow-[0_0_0_1.5px_var(--border),0_6px_0_var(--panel-depth),0_18px_30px_-12px_rgb(0_0_0/0.4)] sm:right-0 sm:left-auto sm:w-[min(28rem,calc(100vw-2rem))]"
           >
             <ul id={listId} role="listbox" aria-label={m.resultsLabel} hidden={!listShown} className="py-1">
               {options.map((result, order) => {

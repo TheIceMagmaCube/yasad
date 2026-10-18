@@ -29,7 +29,7 @@ describe("CategorySection", () => {
 
   it("colours the bar and tiles from the index, cycling after six", () => {
     const { container } = renderWithProviders(<CategorySection category={CATEGORY} index={7} />);
-    expect(container.querySelector(".bg-category-2")).toHaveAttribute("aria-hidden", "true");
-    expect(container.querySelectorAll('[data-slot="link-icon"].text-category-2')).toHaveLength(3);
+    expect(container.querySelector(".bg-category-2-fill")).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelectorAll('[data-slot="link-icon"].bg-category-2-fill')).toHaveLength(3);
   });
 });

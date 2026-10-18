@@ -1,3 +1,4 @@
+import { AuthHero } from "../components/AuthHero";
 import { AuthLayout } from "../components/AuthLayout";
 import { Link } from "../components/Link";
 import { ProviderSignIn } from "../components/ProviderSignIn";
@@ -7,7 +8,7 @@ import { useInstance } from "../instance";
 import { useDocumentTitle } from "../lib/page";
 import { LOCAL_SIGN_IN, SIGN_IN } from "../lib/sign-in";
 
-const LINK = "h-auto min-h-10 whitespace-normal";
+const LINK = "h-auto min-h-11 whitespace-normal";
 
 /**
  * Page reached after signing out with OIDC configured, and the provider's return address after its own sign-out.
@@ -20,10 +21,8 @@ export function SignedOut() {
   useDocumentTitle(s.title);
   return (
     <AuthLayout>
-      <h1 tabIndex={-1} className="text-title outline-none">
-        {s.title}
-      </h1>
-      <p className="mt-3">{s.body}</p>
+      <AuthHero title={s.title} lines={s.farewells} asleep />
+      <p className="mt-3 text-muted-foreground">{s.body}</p>
       <div className="mt-6 flex flex-col gap-4">
         {oidc && <ProviderSignIn provider={oidc} />}
         {!oidc ? (

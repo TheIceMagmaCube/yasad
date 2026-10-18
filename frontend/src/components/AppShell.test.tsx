@@ -17,8 +17,8 @@ describe("AppShell", () => {
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
     const footer = screen.getByRole("contentinfo");
-    expect(within(footer).getByLabelText("Language")).toBeInTheDocument();
-    expect(within(footer).getByLabelText("Appearance")).toBeInTheDocument();
+    expect(within(footer).getByLabelText(/Language/)).toBeInTheDocument();
+    expect(within(footer).getByRole("group", { name: "Appearance" })).toBeInTheDocument();
     expect(screen.getByRole("search", { name: "Search links" })).toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, Search } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useDebouncedStatus } from "../../lib/announcer";
@@ -30,25 +30,31 @@ export function Toolbar({ filterId, filterLabel, query, onQueryChange, count, ac
   useDebouncedStatus(query, count);
   return (
     <div data-slot="toolbar" className="mb-4 flex flex-col gap-2">
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+      {/* One sunken strip holds the filter, the count and the main action, so they read as a single control. On the
+          dark muted surface the field border would sit at exactly 3:1, hence the card surface there. */}
+      <div className="sunken flex flex-wrap items-end gap-x-3 gap-y-3 rounded-xl bg-muted p-3 sm:gap-x-4 sm:p-4 dark:bg-card">
         <div className="flex min-w-0 flex-1 basis-56 flex-col gap-1.5">
           <Label htmlFor={filterId}>{filterLabel}</Label>
-          <Input
-            id={filterId}
-            type="search"
-            autoComplete="off"
-            data-focus-fallback=""
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape" || query === "") return;
-              e.preventDefault();
-              e.stopPropagation();
-              onQueryChange("");
-            }}
-          />
+          <div className="relative">
+            <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id={filterId}
+              type="search"
+              autoComplete="off"
+              data-focus-fallback=""
+              className="pl-9"
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape" || query === "") return;
+                e.preventDefault();
+                e.stopPropagation();
+                onQueryChange("");
+              }}
+            />
+          </div>
         </div>
-        <p className="min-h-10 py-2.5 text-sm text-muted-foreground">{count}</p>
+        <p className="mr-auto flex h-10 items-center font-mono text-xs font-medium tracking-wide text-muted-foreground uppercase">{count}</p>
         {action}
       </div>
       <p data-slot="toolbar-status" className="flex min-h-5 items-start gap-1.5 text-sm">

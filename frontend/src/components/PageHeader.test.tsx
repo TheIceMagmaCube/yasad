@@ -11,7 +11,7 @@ describe("PageHeader", () => {
     render(<PageHeader eyebrow="Administration" title="Users" description="People who can sign in." actions={<button type="button">New user</button>} />);
     const heading = screen.getByRole("heading", { level: 1, name: "Users" });
     expect(heading).toHaveAttribute("tabindex", "-1");
-    expect(heading).toHaveClass("text-title");
+    expect(heading).toHaveClass("text-display");
     heading.focus();
     expect(heading).toHaveFocus();
     expect(screen.getByText("Administration")).toBeInTheDocument();

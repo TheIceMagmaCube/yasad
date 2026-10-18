@@ -12,7 +12,7 @@ export function PageSkeleton({ className }: { className?: string }) {
       <div className="mb-4 h-7 w-40 rounded-md bg-muted" />
       <div className={LINK_GRID}>
         {[0, 1, 2].map((i) => (
-          <div key={i} className="flex h-20 items-start gap-3 rounded-xl border bg-card p-4">
+          <div key={i} className="flex h-20 items-start gap-3 rounded-2xl bg-card p-4 ring-[1.5px] ring-border">
             <div className="size-10 shrink-0 rounded-lg bg-muted" />
             <div className="flex-1 space-y-2">
               <div className="h-4 w-2/3 rounded bg-muted" />

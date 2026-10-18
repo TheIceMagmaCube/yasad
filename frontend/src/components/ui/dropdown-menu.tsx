@@ -5,10 +5,10 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const itemClass =
-  "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+  "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none focus:bg-accent focus:text-accent-foreground focus:outline-2 focus:outline-solid focus:-outline-offset-2 focus:outline-ring data-[disabled]:pointer-events-none data-[disabled]:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
 
 const contentClass =
-  "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md";
+  "z-50 min-w-[8rem] overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-[0_0_0_1.5px_var(--border),0_6px_0_var(--panel-depth),0_18px_30px_-12px_rgb(0_0_0/0.4)]";
 
 function DropdownMenu(props: ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -84,7 +84,7 @@ function DropdownMenuSubTrigger({ className, children, ...props }: ComponentProp
 function DropdownMenuSubContent({ className, ...props }: ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
   return (
     <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.SubContent data-slot="dropdown-menu-sub-content" className={cn(contentClass, "shadow-lg", className)} {...props} />
+      <DropdownMenuPrimitive.SubContent data-slot="dropdown-menu-sub-content" className={cn(contentClass, className)} {...props} />
     </DropdownMenuPrimitive.Portal>
   );
 }

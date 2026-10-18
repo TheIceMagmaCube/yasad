@@ -5,12 +5,23 @@ import { InstanceLogo } from "./InstanceLogo";
 import { Link } from "./Link";
 
 const BASE =
-  "flex min-w-0 items-center rounded-md font-bold text-header-foreground outline-none focus-visible:ring-2 focus-visible:ring-header-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-header";
+  "flex min-w-0 items-center rounded-md text-header-foreground outline-none focus-visible:ring-2 focus-visible:ring-header-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-header";
 
-/** Classes of each size: the header bar, or the panel of the sign-in screens. */
+/**
+ * Classes of each size: the header bar, or the sign of the sign-in panel. The tile is a key cap (a darker yellow
+ * base under the logo) and the title carries the same hard gold shadow, the "slightly 3D" of the portfolio.
+ */
 const SIZES = {
-  header: { root: "gap-2", logo: "size-6", title: "" },
-  panel: { root: "gap-3 md:flex-col md:items-start", logo: "size-6 md:size-14", title: "text-lg md:text-3xl" },
+  header: {
+    root: "gap-2.5",
+    tile: "size-9 border-b-[3px] p-1.5",
+    title: "text-lg [text-shadow:0_2px_0_var(--primary-shade)]",
+  },
+  panel: {
+    root: "gap-3",
+    tile: "size-10 border-b-[3px] p-1.5 md:size-12 md:border-b-4 md:p-2",
+    title: "text-2xl md:text-3xl [text-shadow:0_2px_0_var(--primary-shade)] md:[text-shadow:0_3px_0_var(--primary-shade)]",
+  },
 } as const;
 
 type BrandProps = {
@@ -26,8 +37,10 @@ export function Brand({ size = "header", href = "/", className }: BrandProps) {
   const classes = SIZES[size];
   return (
     <Link href={href} data-slot="brand" className={cn(BASE, classes.root, className)}>
-      <InstanceLogo className={cn("shrink-0", classes.logo)} />
-      <span className={cn("truncate", classes.title)}>{title}</span>
+      <span className={cn("pixel-corners flex shrink-0 items-center justify-center border-primary-shade bg-primary text-primary-foreground", classes.tile)}>
+        <InstanceLogo className="size-full" />
+      </span>
+      <span className={cn("text-pixel truncate leading-tight", classes.title)}>{title}</span>
     </Link>
   );
 }

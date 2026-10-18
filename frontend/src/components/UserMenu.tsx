@@ -56,7 +56,7 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" aria-label={m.userMenu.open(user.name)} className={`max-w-48 gap-1.5 px-1.5 sm:px-2 ${HEADER_BUTTON}`}>
-          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          <span aria-hidden="true" className="pixel-corners flex size-7 shrink-0 items-center justify-center bg-primary font-mono text-xs font-bold text-primary-foreground">
             {initials(user.name)}
           </span>
           <span aria-hidden="true" className="hidden truncate sm:inline">
@@ -82,7 +82,7 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {page("/account", m.userMenu.account, path === "/account")}
-        {user.role === "admin" && page("/admin/users", m.userMenu.admin, false)}
+        {user.role === "admin" && page("/admin/users", m.userMenu.admin, path === "/admin" || path.startsWith("/admin/"))}
         <DropdownMenuSeparator />
         <DropdownMenuLabel id="menu-language" className="text-xs text-muted-foreground">
           {m.preferences.language}

@@ -7,13 +7,13 @@ import { cn } from "@/lib/utils";
 
 type AlertVariant = "info" | "success" | "warning" | "destructive";
 
-const alertVariants = cva("flex gap-3 rounded-lg border p-4 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring", {
+const alertVariants = cva("flex gap-3 rounded-lg border-[1.5px] p-4 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring", {
   variants: {
     variant: {
-      info: "border-info bg-info-surface",
-      success: "border-success bg-success-surface",
-      warning: "border-warning bg-warning-surface",
-      destructive: "border-destructive bg-destructive-surface",
+      info: "border-info bg-info-surface shadow-[0_4px_0_var(--info)]",
+      success: "border-success bg-success-surface shadow-[0_4px_0_var(--success)]",
+      warning: "border-warning bg-warning-surface shadow-[0_4px_0_var(--warning)]",
+      destructive: "border-destructive bg-destructive-surface shadow-[0_4px_0_var(--destructive)]",
     },
   },
   defaultVariants: { variant: "info" },

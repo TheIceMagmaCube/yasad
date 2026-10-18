@@ -226,7 +226,7 @@ function Preview({ result, changed, applying, error, onApply, onCancel }: Previe
   const removed = sizeOf(diff, "removed");
   const created = diff.groupsCreated.map(parseRef);
   return (
-    <section aria-labelledby="catalog-preview" data-slot="catalog-preview" className="flex flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-6">
+    <section aria-labelledby="catalog-preview" data-slot="catalog-preview" className="flex flex-col gap-4 panel p-4 sm:p-6">
       <FocusedHeading id="catalog-preview" focus={!changed}>
         {s.previewTitle}
       </FocusedHeading>
@@ -406,7 +406,7 @@ function Result({ diff, onAnother }: { diff: CatalogDiff; onAnother: () => void 
   const s = m.catalog;
   const local = diff.groupsCreated.map(parseRef).filter((g) => g.source === "local");
   return (
-    <section aria-labelledby="catalog-result" data-slot="catalog-result" className="flex flex-col items-start gap-3 rounded-xl border bg-card p-4 text-card-foreground sm:p-6">
+    <section aria-labelledby="catalog-result" data-slot="catalog-result" className="flex flex-col items-start gap-3 panel p-4 sm:p-6">
       <FocusedHeading id="catalog-result">{s.resultTitle}</FocusedHeading>
       <p>{s.resultSummary(sizeOf(diff, "added"), sizeOf(diff, "updated"), sizeOf(diff, "removed"))}</p>
       {local.length > 0 && (

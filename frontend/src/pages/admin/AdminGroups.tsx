@@ -298,7 +298,7 @@ export function AdminGroups() {
               }
             />
             {panel.isOpen(NEW) && (
-              <div id="groups-new-panel" className="mb-4 rounded-xl border bg-muted/40 p-4">
+              <div id="groups-new-panel" className="panel mb-6 p-4 sm:p-6">
                 <GroupNameForm id="groups-new-form" label={s.newTitle} submitLabel={s.create} pendingLabel={s.creating} initial="" onSubmit={create} onCancel={panel.cancel} />
               </div>
             )}
@@ -561,7 +561,7 @@ function MembersPanel({ group, users, error, pending, onAdd, onRemove }: Members
           {shown.length === 0 ? (
             <p className="text-sm">{s.noMemberMatch}</p>
           ) : (
-            <ul aria-label={s.membersOf(group.name)} className="flex flex-col divide-y divide-border rounded-lg border bg-background">
+            <ul aria-label={s.membersOf(group.name)} className="flex flex-col divide-y-[1.5px] divide-border rounded-lg border-[1.5px] bg-background">
               {shown.map((user, i) => (
                 <li key={user.id} className="flex items-center gap-3 px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -654,7 +654,7 @@ function MemberPicker({ group, users, memberIds, pending, onAdd }: MemberPickerP
         {status}
       </p>
       {shown.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border rounded-lg border bg-background">
+        <ul className="flex flex-col divide-y-[1.5px] divide-border rounded-lg border-[1.5px] bg-background">
           {shown.map((user) => (
             <li key={user.id} className="flex items-center gap-3 px-3 py-2">
               <div className="min-w-0 flex-1">
