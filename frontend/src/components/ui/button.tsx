@@ -5,19 +5,24 @@ import type { ComponentProps, MouseEvent } from "react";
 
 import { cn } from "@/lib/utils";
 
+// Raised keys sit on a hard base in a darker shade of their face. The ring is the boundary where the face alone is
+// below 3:1 against the page. Forced colors mode drops box shadows but draws the transparent border, which then
+// stays as the boundary of every button except the link.
+const RAISED = "relief border-[1.5px] border-transparent";
+const FLAT = "border-[1.5px] border-transparent motion-safe:transition-colors";
+
 const variants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-semibold whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-heading text-sm font-bold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        // The ring is the boundary where the fill alone is below 3:1 against the page (transparent otherwise).
-        default: "bg-primary text-primary-foreground shadow-[0_0_0_1.5px_var(--control-primary-ring)] hover:bg-primary/90",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-foreground underline underline-offset-4 hover:no-underline",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        "destructive-ghost": "text-destructive hover:bg-destructive-surface",
+        default: `${RAISED} bg-primary text-primary-foreground [--relief-base:var(--primary-shade)] [--relief-ring:var(--control-primary-ring)]`,
+        secondary: `${RAISED} bg-secondary text-secondary-foreground [--relief-color:var(--control-ring)] [--relief-ring:var(--control-ring)]`,
+        outline: `${RAISED} bg-card text-card-foreground [--relief-color:var(--control-ring)] [--relief-ring:var(--control-ring)] hover:bg-accent hover:text-accent-foreground`,
+        ghost: `${FLAT} hover:bg-accent hover:text-accent-foreground`,
+        link: "text-foreground underline decoration-link-decoration decoration-2 underline-offset-4 hover:decoration-foreground",
+        destructive: `${RAISED} bg-destructive text-destructive-foreground [--relief-color:var(--destructive)]`,
+        "destructive-ghost": `${FLAT} text-destructive hover:bg-destructive-surface`,
       },
       size: {
         default: "h-10 px-4 py-2",

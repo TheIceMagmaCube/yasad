@@ -1,14 +1,17 @@
-/** Classes of one category colour: the icon tile (tinted surface, coloured glyph) and the section bar. */
-export type CategoryTone = { tile: string; bar: string };
+/**
+ * Classes of one category colour: the icon tile (solid fill, on-fill glyph), the section bar, and the card, whose
+ * relief base takes the fill.
+ */
+export type CategoryTone = { tile: string; bar: string; card: string };
 
 // Literal class strings, so Tailwind finds them in the source.
 const TONES: readonly CategoryTone[] = [
-  { tile: "bg-category-1/12 text-category-1", bar: "bg-category-1" },
-  { tile: "bg-category-2/12 text-category-2", bar: "bg-category-2" },
-  { tile: "bg-category-3/12 text-category-3", bar: "bg-category-3" },
-  { tile: "bg-category-4/12 text-category-4", bar: "bg-category-4" },
-  { tile: "bg-category-5/12 text-category-5", bar: "bg-category-5" },
-  { tile: "bg-category-6/12 text-category-6", bar: "bg-category-6" },
+  { tile: "bg-category-1-fill text-on-fill", bar: "bg-category-1-fill", card: "[--relief-color:var(--category-1-fill)]" },
+  { tile: "bg-category-2-fill text-on-fill", bar: "bg-category-2-fill", card: "[--relief-color:var(--category-2-fill)]" },
+  { tile: "bg-category-3-fill text-on-fill", bar: "bg-category-3-fill", card: "[--relief-color:var(--category-3-fill)]" },
+  { tile: "bg-category-4-fill text-on-fill", bar: "bg-category-4-fill", card: "[--relief-color:var(--category-4-fill)]" },
+  { tile: "bg-category-5-fill text-on-fill", bar: "bg-category-5-fill", card: "[--relief-color:var(--category-5-fill)]" },
+  { tile: "bg-category-6-fill text-on-fill", bar: "bg-category-6-fill", card: "[--relief-color:var(--category-6-fill)]" },
 ];
 
 /** Return the colour classes of the category at `index` in the list the person receives, cycling through the six tokens. */

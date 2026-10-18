@@ -40,7 +40,7 @@ function NoticeAlert({ notice, onDismiss }: { notice: Notice; onDismiss: () => v
         <p>
           {text}{" "}
           {notice.kind === "sessionExpired" && (
-            <Link href="/sign-in" className="font-semibold underline underline-offset-4 hover:no-underline">
+            <Link href="/sign-in" className="font-semibold underline decoration-2 underline-offset-4 hover:no-underline">
               {m.signIn.title}
             </Link>
           )}

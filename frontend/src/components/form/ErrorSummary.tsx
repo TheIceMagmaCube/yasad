@@ -51,7 +51,7 @@ export function ErrorSummary<F extends string>({
         <ul className="list-disc space-y-1 pl-5">
           {linked.map(({ field, message }) => (
             <li key={`${field}-${message}`}>
-              <a href={`#${fieldId(field)}`} onClick={(e) => goToField(e, fieldId(field))} className="underline underline-offset-4 hover:no-underline">
+              <a href={`#${fieldId(field)}`} onClick={(e) => goToField(e, fieldId(field))} className="font-semibold underline decoration-2 underline-offset-4 hover:no-underline">
                 {message}
               </a>
             </li>

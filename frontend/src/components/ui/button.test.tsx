@@ -105,3 +105,27 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true");
   });
 });
+
+describe("Button look", () => {
+  const VARIANTS = ["default", "secondary", "outline", "ghost", "destructive", "destructive-ghost"] as const;
+
+  it.each(VARIANTS)("gives the %s variant a transparent border, which forced colors mode draws as its boundary", (variant) => {
+    const classes = buttonVariants({ variant }).split(" ");
+    expect(classes).toContain("border-[1.5px]");
+    expect(classes).toContain("border-transparent");
+  });
+
+  it("keeps a focus outline in forced colors mode, where the ring is dropped", () => {
+    expect(buttonVariants().split(" ")).toContain("focus-visible:outline-hidden");
+  });
+
+  it.each([
+    ["default", "[--relief-ring:var(--control-primary-ring)]"],
+    ["secondary", "[--relief-ring:var(--control-ring)]"],
+    ["outline", "[--relief-ring:var(--control-ring)]"],
+  ] as const)("raises the %s variant on a hard base, edged by a 3:1 ring token", (variant, ring) => {
+    const classes = buttonVariants({ variant }).split(" ");
+    expect(classes).toContain("relief");
+    expect(classes).toContain(ring);
+  });
+});

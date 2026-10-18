@@ -101,11 +101,11 @@ export function LinkIcon({ icon, title, className }: { icon: HomeIcon | null; ti
   const current = icon && loaded?.key === key ? loaded : null;
   const loading = icon !== null && current === null;
   return (
-    <span aria-hidden="true" data-slot="link-icon" className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", className)}>
+    <span aria-hidden="true" data-slot="link-icon" className={cn("pixel-corners flex size-11 shrink-0 items-center justify-center", className)}>
       {current?.nodes ? (
         <Icon iconNode={current.nodes} className="size-6" />
       ) : loading ? null : (
-        <span className="text-2xl leading-none font-semibold">{initialOf(title, language)}</span>
+        <span className="text-pixel text-2xl leading-none">{initialOf(title, language)}</span>
       )}
     </span>
   );

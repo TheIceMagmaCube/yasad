@@ -11,10 +11,12 @@ describe("PageHeader", () => {
     render(<PageHeader eyebrow="Administration" title="Users" description="People who can sign in." actions={<button type="button">New user</button>} />);
     const heading = screen.getByRole("heading", { level: 1, name: "Users" });
     expect(heading).toHaveAttribute("tabindex", "-1");
-    expect(heading).toHaveClass("text-title");
+    expect(heading).toHaveClass("text-display");
     heading.focus();
     expect(heading).toHaveFocus();
-    expect(screen.getByText("Administration")).toBeInTheDocument();
+    const eyebrow = screen.getByText("Administration");
+    expect(eyebrow).toHaveClass("text-pixel");
+    expect(eyebrow.querySelector("span")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("People who can sign in.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New user" })).toBeInTheDocument();
   });

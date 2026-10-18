@@ -7,17 +7,21 @@ import { cn } from "@/lib/utils";
 
 type AlertVariant = "info" | "success" | "warning" | "destructive";
 
-const alertVariants = cva("flex gap-3 rounded-lg border p-4 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring", {
-  variants: {
-    variant: {
-      info: "border-info bg-info-surface",
-      success: "border-success bg-success-surface",
-      warning: "border-warning bg-warning-surface",
-      destructive: "border-destructive bg-destructive-surface",
+// The border, not the hard base under it, is the boundary: forced colors mode drops box shadows.
+const alertVariants = cva(
+  "flex gap-3 rounded-lg border-[1.5px] p-4 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden",
+  {
+    variants: {
+      variant: {
+        info: "border-info bg-info-surface shadow-[0_4px_0_var(--info)]",
+        success: "border-success bg-success-surface shadow-[0_4px_0_var(--success)]",
+        warning: "border-warning bg-warning-surface shadow-[0_4px_0_var(--warning)]",
+        destructive: "border-destructive bg-destructive-surface shadow-[0_4px_0_var(--destructive)]",
+      },
     },
+    defaultVariants: { variant: "info" },
   },
-  defaultVariants: { variant: "info" },
-});
+);
 
 const ICONS: Record<AlertVariant, { icon: LucideIcon; className: string }> = {
   info: { icon: Info, className: "text-info" },
@@ -70,7 +74,7 @@ function Alert({ variant = "info", title, titleId: givenTitleId, autoFocus = fal
       <Icon aria-hidden="true" className={cn("mt-0.5 size-4 shrink-0", iconClassName)} />
       <div className="min-w-0 flex-1">
         {title && (
-          <p id={titleId} className="font-semibold">
+          <p id={titleId} className="font-heading font-bold">
             {title}
           </p>
         )}

@@ -47,7 +47,7 @@ function FileInput({ id, label, fileName, pending = false, pendingLabel, onFile,
         htmlFor={id}
         className={buttonVariants({
           variant: "outline",
-          className: "cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
+          className: "cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-focus-visible:outline-hidden",
         })}
       >
         {pending ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : <Upload aria-hidden="true" />}

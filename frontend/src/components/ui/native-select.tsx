@@ -19,7 +19,7 @@ function NativeSelect({ className, controlSize = "default", ...props }: NativeSe
     <div data-slot="native-select" className="relative min-w-0">
       <select
         className={cn(
-          "w-full min-w-0 appearance-none rounded-md border border-input bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive forced-colors:appearance-auto",
+          "sunken w-full min-w-0 appearance-none rounded-md border-[1.5px] border-input bg-card text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive forced-colors:appearance-auto",
           SIZES[controlSize],
           className,
         )}
