@@ -20,6 +20,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The Node major follows .nvmrc (LTS lines only); bump it by hand.
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     commit-message:
       prefix: chore
       include: scope

@@ -62,7 +62,79 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 
 ## Quick start
 
-To be written once milestone 1 ships.
+YASAD has no stable release yet: the examples use the `beta` image, built from the latest work merged for the next version.
+
+You need Docker with Compose. Create a folder with this `compose.yaml` (also in [docs/examples/compose.yaml](docs/examples/compose.yaml)):
+
+```yaml
+services:
+  yasad:
+    image: ghcr.io/theicemagmacube/yasad:beta
+    # Every variable in .env reaches YASAD (see docs/configuration.md).
+    env_file: .env
+    # Stop with a clear message when a required value is missing.
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env (openssl rand -base64 32)}
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env, e.g. http://localhost:3000}
+      SETUP_CODE: ${SETUP_CODE:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      - yasad-data:/data
+    restart: unless-stopped
+
+volumes:
+  yasad-data:
+```
+
+Next to it, create a `.env` file with a secret, a setup code and the address you will open:
+
+```sh
+cat > .env <<EOF
+AUTH_SECRET=$(openssl rand -base64 32)
+SETUP_CODE=$(openssl rand -base64 24)
+PUBLIC_URL=http://localhost:3000
+EOF
+```
+
+If you open YASAD from another machine, set `PUBLIC_URL` to that address instead, for example `http://192.168.1.10:3000`: requests from any other address are refused.
+
+Then install:
+
+1. Start YASAD: `docker compose up -d`. The database lives in a Docker volume, so it survives updates.
+2. Open `PUBLIC_URL` (here http://localhost:3000). The **Set up YASAD** screen appears.
+3. Enter the setup code from `.env`.
+4. Create the first administrator: name, e-mail, and a password of 12 to 128 characters. This local account is also your emergency access if an identity provider is down. If you plan to sign in with an OIDC provider, give it an address that no account at the provider uses: YASAD refuses a provider sign-in whose e-mail belongs to a local account.
+5. YASAD signs you in as that administrator. The **YASAD is ready** screen appears: select **Go to YASAD**. Its reminder about `SETUP_CODE` is step 8. Later, sign in from the **Sign in** screen with that e-mail and password.
+6. Import a catalog: open **Admin**, then the **Catalog** tab, and choose a YAML file. To try it, save [catalog.example.yaml](https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/catalog.example.yaml) on the computer you browse from. Check the preview, then select **Import**.
+7. Go back to **My links**: the home page shows the links your groups allow. With the example file, an administrator sees the "Mail" link of "Everyday".
+8. Remove the `SETUP_CODE` line from `.env` and run `docker compose up -d` again. Setup only opens while the code is set and no enabled local administrator exists.
+
+`PUBLIC_URL` must be the exact address people type in their browser. For a real server, put YASAD behind a reverse proxy with HTTPS: see [docs/deployment.md](docs/deployment.md).
+
+### Catalog
+
+Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. Admins import and export it from the **Catalog** tab of the administration (**Admin** in the header); importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
+
+A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
+
+Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
+
+### Going further
+
+* [Configuration](docs/configuration.md): every environment variable, with its default and an example.
+* [Deployment](docs/deployment.md): behind Caddy with automatic HTTPS, behind Nginx Proxy Manager and Cloudflare, and on Cloudflare Workers with D1.
+* [Sign-in with OIDC](docs/oidc.md): provider setup, with an Okta example.
+
+### Development
+
+```sh
+npm ci
+cp backend/.env.example backend/.env
+npm run dev
+```
+
+Open http://localhost:5173 and use the setup code from `backend/.env`. For the Worker target: `cp backend/.dev.vars.example backend/.dev.vars`, then `npm run dev:worker --workspace backend`.
 
 ## Contributing
 
@@ -71,3 +143,8 @@ Issues and ideas are welcome. Contribution guide to come.
 ## License
 
 GNU Affero General Public License v3.0 (AGPL-3.0).
+
+Catalog icons are generated at build time (`scripts/generate-icons.mjs`), with their licences in `icons/<hash>/NOTICE.txt` next to them:
+
+* [Lucide](https://lucide.dev): ISC, and MIT for the icons derived from Feather.
+* [Simple Icons](https://simpleicons.org): data under CC0-1.0. The logos are trademarks of their owners; showing one identifies the linked service and implies no endorsement (see the Simple Icons [disclaimer](https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md)). Only icons with no licence of their own, or under CC0, the Unlicense, CC-BY or CC-BY-SA, are included; those under CC-BY or CC-BY-SA are credited in the notice with their source. Icons under any other licence (MIT, BSD, Apache, GPL, MPL, non-commercial, no-derivatives, custom) are left out and show the link's initial instead.

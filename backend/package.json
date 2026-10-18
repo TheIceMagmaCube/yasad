@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "dev:worker": "wrangler dev",
     "build": "node scripts/build-server.mjs",
     "build:worker": "wrangler deploy --dry-run --outdir dist-worker",
@@ -14,10 +14,14 @@
     "test:workers": "vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "@better-auth/core": "^1.7.9",
     "@hono/node-server": "^2.1.5",
     "@libsql/client": "^0.18.0",
+    "better-auth": "^1.7.9",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.13"
+    "hono": "^4.13.13",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.2",

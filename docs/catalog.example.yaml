@@ -1,0 +1,40 @@
+# YASAD catalog file. Import it from the "Catalog" page (admins), or load it at startup on Docker
+# with CATALOG_FILE=/path/to/catalog.yaml. The import makes the catalog match this file exactly:
+# categories and links missing from it are deleted (groups never are).
+version: 1
+
+categories:
+  # Order in the file is display order.
+  - id: everyday            # Stable identifier: lower-case letters, digits and dashes, unique in the file.
+    title: Everyday
+    # Groups that may see the category. A link is shown only to people holding a group on the link
+    # AND a group on its category.
+    #   @everyone       anyone, signed in or not
+    #   @authenticated  any signed-in person
+    #   oidc:<name>     a group sent by the identity provider (exact, case-sensitive name)
+    #   local:<name>    a group managed in YASAD
+    groups: ["@authenticated"]
+    links:
+      - id: mail            # Unique across all categories: moving a link keeps its id.
+        title: Mail
+        url: https://mail.example.org            # http or https only.
+        description: Company mailbox             # Optional.
+        icon: lucide:mail                        # Optional: si:<slug> (Simple Icons) or lucide:<name>.
+        keywords: [email, webmail]               # Optional, used by search. Sent to everyone who sees the link: no secrets.
+        groups: ["@authenticated"]
+
+  - id: dev-tools
+    title: Developer tools
+    groups: ["oidc:Developers", "local:Contractors"]
+    links:
+      - id: jira
+        title: Jira
+        url: https://acme.atlassian.net
+        icon: si:jira
+        groups: ["oidc:Developers", "local:Contractors"]
+      - id: grafana
+        title: Grafana
+        url: https://grafana.example.org
+        icon: si:grafana
+        groups: ["oidc:Developers"]
+        active: false       # Optional: kept but hidden from everyone. Default true.

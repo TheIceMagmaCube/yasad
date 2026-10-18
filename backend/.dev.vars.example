@@ -1,0 +1,23 @@
+# Local Worker development only (npm run dev:worker): cp backend/.dev.vars.example backend/.dev.vars
+AUTH_SECRET=dev-only-secret-do-not-use-in-production
+PUBLIC_URL=http://localhost:8787
+SETUP_CODE=dev-only-setup-code-0123456789
+
+# Sign-in through an OpenID Connect provider (optional): set the first three together, or none.
+# Register PUBLIC_URL/api/auth/callback/oidc as the redirect URI and PUBLIC_URL/signed-out as the
+# post-logout redirect URI at the provider. Groups are read from the ID token, never from userinfo.
+# OIDC_DISCOVERY_URL=https://idp.example.org/.well-known/openid-configuration
+# OIDC_CLIENT_ID=
+# OIDC_CLIENT_SECRET=
+# Label of the sign-in button (default SSO).
+# OIDC_PROVIDER_NAME=SSO
+# ID token claim holding the groups, a list or a single string (default groups).
+# OIDC_GROUPS_CLAIM=groups
+# Comma-separated; empty lets in anyone the provider accepts. Members of admin groups always may.
+# An e-mail the ID token marks as unverified is always refused.
+# OIDC_ALLOWED_GROUPS=
+# Comma-separated groups whose members are admins (empty: nobody is admin through the provider).
+# A role set on the person in the Users screen takes precedence.
+# OIDC_ADMIN_GROUPS=
+# Scopes requested (default "openid email profile"); some providers need "groups".
+# OIDC_SCOPES=openid email profile

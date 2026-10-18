@@ -1,1 +1,122 @@
 @import "tailwindcss";
+@import "./theme/themes/default.css";
+@import "./theme/themes/dusk.css";
+@import "./theme/themes/night.css";
+
+@custom-variant dark ([data-mode="dark"] &);
+
+/* Components use these token classes only (bg-background, text-primary...), never raw colors. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-surface: var(--destructive-surface);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-surface: var(--warning-surface);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-surface: var(--info-surface);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-header: var(--header);
+  --color-header-foreground: var(--header-foreground);
+  --color-header-muted: var(--header-muted);
+  --color-header-border: var(--header-border);
+  --color-header-active: var(--header-active);
+  --color-category-1: var(--category-1);
+  --color-category-2: var(--category-2);
+  --color-category-3: var(--category-3);
+  --color-category-4: var(--category-4);
+  --color-category-5: var(--category-5);
+  --color-category-6: var(--category-6);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-heading);
+}
+
+/* Heading and meta text styles; body text keeps text-base and text-sm. */
+@utility text-display {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  line-height: 2.5rem;
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+
+@utility text-title {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+
+@utility text-section {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+
+@utility text-caption {
+  font-family: var(--font-caption);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.01em;
+}
+
+/* Show an element only after 300 ms, so a quick load never flashes a placeholder. */
+@utility appear-delayed {
+  animation: appear-delayed 1ms linear 300ms both;
+}
+
+@keyframes appear-delayed {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+:root[data-mode="dark"] {
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+}

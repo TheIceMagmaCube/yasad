@@ -1,0 +1,117 @@
+# Catalog for the home page E2E tests: seven categories (the colours cycle), public links, links nobody may
+# see, an inactive link, long texts and every kind of icon (Lucide, Simple Icons, unknown, none). Keywords feed the
+# search tests: the hidden links carry unique markers that must never reach the browser.
+version: 1
+
+categories:
+  - id: public
+    title: Public
+    groups: ["@everyone"]
+    links:
+      - id: status
+        title: Status page
+        url: https://status.example.invalid/
+        description: Is everything up?
+        icon: lucide:activity
+        keywords: [uptime]
+        groups: ["@everyone"]
+      - id: long-text
+        title: A link whose title goes on and on to check that long titles wrap instead of overflowing
+        url: https://long.example.invalid/
+        description: Supercalifragilisticexpialidociousantidisestablishmentarianism and a description long enough to need several lines on a phone, without any truncation of the text.
+        groups: ["@everyone"]
+      - id: members-only
+        title: Members only
+        url: https://members.example.invalid/
+        groups: ["@authenticated"]
+
+  - id: everyday
+    title: Everyday
+    groups: ["@authenticated"]
+    links:
+      - id: mail
+        title: Mail
+        url: https://mail.example.invalid/
+        description: Company mailbox
+        icon: lucide:mail
+        keywords: [webmail, courrier]
+        groups: ["@authenticated"]
+      - id: code
+        title: Code
+        url: https://code.example.invalid/
+        description: Repositories
+        icon: si:github
+        groups: ["@authenticated"]
+      - id: chat
+        title: Chat
+        url: https://chat.example.invalid/
+        icon: lucide:no-such-icon-anywhere
+        groups: ["@authenticated"]
+      - id: secret-plans
+        title: Secret plans
+        url: https://secret.example.invalid/
+        groups: ["local:Nobody"]
+      - id: secret-vault
+        title: Secret vault
+        url: https://vault.example.invalid/
+        keywords: [kw-hidden-marker]
+        groups: ["local:Nobody"]
+      - id: retired-tool
+        title: Retired tool
+        url: https://retired.example.invalid/
+        groups: ["@authenticated"]
+        active: false
+
+  - id: docs
+    title: Documentation
+    groups: ["@authenticated"]
+    links:
+      - id: wiki
+        title: Wiki
+        url: https://wiki.example.invalid/
+        icon: lucide:book-open
+        groups: ["@authenticated"]
+
+  - id: people
+    title: People
+    groups: ["@authenticated"]
+    links:
+      - id: directory
+        title: Directory
+        url: https://directory.example.invalid/
+        icon: lucide:users
+        groups: ["@authenticated"]
+      - id: e-learning
+        title: Équipe e-learning
+        url: https://learning.example.invalid/
+        description: Training courses
+        groups: ["@authenticated"]
+
+  - id: money
+    title: Money
+    groups: ["@authenticated"]
+    links:
+      - id: expenses
+        title: Expenses
+        url: https://expenses.example.invalid/
+        groups: ["@authenticated"]
+
+  - id: ops
+    title: Operations
+    groups: ["@authenticated"]
+    links:
+      - id: monitoring
+        title: Monitoring
+        url: https://monitoring.example.invalid/
+        icon: lucide:gauge
+        groups: ["@authenticated"]
+
+  - id: misc
+    title: Miscellaneous
+    groups: ["@authenticated"]
+    links:
+      - id: lunch
+        title: Lunch menu
+        url: https://lunch.example.invalid/
+        icon: lucide:utensils
+        groups: ["@authenticated"]
