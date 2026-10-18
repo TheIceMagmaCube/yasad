@@ -7,10 +7,10 @@ import { Link } from "./Link";
 const BASE =
   "flex min-w-0 items-center rounded-md font-bold text-header-foreground outline-none focus-visible:ring-2 focus-visible:ring-header-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-header";
 
-/** Classes of each size: the header bar, or the panel of the sign-in screens. */
+/** Classes of each size: the header bar, or the sign over the pixel panel of the sign-in screens. */
 const SIZES = {
   header: { root: "gap-2", logo: "size-6", title: "" },
-  panel: { root: "gap-3 md:flex-col md:items-start", logo: "size-6 md:size-14", title: "text-lg md:text-3xl" },
+  panel: { root: "gap-3", logo: "size-8 md:size-10", title: "text-pixel text-2xl md:text-3xl" },
 } as const;
 
 type BrandProps = {
