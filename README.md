@@ -62,75 +62,69 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 
 ## Quick start
 
-Milestone 1 is in progress: for now YASAD covers the first-run setup and sign-in.
+YASAD has no stable release yet: the examples use the `beta` image, built from the latest work merged for the next version.
 
-```sh
-docker run -d -p 3000:3000 -v yasad-data:/data \
-  -e AUTH_SECRET="$(openssl rand -base64 32)" \
-  -e PUBLIC_URL=https://portal.example.org \
-  -e SETUP_CODE="$(openssl rand -base64 24)" \
-  ghcr.io/theicemagmacube/yasad:beta
+You need Docker with Compose. Create a folder with this `compose.yaml` (also in [docs/examples/compose.yaml](docs/examples/compose.yaml)):
+
+```yaml
+services:
+  yasad:
+    image: ghcr.io/theicemagmacube/yasad:beta
+    # Every variable in .env reaches YASAD (see docs/configuration.md).
+    env_file: .env
+    # Stop with a clear message when a required value is missing.
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env (openssl rand -base64 32)}
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env, e.g. http://localhost:3000}
+      SETUP_CODE: ${SETUP_CODE:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      - yasad-data:/data
+    restart: unless-stopped
+
+volumes:
+  yasad-data:
 ```
 
-Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then remove `SETUP_CODE` and restart: setup only opens while no local administrator exists and the code is set. While setup is open and OIDC is configured, the setup screen also offers the provider's sign-in.
+Next to it, create a `.env` file with a secret, a setup code and the address you will open:
 
-### Configuration
+```sh
+cat > .env <<EOF
+AUTH_SECRET=$(openssl rand -base64 32)
+SETUP_CODE=$(openssl rand -base64 24)
+PUBLIC_URL=http://localhost:3000
+EOF
+```
 
-| Variable | Required | Description |
-|---|---|---|
-| `AUTH_SECRET` | yes | Signs sessions. At least 32 characters. |
-| `PUBLIC_URL` | yes | The URL people open, e.g. `https://portal.example.org`. Cookies are `Secure` when it is https. |
-| `SETUP_CODE` | for setup | One-time code for the first-run setup, at least 24 characters. Remove it once setup is done. |
-| `SESSION_MAX_AGE` | no | Session lifetime in seconds, counted from sign-in: using the session does not extend it. Default `86400` (24 hours). |
-| `PASSWORD_SIGN_IN` | no | `true` (default) or `false`. With `false`, only local administrators can sign in with a password, from `/sign-in/local`; sessions already open stay valid until they expire. |
-| `CATALOG_FILE` | no | Docker only. Path of a catalog file applied at every start; the catalog then matches the file and cannot be imported from the interface. An invalid file stops the start. |
-| `DEFAULT_LANGUAGE` | no | Interface language when the browser asks for neither English nor French: `en` (default) or `fr`. |
-| `TRUST_PROXY` | no | Number of proxies in front of YASAD (`true` means 1). The client IP is then read from `X-Forwarded-For`. Leave it unset when YASAD is reached directly, otherwise anyone can forge the header. |
-| `DATABASE_URL` | no | libSQL URL. Default `file:/data/yasad.db` in the image. |
+If you open YASAD from another machine, set `PUBLIC_URL` to that address instead, for example `http://192.168.1.10:3000`: requests from any other address are refused.
 
-Behind proxies, count every hop: with Cloudflare in front of your reverse proxy (for example Nginx Proxy Manager), set `TRUST_PROXY=2`. With a value too low, every visitor shares the IP of a proxy, so 5 wrong setup codes from anyone block setup for everyone for 15 minutes.
+Then install:
 
-Failed sign-ins are limited in the database: 5 per e-mail and IP, 30 per IP, per 15 minutes. Set `TRUST_PROXY` correctly: with a value too low, every visitor shares one counter.
+1. Start YASAD: `docker compose up -d`. The database lives in a Docker volume, so it survives updates.
+2. Open `PUBLIC_URL` (here http://localhost:3000). The **Set up YASAD** screen appears.
+3. Enter the setup code from `.env`.
+4. Create the first administrator: name, e-mail, and a password of 12 to 128 characters. This local account is also your emergency access if an identity provider is down. If you plan to sign in with an OIDC provider, give it an address that no account at the provider uses: YASAD refuses a provider sign-in whose e-mail belongs to a local account.
+5. YASAD signs you in as that administrator. The **YASAD is ready** screen appears: select **Go to YASAD**. Its reminder about `SETUP_CODE` is step 8. Later, sign in from the **Sign in** screen with that e-mail and password.
+6. Import a catalog: open **Admin**, then the **Catalog** tab, and choose a YAML file. To try it, save [catalog.example.yaml](https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/catalog.example.yaml) on the computer you browse from. Check the preview, then select **Import**.
+7. Go back to **My links**: the home page shows the links your groups allow. With the example file, an administrator sees the "Mail" link of "Everyday".
+8. Remove the `SETUP_CODE` line from `.env` and run `docker compose up -d` again. Setup only opens while the code is set and no enabled local administrator exists.
 
-On Cloudflare Workers, set the same values as secrets (`wrangler secret put AUTH_SECRET`); the client IP comes from `CF-Connecting-IP`.
-
-### Sign-in with OIDC
-
-OIDC is on when the first three variables are set; setting only one or two of them stops the start.
-
-| Variable | Default | Description |
-|---|---|---|
-| `OIDC_DISCOVERY_URL` | | The provider's discovery URL (`.../.well-known/openid-configuration`). When `PUBLIC_URL` is https, it and the endpoints it lists must be https too. |
-| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | | The application registered at the provider. |
-| `OIDC_PROVIDER_NAME` | `SSO` | Label of the sign-in button ("Sign in with Okta"). |
-| `OIDC_GROUPS_CLAIM` | `groups` | ID token claim holding the groups, a list or a single string. |
-| `OIDC_ALLOWED_GROUPS` | | Comma-separated. When set, only their members (and members of admin groups) can sign in. Empty: anyone the provider accepts. Either way, a sign-in whose ID token marks the e-mail as unverified is refused. |
-| `OIDC_ADMIN_GROUPS` | | Comma-separated groups whose members are administrators, unless an admin set the person's role in the Users screen, which then takes precedence. |
-| `OIDC_SCOPES` | `openid email profile` | Scopes requested; some providers need `groups` too. |
-
-At the provider, register:
-
-* the sign-in redirect URI `PUBLIC_URL/api/auth/callback/oidc`;
-* the sign-out redirect URI `PUBLIC_URL/signed-out`;
-* an `email` claim and a groups claim in the **ID token**. YASAD never reads groups from the userinfo endpoint. With Okta, set a "Groups claim filter" on the application's Sign On tab.
-
-How it behaves:
-
-* Accounts are created at the first sign-in and keyed on the provider's issuer and subject, never on the e-mail. Name and e-mail are copied from the ID token at each sign-in; the provider is the source of truth.
-* Every group in the claim becomes an `oidc:<name>` group, created if missing, and the person's provider memberships are replaced at each sign-in. Removing someone from a group at the provider takes effect at their next sign-in. An `oidc` group never matches a `local` group of the same name.
-* A provider account never takes over a local account with the same e-mail: the sign-in is refused. Give the emergency local administrator an address of its own.
-* With `PASSWORD_SIGN_IN=false`, the sign-in screen sends people straight to the provider (not when `/` shows public links, after an error, or on `/signed-out`). Local administrators keep `/sign-in/local`, also linked from the error and signed-out screens.
-* Signing out of YASAD also ends the session at the provider when it offers that, so other applications of the same provider will ask to sign in again.
-* Changing provider: delete the old OIDC accounts in the Users screen first; they are created again at the next sign-in.
-* Starting a sign-in and receiving the provider's answer are each limited to 300 per IP per 15 minutes, enough for an office behind one address.
+`PUBLIC_URL` must be the exact address people type in their browser. For a real server, put YASAD behind a reverse proxy with HTTPS: see [docs/deployment.md](docs/deployment.md).
 
 ### Catalog
 
-Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. Admins import and export it from the "Catalog" page (account menu); importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
+Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. Admins import and export it from the **Catalog** tab of the administration (**Admin** in the header); importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
 
 A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
 
 Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
+
+### Going further
+
+* [Configuration](docs/configuration.md): every environment variable, with its default and an example.
+* [Deployment](docs/deployment.md): behind Caddy with automatic HTTPS, behind Nginx Proxy Manager and Cloudflare, and on Cloudflare Workers with D1.
+* [Sign-in with OIDC](docs/oidc.md): provider setup, with an Okta example.
 
 ### Development
 
