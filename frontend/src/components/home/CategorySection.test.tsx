@@ -1,6 +1,7 @@
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { categoryTone } from "@/lib/category-tone";
 import { renderWithProviders } from "@/test-utils";
 
 import { CategorySection } from "./CategorySection";
@@ -29,7 +30,10 @@ describe("CategorySection", () => {
 
   it("colours the bar and tiles from the index, cycling after six", () => {
     const { container } = renderWithProviders(<CategorySection category={CATEGORY} index={7} />);
-    expect(container.querySelector(".bg-category-2")).toHaveAttribute("aria-hidden", "true");
-    expect(container.querySelectorAll('[data-slot="link-icon"].text-category-2')).toHaveLength(3);
+    // Read from categoryTone so a change of palette classes leaves this test alone.
+    const tone = categoryTone(1);
+    const selector = (classes: string) => classes.split(" ").map((c) => `.${CSS.escape(c)}`).join("");
+    expect(container.querySelector(`.h-5${selector(tone.bar)}`)).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelectorAll(`[data-slot="link-icon"]${selector(tone.tile)}`)).toHaveLength(3);
   });
 });

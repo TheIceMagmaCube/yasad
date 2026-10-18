@@ -235,3 +235,17 @@
     color: var(--primary-foreground);
   }
 }
+
+/* Forced colors mode drops box shadows, and with them the ring that edges a panel or a raised surface: an outline
+   in the system text colour takes its place. It sits in the components layer, so any outline utility replaces it,
+   outline-none included even when the element is not focused: a panel or relief that carries outline-none needs a
+   boundary of its own, such as the transparent border of the buttons. */
+@layer components {
+  @media (forced-colors: active) {
+    .panel,
+    .relief {
+      outline: 1.5px solid CanvasText;
+      outline-offset: -1.5px;
+    }
+  }
+}

@@ -32,7 +32,7 @@ export function SearchResult({ result }: { result: Result }) {
         </span>
         <span className="block text-xs text-muted-foreground group-aria-selected:text-accent-foreground">{result.category.title}</span>
         {result.keyword && (
-          <Badge variant="outline" className="mt-1 max-w-full whitespace-normal text-inherit">
+          <Badge variant="outline" className="mt-1 max-w-full font-sans tracking-normal whitespace-normal normal-case text-inherit">
             <span className="wrap-anywhere">
               {m.keyword} <Highlight {...result.keyword} />
             </span>
