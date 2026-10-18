@@ -43,6 +43,13 @@
       "when": 1792064706026,
       "tag": "0005_tearful_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792337256031,
+      "tag": "0006_wild_rhino",
+      "breakpoints": true
     }
   ]
 }

@@ -123,6 +123,11 @@ export const category = sqliteTable("category", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   position: integer("position").notNull(),
+  /**
+   * Increased by every write to the category in the app, its groups included, but not by a move in the app;
+   * an import increases it whenever the category's content or rank changes. A stale edit is refused.
+   */
+  revision: integer("revision").notNull().default(1),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -142,6 +147,11 @@ export const link = sqliteTable(
     keywords: text("keywords").notNull().default("[]"),
     position: integer("position").notNull(),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /**
+     * Increased by every write to the link in the app, its groups and category included, but not by a move in
+     * the app; an import increases it whenever the link's content or rank changes. A stale edit is refused.
+     */
+    revision: integer("revision").notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

@@ -139,7 +139,7 @@ The same code runs on Cloudflare Workers, with a D1 database. You need a Cloudfl
 
    To use your own domain, add it to the Worker in the Cloudflare dashboard (Settings, Domains & Routes): no file changes. Set `PUBLIC_URL` to that address and always open YASAD there: sign-in from the `workers.dev` address is then refused, since it is another origin.
 
-   Set any other variable the same way, for example `PASSWORD_SIGN_IN` or the `OIDC_*` ones. Do not set `CATALOG_FILE` or `TRUST_PROXY` on Workers: `CATALOG_FILE` would block catalog imports without loading any file, and the client IP always comes from `CF-Connecting-IP`.
+   Set any other variable the same way, for example `PASSWORD_SIGN_IN` or the `OIDC_*` ones. Do not set `CATALOG_FILE` or `TRUST_PROXY` on Workers: `CATALOG_FILE` would block catalog imports and edits without loading any file, and the client IP always comes from `CF-Connecting-IP`.
 
 8. Check that it answers: `https://<your-worker>/api/health` returns `{"ok":true,"version":"dev","database":true}`, and `/api/setup` returns `{"open":true}`.
 9. Open `PUBLIC_URL` and follow the first install from the [README](../README.md#quick-start).

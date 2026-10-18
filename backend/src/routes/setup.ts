@@ -7,16 +7,12 @@ import { apiError } from "../errors";
 import { releaseAttempt, reserveAttempt, SETUP_LIMIT } from "../rate-limit";
 import { account, setting, user } from "../schema";
 import { codesMatch, hasLocalAdmin, isSetupOpen, localAdmins, SETUP_CODE_STILL_SET } from "../setup-state";
+import { readJson } from "./body";
 
 const SETUP_MARKER = "setup.completed";
 export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type AdminInput = { name: string; email: string; password: string };
-
-async function readJson(c: Context): Promise<Record<string, unknown>> {
-  const body: unknown = await c.req.json().catch(() => null);
-  return body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-}
 
 /**
  * Return the response refusing the setup code, or null when setup is open and the code is right.
