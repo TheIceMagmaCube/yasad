@@ -1,23 +1,34 @@
 version: 2
+# Updates go to beta like any other change; main only receives milestone promotions.
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: beta
     schedule:
       interval: weekly
     groups:
+      # better-auth and @better-auth/core must stay on the same version.
+      better-auth:
+        patterns: [better-auth, "@better-auth/*"]
       minor-and-patch:
         update-types: [minor, patch]
+    # TypeScript stays on 6.0.x until typescript-eslint supports 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     commit-message:
       prefix: chore
       include: scope
   - package-ecosystem: github-actions
     directory: /
+    target-branch: beta
     schedule:
       interval: weekly
     commit-message:
       prefix: ci
   - package-ecosystem: docker
     directory: /
+    target-branch: beta
     schedule:
       interval: weekly
     # The Node major follows .nvmrc (LTS lines only); bump it by hand.
