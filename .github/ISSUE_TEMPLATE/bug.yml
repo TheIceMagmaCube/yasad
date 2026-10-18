@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as documented.
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: A security flaw must not be reported here; see SECURITY.md. Never paste secrets, tokens or real e-mail addresses.
+  - type: input
+    id: version
+    attributes:
+      label: YASAD version
+      description: The `version` field of `PUBLIC_URL/api/health`, or the image tag you run.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Where it runs
+      options:
+        - Docker
+        - Cloudflare Workers
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: The variables that matter (sign-in mode, OIDC provider, PASSWORD_SIGN_IN, TRUST_PROXY, reverse proxy), without secrets.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Sign in as ...
+        2. Open ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+      description: Include error messages, and the server log lines around them if you have them.
+    validations:
+      required: true
