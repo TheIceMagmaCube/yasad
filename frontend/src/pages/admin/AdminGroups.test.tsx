@@ -107,6 +107,29 @@ describe("AdminGroups", () => {
     expect(within(panel).queryByLabelText("Add people")).toBeNull();
   });
 
+  // The tile that greys out a disabled account is hidden from assistive technologies, so the row says it in words.
+  it("says in words which members and people to add have a disabled account", async () => {
+    const list = PEOPLE.map((p) => (p.id === "ada" || p.id === "bob" ? { ...p, disabled: true } : p));
+    const { userEv } = await renderPage(routes({ "GET /api/admin/users": users(list) }));
+    await userEv.click(screen.getByRole("button", { name: "Members (3) of Contractors" }));
+    const members = within(row("Contractors")).getByRole("list", { name: "Members of Contractors" });
+    const item = (name: string) => within(members).getByText(name).closest("li")!;
+    expect(item("Bob")).toHaveTextContent("Disabled");
+    expect(item("Carol")).not.toHaveTextContent("Disabled");
+    const add = within(row("Contractors")).getByRole("button", { name: "Add Ada to Contractors" }).closest("li")!;
+    expect(add).toHaveTextContent("Disabled");
+  });
+
+  it("gives the row actions, Remove and Add targets of at least 44 px", async () => {
+    const { userEv } = await renderPage();
+    const contractors = row("Contractors");
+    await userEv.click(within(contractors).getByRole("button", { name: "Members (3) of Contractors" }));
+    for (const name of ["Members (3) of Contractors", "Rename Contractors", "Delete Contractors", "Add Ada to Contractors"]) {
+      expect(within(contractors).getByRole("button", { name })).toHaveClass("h-11");
+    }
+    expect(within(contractors).getByRole("button", { name: "Remove Bob from Contractors" })).toHaveClass("size-11");
+  });
+
   it("lists at most eight people to add, and says how many match", async () => {
     const many = Array.from({ length: 300 }, (_, i) => person(`p${String(i).padStart(3, "0")}`, `Person ${String(i).padStart(3, "0")}`));
     const { userEv } = await renderPage(routes({ "GET /api/admin/users": users(many) }));

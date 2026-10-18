@@ -1,4 +1,4 @@
-import { Building2, UserMinus, UserPlus, Users } from "lucide-react";
+import { Building2, Pencil, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { type AdminGroup, type AdminUser, api, type CatalogState, type GroupSource } from "../../api";
@@ -19,7 +19,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import type { Messages } from "../../i18n/en";
-import { useStrings } from "../../i18n/LocaleProvider";
+import { useLocale, useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
 import { focusIfLost, focusIsLost, focusIsWithin, rowHasFocus, type RowPanel, useListFeedback, useRowPanel, withTombstones } from "../../lib/admin-list";
 import { useAnnounce, useDebouncedStatus } from "../../lib/announcer";
@@ -28,7 +28,7 @@ import { claimFocus, focusById } from "../../lib/focus";
 import { useFormErrors } from "../../lib/form-errors";
 import { invalidateHome } from "../../lib/home-store";
 import { AdminPageHeader } from "./AdminLayout";
-import { adminErrorText, isNotFound } from "./shared";
+import { adminErrorText, isNotFound, PersonTile } from "./shared";
 
 const NEW = "new";
 const FILTER_ID = "groups-filter";
@@ -298,7 +298,7 @@ export function AdminGroups() {
               }
             />
             {panel.isOpen(NEW) && (
-              <div id="groups-new-panel" className="mb-4 rounded-xl border bg-muted/40 p-4">
+              <div id="groups-new-panel" className="panel mb-6 p-4 sm:p-6">
                 <GroupNameForm id="groups-new-form" label={s.newTitle} submitLabel={s.create} pendingLabel={s.creating} initial="" onSubmit={create} onCancel={panel.cancel} />
               </div>
             )}
@@ -434,12 +434,14 @@ function GroupRow({ group, data, panel, error, memberError, pending, onToggle, o
             <Button
               id={`${id}-members`}
               size="sm"
+              className="h-11"
               variant="outline"
               aria-label={s.membersLabel(group.name, group.memberIds.length)}
               aria-expanded={membersOpen}
               aria-controls={membersOpen ? `${id}-panel` : undefined}
               onClick={() => onToggle(`members:${group.id}`)}
             >
+              <Users aria-hidden="true" />
               {s.membersButton(group.memberIds.length)}
             </Button>
             {group.source === "local" && (
@@ -447,6 +449,7 @@ function GroupRow({ group, data, panel, error, memberError, pending, onToggle, o
                 <Button
                   id={`${id}-rename`}
                   size="sm"
+                  className="h-11"
                   variant="outline"
                   aria-label={s.renameLabel(group.name)}
                   aria-expanded={renaming}
@@ -455,17 +458,20 @@ function GroupRow({ group, data, panel, error, memberError, pending, onToggle, o
                   aria-describedby={locked ? `${id}-locked` : undefined}
                   onClick={lockable(`rename:${group.id}`)}
                 >
+                  <Pencil aria-hidden="true" />
                   {s.rename}
                 </Button>
                 <Button
                   id={`${id}-delete`}
                   size="sm"
+                  className="h-11"
                   variant="destructive-ghost"
                   aria-label={s.deleteLabel(group.name)}
                   aria-disabled={locked || undefined}
                   aria-describedby={locked ? `${id}-locked` : undefined}
                   onClick={lockable(`delete:${group.id}`)}
                 >
+                  <Trash2 aria-hidden="true" />
                   {m.admin.delete}
                 </Button>
               </>
@@ -561,20 +567,17 @@ function MembersPanel({ group, users, error, pending, onAdd, onRemove }: Members
           {shown.length === 0 ? (
             <p className="text-sm">{s.noMemberMatch}</p>
           ) : (
-            <ul aria-label={s.membersOf(group.name)} className="flex flex-col divide-y divide-border rounded-lg border bg-background">
+            <ul aria-label={s.membersOf(group.name)} className="flex flex-col divide-y-[1.5px] divide-border rounded-lg border-[1.5px] bg-background">
               {shown.map((user, i) => (
                 <li key={user.id} className="flex items-center gap-3 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold wrap-anywhere">{user.name}</p>
-                    <p className="text-sm wrap-anywhere text-muted-foreground">{user.email}</p>
-                  </div>
+                  <Person user={user} />
                   {local && (
                     <PendingButton
                       id={removeButtonId(group.id, user.id)}
                       variant="destructive-ghost"
                       // Icon only, until its progress text needs the room.
                       size={pending.has(`${group.id}:${user.id}`) ? "sm" : "icon"}
-                      className={pending.has(`${group.id}:${user.id}`) ? undefined : "size-9"}
+                      className={pending.has(`${group.id}:${user.id}`) ? "h-11" : "size-11"}
                       aria-label={s.removeMember(user.name, group.name)}
                       pending={pending.has(`${group.id}:${user.id}`)}
                       pendingLabel={s.removing}
@@ -591,6 +594,27 @@ function MembersPanel({ group, users, error, pending, onAdd, onRemove }: Members
       )}
       {local && <MemberPicker group={group} users={users} memberIds={memberIds} pending={pending} onAdd={onAdd} />}
     </div>
+  );
+}
+
+/**
+ * Show a person in a member list or the picker: tile, name, e-mail, and in words whether the account is disabled,
+ * since the tile is hidden from assistive technologies.
+ */
+function Person({ user }: { user: AdminUser }) {
+  const m = useStrings();
+  const { language } = useLocale();
+  return (
+    <>
+      <PersonTile id={user.id} name={user.name} language={language} disabled={user.disabled} className="size-8 text-sm" />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold wrap-anywhere">
+          {user.name}
+          {user.disabled && <Badge variant="destructive">{m.users.badges.disabled}</Badge>}
+        </p>
+        <p className="font-mono text-[0.8125rem] wrap-anywhere text-muted-foreground">{user.email}</p>
+      </div>
+    </>
   );
 }
 
@@ -654,16 +678,14 @@ function MemberPicker({ group, users, memberIds, pending, onAdd }: MemberPickerP
         {status}
       </p>
       {shown.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border rounded-lg border bg-background">
+        <ul className="flex flex-col divide-y-[1.5px] divide-border rounded-lg border-[1.5px] bg-background">
           {shown.map((user) => (
             <li key={user.id} className="flex items-center gap-3 px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold wrap-anywhere">{user.name}</p>
-                <p className="text-sm wrap-anywhere text-muted-foreground">{user.email}</p>
-              </div>
+              <Person user={user} />
               <PendingButton
                 id={addButtonId(group.id, user.id)}
                 size="sm"
+                className="h-11"
                 variant="outline"
                 aria-label={s.addPersonLabel(user.name, group.name)}
                 pending={pending.has(`${group.id}:${user.id}`)}

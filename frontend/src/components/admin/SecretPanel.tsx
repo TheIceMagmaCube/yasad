@@ -59,10 +59,12 @@ export function SecretPanel({ name, password, autoFocus = true, onDone }: Secret
       tabIndex={-1}
       aria-labelledby={`${id}-title`}
       data-slot="secret-panel"
-      className="flex flex-col gap-3 rounded-lg bg-muted p-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="panel flex max-w-xl flex-col gap-3 p-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden"
     >
-      <p id={`${id}-title`} className="flex items-start gap-2 font-semibold wrap-anywhere">
-        <KeyRound aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <p id={`${id}-title`} className="flex items-center gap-3 font-heading text-base font-bold wrap-anywhere">
+        <span aria-hidden="true" className="pixel-corners flex size-8 shrink-0 items-center justify-center bg-primary text-primary-foreground">
+          <KeyRound className="size-4" />
+        </span>
         {a.temporaryPassword(name)}
       </p>
       <p className="text-sm text-muted-foreground">{a.temporaryPasswordHint}</p>
@@ -74,7 +76,7 @@ export function SecretPanel({ name, password, autoFocus = true, onDone }: Secret
           readOnly
           value={password}
           spellCheck={false}
-          className="font-mono"
+          className="h-11 font-mono text-base tracking-wider md:text-base"
           aria-describedby={copy === "unavailable" ? `${id}-copy` : undefined}
         />
       </div>
