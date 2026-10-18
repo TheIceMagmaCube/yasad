@@ -15,6 +15,19 @@ describe("Better Auth routes", () => {
   });
 });
 
+describe("session lifetime", () => {
+  it("keeps the expiry set at sign-in even when the session is used days later", async () => {
+    const app = await testApp({ SESSION_MAX_AGE: String(7 * 86400) });
+    await addUser(app, { id: "ada", email: "ada@example.invalid" });
+    expect((await signIn(app, "ada@example.invalid")).status).toBe(200);
+    // Two days have passed since the sign-in: Better Auth would push a sliding session's expiry back to 7 days.
+    await app.exec(`update session set expires_at = expires_at - ${2 * 86400 * 1000}, updated_at = updated_at - ${2 * 86400 * 1000}`);
+    const [before] = await app.query("select expires_at from session");
+    expect((await app.request("/api/auth/get-session")).status).toBe(200);
+    expect(await app.query("select expires_at from session")).toEqual([before]);
+  });
+});
+
 describe("sign-in limits", () => {
   it("blocks an e-mail after 5 failures from an IP, even with the right password", async () => {
     const app = await testApp();

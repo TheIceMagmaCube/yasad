@@ -81,7 +81,7 @@ Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then
 | `AUTH_SECRET` | yes | Signs sessions. At least 32 characters. |
 | `PUBLIC_URL` | yes | The URL people open, e.g. `https://portal.example.org`. Cookies are `Secure` when it is https. |
 | `SETUP_CODE` | for setup | One-time code for the first-run setup, at least 24 characters. Remove it once setup is done. |
-| `SESSION_MAX_AGE` | no | Session duration in seconds. Default `604800` (7 days). |
+| `SESSION_MAX_AGE` | no | Session lifetime in seconds, counted from sign-in: using the session does not extend it. Default `86400` (24 hours). |
 | `PASSWORD_SIGN_IN` | no | `true` (default) or `false`. With `false`, only local administrators can sign in with a password, from `/sign-in/local`; sessions already open stay valid until they expire. |
 | `CATALOG_FILE` | no | Docker only. Path of a catalog file applied at every start; the catalog then matches the file and cannot be imported from the interface. An invalid file stops the start. |
 | `DEFAULT_LANGUAGE` | no | Interface language when the browser asks for neither English nor French: `en` (default) or `fr`. |

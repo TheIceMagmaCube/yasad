@@ -37,7 +37,8 @@ export function sharedOptions(db: DB, config: Config) {
         mustChangePassword: { type: "boolean", required: false, defaultValue: false, input: false },
       },
     },
-    session: { expiresIn: config.sessionMaxAge },
+    // A fixed lifetime: a session that is used is not extended, so removing someone's access ends with it.
+    session: { expiresIn: config.sessionMaxAge, disableSessionRefresh: true },
     databaseHooks: {
       session: {
         create: {
