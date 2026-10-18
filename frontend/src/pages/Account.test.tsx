@@ -100,6 +100,15 @@ describe("Account", () => {
     expect(status).toBeEmptyDOMElement();
   });
 
+  it("offers the language and the appearance on this device, and no theme choice", async () => {
+    mockApi(LOCAL);
+    renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
+    const preferences = screen.getByRole("region", { name: "Preferences" });
+    expect(within(preferences).getAllByRole("combobox")).toEqual([within(preferences).getByRole("combobox", { name: "Language" })]);
+    expect(within(preferences).getAllByRole("radio")).toHaveLength(3);
+    await screen.findByRole("button", { name: "Change password" });
+  });
+
   it("wraps a very long name instead of widening the page", async () => {
     mockApi(LOCAL);
     const name = "Ada".repeat(60);

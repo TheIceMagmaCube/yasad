@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 import { api, type User } from "../api";
 import { PasswordForm } from "../components/account/PasswordForm";
 import { ProfileForm } from "../components/account/ProfileForm";
@@ -7,7 +9,6 @@ import { LoadError } from "../components/LoadError";
 import { Page } from "../components/Page";
 import { PageHeader } from "../components/PageHeader";
 import { AppearanceRadios } from "../components/preferences/AppearanceRadios";
-import { DevThemeSelect } from "../components/preferences/DevThemeSelect";
 import { LanguageSelect } from "../components/preferences/LanguageSelect";
 import { SectionHeader } from "../components/SectionHeader";
 import { Badge } from "../components/ui/badge";
@@ -21,6 +22,7 @@ type Origin = "local" | "oidc";
 type OriginState = { status: "loading" } | { status: "error"; attempt: number; retrying: boolean } | { status: "ready"; origin: Origin };
 
 const PROFILE_EDIT = "account-profile-edit";
+const SECTION = "panel p-5 sm:p-6";
 const PASSWORD_EDIT = "account-password-edit";
 
 /** Return the state of a request for the sign-in method, after `previous` (whose failures stay counted). */
@@ -66,20 +68,17 @@ export function Account({ user, onProfileChanged }: { user: User; onProfileChang
   return (
     <Page width="reading">
       <PageHeader title={a.title} description={a.description} />
-      <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-8">
         <ProfileSection user={user} origin={origin} originFailed={state.status === "error"} onProfileChanged={onProfileChanged} />
-        <section aria-labelledby="account-preferences" className="flex flex-col gap-6">
+        <section aria-labelledby="account-preferences" className={cn(SECTION, "flex flex-col gap-6")}>
           <SectionHeader id="account-preferences" title={m.preferences.label} className="mb-0" />
           <LanguageSelect variant="field" className="max-w-sm" />
           <AppearanceRadios legend={m.preferences.appearance} />
-          <div className="max-w-sm">
-            <DevThemeSelect />
-          </div>
         </section>
         {origin !== "oidc" && (
-          <section aria-labelledby="account-password" aria-busy={state.status === "loading" || undefined}>
+          <section aria-labelledby="account-password" aria-busy={state.status === "loading" || undefined} className={SECTION}>
             <SectionHeader id="account-password" title={a.password} />
-            {state.status === "loading" && <div aria-hidden="true" data-slot="password-placeholder" className="h-10 w-56 rounded-md bg-muted motion-safe:animate-pulse" />}
+            {state.status === "loading" && <div aria-hidden="true" data-slot="password-placeholder" className="h-10 w-56 max-w-full rounded-md bg-muted motion-safe:animate-pulse" />}
             {state.status === "error" && <LoadError attempt={state.attempt} message={a.loadError} pending={state.retrying} onRetry={retry} />}
             {state.status === "ready" && <PasswordSection />}
           </section>
@@ -103,7 +102,7 @@ function ProfileSection({ user, origin, originFailed, onProfileChanged }: Profil
   };
   const role = (m.roles as Record<string, string>)[user.role] ?? user.role;
   return (
-    <section aria-labelledby="account-profile">
+    <section aria-labelledby="account-profile" className={SECTION}>
       <SectionHeader
         id="account-profile"
         title={a.profile}

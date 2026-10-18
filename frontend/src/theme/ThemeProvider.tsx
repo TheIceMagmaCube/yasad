@@ -1,13 +1,10 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { isDark, type Mode, MODES, readPreference, type Theme, THEMES, writePreference } from "../preferences";
+import { isDark, type Mode, MODES, readPreference, type Theme, writePreference } from "../preferences";
 
 type ThemeState = {
   mode: Mode;
   setMode: (mode: Mode) => void;
-  /** Theme override, only honoured in dev builds; null follows the instance theme. */
-  devTheme: Theme | null;
-  setDevTheme: (theme: Theme | null) => void;
 };
 
 const ThemeContext = createContext<ThemeState | null>(null);
@@ -21,18 +18,16 @@ function subscribeToSystem(onChange: () => void): () => void {
 
 const systemIsDark = () => window.matchMedia(DARK_QUERY).matches;
 
-/** Apply the instance theme (or the dev override) and the light or dark mode to the document. */
+/** Apply the instance theme and the light or dark mode to the document. */
 export function ThemeProvider({ instanceTheme, children }: { instanceTheme: Theme; children: ReactNode }) {
   const [mode, setModeState] = useState<Mode>(() => readPreference("mode", MODES) ?? "system");
-  const [devTheme, setDevThemeState] = useState(() => (import.meta.env.DEV ? readPreference("devTheme", THEMES) : null));
   const systemDark = useSyncExternalStore(subscribeToSystem, systemIsDark);
-  const theme = devTheme ?? instanceTheme;
   const dark = isDark(mode, systemDark);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.theme = instanceTheme;
     document.documentElement.dataset.mode = dark ? "dark" : "light";
-  }, [theme, dark]);
+  }, [instanceTheme, dark]);
 
   const value = useMemo<ThemeState>(
     () => ({
@@ -41,13 +36,8 @@ export function ThemeProvider({ instanceTheme, children }: { instanceTheme: Them
         writePreference("mode", next);
         setModeState(next);
       },
-      devTheme,
-      setDevTheme: (next) => {
-        writePreference("devTheme", next);
-        setDevThemeState(next);
-      },
     }),
-    [mode, devTheme],
+    [mode],
   );
   return <ThemeContext value={value}>{children}</ThemeContext>;
 }

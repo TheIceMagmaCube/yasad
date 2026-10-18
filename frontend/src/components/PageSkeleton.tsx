@@ -9,10 +9,10 @@ import { LINK_GRID } from "./home/CategorySection";
 export function PageSkeleton({ className }: { className?: string }) {
   return (
     <div aria-hidden="true" data-slot="page-skeleton" className={cn("appear-delayed motion-safe:animate-pulse", className)}>
-      <div className="mb-4 h-8 w-48 max-w-full rounded-md bg-muted" />
+      <div className="mb-6 h-10 w-56 max-w-full rounded-md bg-muted" />
       <div className={LINK_GRID}>
         {[0, 1, 2].map((i) => (
-          <div key={i} className="flex h-20 items-start gap-3 rounded-2xl border-[1.5px] border-border bg-card p-4">
+          <div key={i} className="panel flex h-20 items-start gap-3 p-4">
             <div className="pixel-corners size-11 shrink-0 bg-muted" />
             <div className="flex-1 space-y-2">
               <div className="h-4 w-2/3 rounded bg-muted" />
