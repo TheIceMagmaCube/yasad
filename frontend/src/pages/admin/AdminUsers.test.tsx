@@ -74,6 +74,22 @@ describe("AdminUsers", () => {
     expect(screen.getByText("4 users")).toBeInTheDocument();
   });
 
+  it("marks each person with a decorative initials tile, struck through when the account is disabled, beside 44 px actions", async () => {
+    const { userEv } = await renderPage({ "GET /api/admin/users": list(ADA, user({ id: "dan", name: "Dan Brown", disabled: true })) });
+    const tile = (name: string) => row(name).querySelector('[data-slot="person-tile"]')!;
+    expect(tile("Ada")).toHaveTextContent("A");
+    expect(tile("Ada")).toHaveAttribute("aria-hidden", "true");
+    expect(tile("Ada")).not.toHaveAttribute("data-disabled");
+    expect(tile("Dan Brown")).toHaveTextContent("DB");
+    expect(tile("Dan Brown")).toHaveAttribute("data-disabled");
+    expect(row("Ada")).not.toHaveAttribute("data-open");
+    for (const name of ["Edit Dan Brown", "Reset password for Dan Brown", "Delete Dan Brown"]) {
+      expect(screen.getByRole("button", { name })).toHaveClass("h-11");
+    }
+    await userEv.click(screen.getByRole("button", { name: "Edit Ada" }));
+    expect(row("Ada")).toHaveAttribute("data-open");
+  });
+
   it("filters by name or e-mail, ignoring accents, and offers to clear a filter that hides everything", async () => {
     const { userEv } = await renderPage({ "GET /api/admin/users": list(ADA, BOB, user({ id: "helene", name: "Hélène" })) });
     await userEv.type(screen.getByLabelText("Filter by name or e-mail"), "helene");

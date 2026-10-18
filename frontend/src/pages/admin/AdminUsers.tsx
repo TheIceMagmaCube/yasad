@@ -1,4 +1,4 @@
-import { Building2, KeyRound, UserPlus } from "lucide-react";
+import { Building2, Clock, KeyRound, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { type AdminUser, api, type Role, type User, type UserChanges } from "../../api";
@@ -27,7 +27,7 @@ import { prepareFilter } from "../../lib/filter";
 import { focusById } from "../../lib/focus";
 import { useFormErrors } from "../../lib/form-errors";
 import { AdminPageHeader } from "./AdminLayout";
-import { adminErrorText, isNotFound } from "./shared";
+import { adminErrorText, isNotFound, PersonTile } from "./shared";
 
 const NEW = "new";
 const FILTER_ID = "users-filter";
@@ -232,7 +232,7 @@ export function AdminUsers({ me }: { me: User }) {
               }
             />
             {panel.isOpen(NEW) && (
-              <div id="users-new-panel" className="mb-4 rounded-xl border bg-muted/40 p-4">
+              <div id="users-new-panel" className="panel mb-6 p-4 sm:p-6">
                 <UserForm mode="new" onSubmit={create} onCancel={panel.cancel} />
               </div>
             )}
@@ -247,7 +247,7 @@ export function AdminUsers({ me }: { me: User }) {
               </Alert>
             )}
             {collection.status === "loading" ? (
-              <ListSkeleton />
+              <ListSkeleton leading />
             ) : entries.length === 0 ? (
               <EmptyState
                 title={m.admin.noMatch(query.trim())}
@@ -322,37 +322,46 @@ function UserRow({ user, self, panel, error, secret, onToggle, onSave, onReset, 
     <DataRow
       titleId={`${id}-title`}
       title={user.name}
+      leading={<PersonTile id={user.id} name={user.name} language={language} disabled={user.disabled} />}
       badges={
         <>
-          {self && <Badge variant="neutral">{b.you}</Badge>}
-          {user.role === "admin" && <Badge variant="info">{b.admin}</Badge>}
-          <Badge variant="outline">
-            {user.origin === "local" ? <KeyRound aria-hidden="true" /> : <Building2 aria-hidden="true" />}
-            {b.origin[user.origin]}
-          </Badge>
-          {user.roleSource === "override" && <Badge variant="outline">{b.forced}</Badge>}
-          {user.mustChangePassword && <Badge variant="warning">{b.temporary}</Badge>}
+          {self && <Badge variant="primary">{b.you}</Badge>}
           {user.disabled && <Badge variant="destructive">{b.disabled}</Badge>}
+          {user.mustChangePassword && <Badge variant="warning">{b.temporary}</Badge>}
+          {user.role === "admin" && <Badge variant="info">{b.admin}</Badge>}
+          {user.roleSource === "override" && <Badge variant="outline">{b.forced}</Badge>}
         </>
       }
       meta={
         <>
-          <p className="wrap-anywhere">{user.email}</p>
-          <p>
-            {user.lastSignInAt ? (
-              <>
-                {s.lastSignIn}{" "}
-                <time dateTime={user.lastSignInAt}>
-                  {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(user.lastSignInAt))}
-                </time>
-              </>
-            ) : (
-              s.never
-            )}
-          </p>
-          <p className="wrap-anywhere">
-            {s.groups} {user.groups.length > 0 ? user.groups.map((g) => (g.source === "oidc" ? `${g.name} ${s.fromProvider}` : g.name)).join(", ") : s.noGroups}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="font-mono text-[0.8125rem] wrap-anywhere">{user.email}</p>
+            <Badge variant="outline">
+              {user.origin === "local" ? <KeyRound aria-hidden="true" /> : <Building2 aria-hidden="true" />}
+              {b.origin[user.origin]}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
+            <p className="flex items-start gap-1.5">
+              <Clock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              {user.lastSignInAt ? (
+                <span>
+                  {s.lastSignIn}{" "}
+                  <time dateTime={user.lastSignInAt}>
+                    {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(user.lastSignInAt))}
+                  </time>
+                </span>
+              ) : (
+                s.never
+              )}
+            </p>
+            <p className="flex min-w-0 items-start gap-1.5 wrap-anywhere">
+              <Users aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                {s.groups} {user.groups.length > 0 ? user.groups.map((g) => (g.source === "oidc" ? `${g.name} ${s.fromProvider}` : g.name)).join(", ") : s.noGroups}
+              </span>
+            </p>
+          </div>
         </>
       }
       actions={
@@ -360,21 +369,25 @@ function UserRow({ user, self, panel, error, secret, onToggle, onSave, onReset, 
           <Button
             id={`${id}-edit`}
             size="sm"
+            className="h-11"
             variant="outline"
             aria-label={s.editLabel(user.name)}
             aria-expanded={editing}
             aria-controls={editing ? `${id}-panel` : undefined}
             onClick={() => onToggle(`edit:${user.id}`)}
           >
+            <Pencil aria-hidden="true" />
             {s.edit}
           </Button>
           {user.origin === "local" && !self && (
-            <Button id={`${id}-reset`} size="sm" variant="outline" aria-label={s.resetLabel(user.name)} onClick={() => onToggle(`reset:${user.id}`)}>
+            <Button id={`${id}-reset`} size="sm" className="h-11" variant="ghost" aria-label={s.resetLabel(user.name)} onClick={() => onToggle(`reset:${user.id}`)}>
+              <KeyRound aria-hidden="true" />
               {s.resetPassword}
             </Button>
           )}
           {!self && (
-            <Button id={`${id}-delete`} size="sm" variant="destructive-ghost" aria-label={s.deleteLabel(user.name)} onClick={() => onToggle(`delete:${user.id}`)}>
+            <Button id={`${id}-delete`} size="sm" className="h-11" variant="destructive-ghost" aria-label={s.deleteLabel(user.name)} onClick={() => onToggle(`delete:${user.id}`)}>
+              <Trash2 aria-hidden="true" />
               {m.admin.delete}
             </Button>
           )}
