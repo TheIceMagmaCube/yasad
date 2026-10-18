@@ -5,7 +5,7 @@ import type { ComponentProps, MouseEvent } from "react";
 
 import { cn } from "@/lib/utils";
 
-const buttonVariants = cva(
+const variants = cva(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-semibold whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
@@ -28,8 +28,17 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * Return the button classes, the given `className` merged over the variant's.
+ *
+ * cva only appends it, and the stylesheet's order would then decide between conflicting utilities.
+ */
+function buttonVariants(props?: Parameters<typeof variants>[0]): string {
+  return cn(variants(props));
+}
+
 type ButtonProps = ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
+  VariantProps<typeof variants> & {
     asChild?: boolean;
     /**
      * Mark the action as running: the button keeps focus but ignores clicks and form submission. With
@@ -59,7 +68,7 @@ function Button({ className, variant, size, asChild = false, pending = false, pe
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={buttonVariants({ variant, size, className })}
       aria-disabled={pending || undefined}
       {...props}
       onClickCapture={handleClickCapture}

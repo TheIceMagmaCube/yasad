@@ -1,9 +1,10 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { navigate } from "./lib/router";
+import { leavePage } from "./lib/sign-in";
 import { mockApi, type Routes } from "./test-utils";
 
 const ADA = { name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
@@ -917,5 +918,189 @@ describe("App, temporary password and account", () => {
     expect(await screen.findByRole("button", { name: "Account menu for Augusta Ada King" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Edit profile" })).toHaveFocus());
     expect(screen.getByText("Profile saved.")).toBeInTheDocument();
+  });
+});
+
+describe("App, OIDC sign-in", () => {
+  const AUTHORIZE = "https://idp.example.invalid/authorize";
+  const END_SESSION = "https://idp.example.invalid/logout?id_token_hint=abc";
+  const instance = (passwordSignIn: boolean) => ({
+    "GET /api/instance": { status: 200, body: { title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn, oidc: { name: "Okta" } } },
+  });
+  const anonymous = (passwordSignIn = false): Routes => ({
+    ...instance(passwordSignIn),
+    "GET /api/setup": { status: 200, body: { open: false } },
+    "GET /api/auth/get-session": { status: 200, body: null },
+    ...NO_PUBLIC_LINKS,
+    "POST /api/auth/sign-in/social": { status: 200, body: { url: AUTHORIZE } },
+  });
+  /** Return the requests sent to start the provider sign-in. */
+  const starts = (fetchMock: ReturnType<typeof mockApi>) => fetchMock.mock.calls.filter(([path]) => path === "/api/auth/sign-in/social");
+
+  let assign: ReturnType<typeof vi.spyOn>;
+  let replace: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    assign = vi.spyOn(leavePage, "assign").mockImplementation(() => {});
+    replace = vi.spyOn(leavePage, "replace").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("goes to the provider at once on a deep link when password sign-in is off, coming back to it", async () => {
+    const fetchMock = mockApi(anonymous());
+    renderAt("/admin/groups");
+    expect(await screen.findByText("Redirecting to Okta…")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Administrator? Sign in with a password" })).toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(AUTHORIZE));
+    const call = starts(fetchMock)[0]!;
+    expect(JSON.parse(String(call[1]!.body))).toEqual({ returnTo: "/admin/groups" });
+    expect(starts(fetchMock)).toHaveLength(1);
+  });
+
+  it("goes to the provider at once after the server comes back on page load", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    renderAt("/");
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    const fetchMock = mockApi(anonymous());
+    await userEvent.setup().click(retry);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(AUTHORIZE));
+    expect(starts(fetchMock)).toHaveLength(1);
+  });
+
+  it("does not go to the provider by itself when password sign-in is on", async () => {
+    const fetchMock = mockApi(anonymous(true));
+    renderAt("/");
+    expect(await screen.findByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(starts(fetchMock)).toHaveLength(0);
+  });
+
+  it("does not go to the provider by itself on /sign-in/local", async () => {
+    const fetchMock = mockApi(anonymous());
+    renderAt("/sign-in/local");
+    expect(await screen.findByRole("heading", { name: "Administrator sign-in" })).toBeInTheDocument();
+    expect(starts(fetchMock)).toHaveLength(0);
+  });
+
+  it("does not go to the provider by itself on /signed-out", async () => {
+    const fetchMock = mockApi(anonymous());
+    renderAt("/signed-out");
+    expect(await screen.findByRole("heading", { level: 1, name: "You are signed out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(starts(fetchMock)).toHaveLength(0);
+  });
+
+  it("sends a signed-in person from /signed-out to the home page", async () => {
+    mockApi({ ...signedIn(ADA), ...instance(false) });
+    renderAt("/signed-out");
+    expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
+    expect(location.pathname).toBe("/");
+  });
+
+  it("shows the error of the address focused, removes it from the address and does not go to the provider", async () => {
+    const fetchMock = mockApi(anonymous());
+    renderAt("/sign-in?error=access_denied");
+    expect(await screen.findByRole("group", { name: "Your account does not have access to this portal." })).toHaveFocus();
+    expect(location.pathname).toBe("/sign-in");
+    expect(location.search).toBe("");
+    expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(starts(fetchMock)).toHaveLength(0);
+  });
+
+  it("offers Try again after an unknown error, and starts only when asked", async () => {
+    const fetchMock = mockApi(anonymous());
+    renderAt("/sign-in?error=state_mismatch");
+    expect(await screen.findByRole("group", { name: "Sign-in failed. Try again." })).toHaveFocus();
+    expect(starts(fetchMock)).toHaveLength(0);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(AUTHORIZE));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("offers the provider on the setup screen without going there", async () => {
+    const fetchMock = mockApi({ ...anonymous(), "GET /api/setup": { status: 200, body: { open: true } } });
+    renderAt("/");
+    expect(await screen.findByRole("heading", { name: "Set up YASAD" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(starts(fetchMock)).toHaveLength(0);
+  });
+
+  it("does not go to the provider when the session ends in an open tab, only on the next navigation", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...signedIn({ ...ADA, id: "ada" }), ...instance(false) });
+    renderAt("/admin/users");
+    await screen.findByRole("heading", { name: "Users" });
+    const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
+    const fetchMock = mockApi({
+      ...anonymous(),
+      "GET /api/admin/users": unauthenticated,
+      "GET /api/admin/groups": unauthenticated,
+      "GET /api/admin/catalog/state": unauthenticated,
+    });
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    expect(await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(starts(fetchMock)).toHaveLength(0);
+
+    act(() => navigate("/admin/users"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(AUTHORIZE));
+    expect(starts(fetchMock)).toHaveLength(1);
+  });
+
+  it("leaves for the provider's sign-out when the server gives its address", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...signedIn(ADA), ...instance(false), "POST /api/auth/sign-out": { status: 200, body: { success: true, url: END_SESSION } } });
+    renderAt("/");
+    await user.click(await screen.findByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Sign out" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(END_SESSION));
+  });
+
+  it("lands on /signed-out after a sign-out without the provider's address, and stays there", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi({
+      ...anonymous(),
+      ...signedIn(ADA),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: ADA, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+      ],
+      "POST /api/auth/sign-out": { status: 200, body: { success: true } },
+    });
+    renderAt("/admin/users");
+    await user.click(await screen.findByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Sign out" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "You are signed out" })).toBeInTheDocument();
+    expect(location.pathname).toBe("/signed-out");
+    expect(starts(fetchMock)).toHaveLength(0);
+    expect(assign).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps today's screen after a failed sign-out, without going to the provider", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi({
+      ...anonymous(),
+      ...signedIn(ADA),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: ADA, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+      ],
+      "POST /api/auth/sign-out": { status: 500, body: { error: { code: "internal_error", message: "" } } },
+    });
+    renderAt("/admin/users");
+    await user.click(await screen.findByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Sign out" }));
+    expect(await screen.findByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
+    expect(location.pathname).toBe("/admin/users");
+    expect(starts(fetchMock)).toHaveLength(0);
+    expect(replace).not.toHaveBeenCalled();
   });
 });

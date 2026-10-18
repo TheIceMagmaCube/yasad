@@ -13,6 +13,14 @@ export const SETUP_LIMIT: Limit = { max: 5, windowMs: FIFTEEN_MINUTES };
 export const SIGN_IN_ACCOUNT_LIMIT: Limit = { max: 5, windowMs: FIFTEEN_MINUTES };
 export const SIGN_IN_IP_LIMIT: Limit = { max: 30, windowMs: FIFTEEN_MINUTES };
 export const PASSWORD_CHANGE_LIMIT: Limit = { max: 5, windowMs: FIFTEEN_MINUTES };
+/**
+ * Provider sign-ins started, then callbacks received, per IP; every one is counted.
+ *
+ * Sized for an office behind one address: it stops a flood of `verification` rows and of calls to
+ * the provider, not people signing in.
+ */
+export const OIDC_START_LIMIT: Limit = { max: 300, windowMs: FIFTEEN_MINUTES };
+export const OIDC_CALLBACK_LIMIT: Limit = { max: 300, windowMs: FIFTEEN_MINUTES };
 
 export type Attempt = { allowed: boolean; count: number; retryAfterMs: number };
 

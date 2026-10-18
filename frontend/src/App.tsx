@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, ApiError, onStaleSession, type SetupState, type User } from "./api";
 import { AppShell } from "./components/AppShell";
 import { LoadingShell } from "./components/LoadingShell";
 import { type Notice, ShellNoticeProvider } from "./components/ShellNotice";
+import { type ProviderError } from "./components/ProviderSignIn";
 import { LocaleProvider } from "./i18n/LocaleProvider";
 import { cachedInstance, cacheInstance, type Instance, InstanceContext, useInstance } from "./instance";
 import { invalidateHome, onViewerChanged, primeHome } from "./lib/home-store";
 import { AnnouncerProvider } from "./lib/announcer";
 import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
 import { navigate, normalizePath, useNavigations, usePath } from "./lib/router";
+import { clearSignInError, leavePage, LOCAL_SIGN_IN, readSignInError, SIGN_IN, SIGNED_OUT } from "./lib/sign-in";
 import { Account } from "./pages/Account";
 import { AdminCatalog } from "./pages/admin/AdminCatalog";
 import { AdminGroups } from "./pages/admin/AdminGroups";
@@ -18,15 +20,11 @@ import { AdminUsers } from "./pages/admin/AdminUsers";
 import { Forbidden, NotFound } from "./pages/ErrorViews";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
+import { SignedOut } from "./pages/SignedOut";
 import { SignIn } from "./pages/SignIn";
 import { TemporaryPassword } from "./pages/TemporaryPassword";
 import { Unreachable } from "./pages/Unreachable";
 import { ThemeProvider } from "./theme/ThemeProvider";
-
-/** Path showing the password form even when password sign-in is off (local admins only). */
-const LOCAL_SIGN_IN = "/sign-in/local";
-/** Path of the sign-in screen when "/" shows the public links. */
-const SIGN_IN = "/sign-in";
 
 type View =
   | { name: "loading" }
@@ -97,11 +95,22 @@ export function App() {
    */
   const [expiredAt, setExpiredAt] = useState<number | null>(null);
   const [notice, setNotice] = useState<ShellNoticeState | null>(null);
+  /**
+   * The navigation count at the last reload of the session after a session change: the provider sign-in starts by
+   * itself only on page load or after a navigation, never on a screen a session change brought (session ended in an
+   * open tab, failed sign-out).
+   */
+  const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
 
   const viewRef = useRef(view);
   const pending = useRef(0);
   const navigations = useNavigations();
   const navigationsRef = useRef(navigations);
+  // The provider sign-in error the server put in the address, shown until the next navigation. It is removed
+  // from the address at once, so a reload does not show it again.
+  const [signInError] = useState(() => readSignInError(location.search));
+  const [loadedAt] = useState(navigations);
+  useEffect(() => clearSignInError(), []);
   useEffect(() => {
     viewRef.current = view;
     navigationsRef.current = navigations;
@@ -125,6 +134,8 @@ export function App() {
         setExpiredAt(navigationsRef.current);
         if (next.name === "public") setNotice({ kind: "sessionExpired", navigations: navigationsRef.current });
       }
+      // Leaving the unreachable screen is still the page load, not a session change: the sign-in may start by itself.
+      if (!leavingError) setRefreshedAt(navigationsRef.current);
       setView(next);
       return next;
     } finally {
@@ -181,6 +192,9 @@ export function App() {
 
   const shownNotice = notice && notice.navigations === navigations ? notice : null;
   const expired = expiredAt === navigations;
+  const showError = signInError !== null && navigations === loadedAt;
+  const providerError = useMemo(() => (showError ? { code: signInError } : null), [showError, signInError]);
+  const autoSignIn = refreshedAt !== navigations;
   const dismissNotice = () => {
     setNotice(null);
     setExpiredAt(null);
@@ -191,13 +205,41 @@ export function App() {
         <ThemeProvider instanceTheme={instance.theme}>
           <AnnouncerProvider>
             <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: dismissNotice }}>
-              <Screen view={view} refresh={refresh} expired={expired} onPasswordSaved={passwordSaved} />
+              <Screen
+                view={view}
+                refresh={refresh}
+                expired={expired}
+                providerError={providerError}
+                autoSignIn={autoSignIn}
+                onPasswordSaved={passwordSaved}
+              />
             </ShellNoticeProvider>
           </AnnouncerProvider>
         </ThemeProvider>
       </LocaleProvider>
     </InstanceContext>
   );
+}
+
+/**
+ * Sign out, then leave for the provider's own sign-out when the server gives its address. Otherwise reload the
+ * session and, with OIDC configured, land on the signed-out page, which does not sign in again by itself; a
+ * failed sign-out only reloads the session.
+ */
+async function signOutThen(refresh: () => Promise<View>, oidc: boolean): Promise<void> {
+  let url: string | undefined;
+  try {
+    ({ url } = await api.signOut());
+  } catch {
+    await refresh();
+    return;
+  }
+  if (url) {
+    leavePage.assign(url);
+    return;
+  }
+  const next = await refresh();
+  if (oidc && next.name !== "home") navigate(SIGNED_OUT);
 }
 
 /** Return the canonical form of a path: no trailing slash, and the administration section opened on its first tab. */
@@ -236,12 +278,16 @@ type ScreenProps = {
   view: View;
   refresh: () => Promise<View>;
   expired: boolean;
+  /** Error of a failed sign-in at the identity provider, from the address. */
+  providerError: ProviderError | null;
+  /** The page was loaded or navigated to since the last session reload; a provider error still stops it. */
+  autoSignIn: boolean;
   /** The temporary password was replaced. */
   onPasswordSaved: () => void;
 };
 
-function Screen({ view, refresh, expired, onPasswordSaved }: ScreenProps) {
-  const { passwordSignIn } = useInstance();
+function Screen({ view, refresh, expired, providerError, autoSignIn, onPasswordSaved }: ScreenProps) {
+  const { passwordSignIn, oidc } = useInstance();
   const rawPath = usePath();
   const path = canonicalPath(rawPath);
   const signedIn = view.name === "home";
@@ -249,7 +295,11 @@ function Screen({ view, refresh, expired, onPasswordSaved }: ScreenProps) {
   // off, known once the first view is loaded (the instance settings come with it).
   const signedOut = view.name === "signIn" || view.name === "public";
   const target =
-    signedIn && (path === LOCAL_SIGN_IN || path === SIGN_IN) ? "/" : signedOut && path === LOCAL_SIGN_IN && passwordSignIn ? SIGN_IN : path;
+    signedIn && (path === LOCAL_SIGN_IN || path === SIGN_IN || path === SIGNED_OUT)
+      ? "/"
+      : signedOut && path === LOCAL_SIGN_IN && passwordSignIn
+        ? SIGN_IN
+        : path;
 
   useEffect(() => {
     if (target !== rawPath) navigate(target + location.search + location.hash, { replace: true });
@@ -259,8 +309,18 @@ function Screen({ view, refresh, expired, onPasswordSaved }: ScreenProps) {
   useFocusOnViewChange(viewKeyOf(view));
 
   const reload = () => void refresh();
+  // With password sign-in off, the provider is the only way in for everyone but local admins: go there at once.
+  const local = path === LOCAL_SIGN_IN;
+  const autoRedirect = autoSignIn && Boolean(oidc) && !passwordSignIn && !local;
   const signIn = (
-    <SignIn local={path === LOCAL_SIGN_IN} expired={expired} publicHome={view.name === "public"} onSignedIn={reload} />
+    <SignIn
+      local={local}
+      expired={expired}
+      publicHome={view.name === "public"}
+      error={providerError}
+      autoRedirect={autoRedirect}
+      onSignedIn={reload}
+    />
   );
   switch (view.name) {
     case "loading":
@@ -268,8 +328,9 @@ function Screen({ view, refresh, expired, onPasswordSaved }: ScreenProps) {
     case "error":
       return <Unreachable onRetry={async () => (await refresh()).name === "error"} />;
     case "setup":
-      return <Setup onDone={reload} onClosed={reload} />;
+      return <Setup onDone={reload} onClosed={reload} providerError={providerError} />;
     case "public":
+      if (path === SIGNED_OUT) return <SignedOut />;
       if (path === "/") {
         return (
           <AppShell user={null} path={path}>
@@ -279,9 +340,9 @@ function Screen({ view, refresh, expired, onPasswordSaved }: ScreenProps) {
       }
       return signIn;
     case "signIn":
-      return signIn;
+      return path === SIGNED_OUT ? <SignedOut /> : signIn;
     case "home": {
-      const signOut = () => void api.signOut().finally(reload);
+      const signOut = () => void signOutThen(refresh, Boolean(oidc));
       if (view.user.mustChangePassword) return <TemporaryPassword user={view.user} onDone={onPasswordSaved} onSignOut={signOut} />;
       return (
         <AppShell user={view.user} path={target} onSignOut={signOut}>

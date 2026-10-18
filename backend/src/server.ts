@@ -38,7 +38,10 @@ if (databaseUrl.startsWith("file:")) {
   await mkdir(dirname(databaseUrl.slice("file:".length).split("?")[0]!), { recursive: true });
 }
 
-const db = drizzle(createClient({ url: databaseUrl }), { schema });
+// Another process holding the file's lock (a backup, the sqlite3 shell) would otherwise fail requests at once.
+const BUSY_TIMEOUT_MS = 5000;
+
+const db = drizzle(createClient({ url: databaseUrl, timeout: BUSY_TIMEOUT_MS }), { schema });
 await migrate(db, { migrationsFolder: migrationsDir });
 if (config.setupCode !== null && (await hasLocalAdmin(db as unknown as DB))) console.warn(SETUP_CODE_STILL_SET);
 

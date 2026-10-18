@@ -10,6 +10,23 @@ export type Config = {
   passwordSignIn: boolean;
   /** Path of the catalog file applied at startup (Docker only), or null. */
   catalogFile: string | null;
+  /** Sign-in through an OpenID Connect provider, or null when it is not configured. */
+  oidc: OidcConfig | null;
+};
+
+export type OidcConfig = {
+  discoveryUrl: string;
+  clientId: string;
+  clientSecret: string;
+  /** Label of the sign-in button. */
+  providerName: string;
+  /** ID token claim holding the person's groups. */
+  groupsClaim: string;
+  /** Groups allowed to sign in; empty, anyone the provider accepts may. */
+  allowedGroups: string[];
+  /** Groups that make their members admins. */
+  adminGroups: string[];
+  scopes: string[];
 };
 
 export const LANGUAGES = ["en", "fr"] as const;
@@ -27,6 +44,39 @@ export const MIN_SETUP_CODE = 24;
 const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 /** Prefix of the values in .env.example and .dev.vars.example. */
 const EXAMPLE_PREFIX = "dev-only-";
+const OIDC_REQUIRED = ["OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"] as const;
+
+/** Return the comma-separated values, trimmed, without empty ones or duplicates. */
+function list(value: string | undefined): string[] {
+  return [...new Set((value ?? "").split(",").map((v) => v.trim()).filter(Boolean))];
+}
+
+/** Return the OIDC settings, or null when none of the required ones is set. */
+function loadOidc(raw: RawConfig, publicUrl: string, problems: string[]): OidcConfig | null {
+  const set = OIDC_REQUIRED.filter((name) => raw[name]?.trim());
+  if (set.length === 0) return null;
+  if (set.length < OIDC_REQUIRED.length) {
+    const missing = OIDC_REQUIRED.filter((name) => !set.includes(name));
+    problems.push(`OIDC sign-in needs ${OIDC_REQUIRED.join(", ")} together; missing: ${missing.join(", ")}.`);
+    return null;
+  }
+  const discoveryUrl = raw.OIDC_DISCOVERY_URL!.trim();
+  const protocol = URL.canParse(discoveryUrl) ? new URL(discoveryUrl).protocol : "";
+  if (publicUrl.startsWith("https://") ? protocol !== "https:" : !["http:", "https:"].includes(protocol)) {
+    problems.push("OIDC_DISCOVERY_URL must be the provider's absolute discovery URL, in https when PUBLIC_URL is.");
+  }
+  const scopes = (raw.OIDC_SCOPES?.trim() || "openid email profile").split(/[\s,]+/).filter(Boolean);
+  return {
+    discoveryUrl,
+    clientId: raw.OIDC_CLIENT_ID!.trim(),
+    clientSecret: raw.OIDC_CLIENT_SECRET!.trim(),
+    providerName: raw.OIDC_PROVIDER_NAME?.trim() || "SSO",
+    groupsClaim: raw.OIDC_GROUPS_CLAIM?.trim() || "groups",
+    allowedGroups: list(raw.OIDC_ALLOWED_GROUPS),
+    adminGroups: list(raw.OIDC_ADMIN_GROUPS),
+    scopes: [...new Set(scopes)],
+  };
+}
 
 /**
  * Validate the raw environment and return the configuration.
@@ -79,6 +129,18 @@ export function loadConfig(raw: RawConfig): Config {
     if (setupCode?.startsWith(EXAMPLE_PREFIX)) problems.push("SETUP_CODE still holds the example value from .env.example.");
   }
 
+  const oidc = loadOidc(raw, publicUrl, problems);
+
   if (problems.length > 0) throw new ConfigError(problems);
-  return { authSecret, publicUrl, setupCode, trustProxy, sessionMaxAge, defaultLanguage: defaultLanguage!, passwordSignIn, catalogFile: raw.CATALOG_FILE?.trim() || null };
+  return {
+    authSecret,
+    publicUrl,
+    setupCode,
+    trustProxy,
+    sessionMaxAge,
+    defaultLanguage: defaultLanguage!,
+    passwordSignIn,
+    catalogFile: raw.CATALOG_FILE?.trim() || null,
+    oidc,
+  };
 }

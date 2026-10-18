@@ -12,9 +12,18 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly body: ApiErrorBody,
+    /** Seconds to wait before trying again, from the Retry-After header of a refused attempt. */
+    readonly retryAfter: number | null = null,
   ) {
     super(body.message);
   }
+}
+
+/** Return the delay a Retry-After header gives in seconds, or null when it holds none (absent, or a date). */
+function retryAfterOf(res: Response): number | null {
+  const value = res.headers.get("retry-after");
+  if (value === null || !/^\d+$/.test(value.trim())) return null;
+  return Number(value.trim());
 }
 
 export type CatalogWarning =
@@ -95,7 +104,7 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: ApiErrorBody; code?: string; message?: string } | null;
-    const err = new ApiError(res.status, data?.error ?? { code: data?.code ?? "unknown", message: data?.message ?? "" });
+    const err = new ApiError(res.status, data?.error ?? { code: data?.code ?? "unknown", message: data?.message ?? "" }, retryAfterOf(res));
     if (STALE_SESSION_CODES.has(err.body.code)) staleSessionListener?.(err.body.code);
     throw err;
   }
@@ -120,7 +129,11 @@ export const api = {
   home: () => call<HomeData>("/api/home"),
   session: async () => (await call<{ user: User } | null>("/api/auth/get-session"))?.user ?? null,
   signIn: (email: string, password: string) => call<unknown>("/api/auth/sign-in/email", post({ email, password })),
-  signOut: () => call<unknown>("/api/auth/sign-out", post({})),
+  /** Start the sign-in at the identity provider; `url` is its authorization page, `returnTo` the path to land on after. */
+  signInWithProvider: (returnTo?: string) =>
+    call<{ url: string }>("/api/auth/sign-in/social", post(returnTo === undefined ? {} : { returnTo })),
+  /** End the session; `url`, when present, ends the session at the identity provider too. */
+  signOut: () => call<{ success?: boolean; url?: string }>("/api/auth/sign-out", post({})),
   previewCatalog: (yaml: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: true })),
   applyCatalog: (yaml: string, baseVersion: string) => call<CatalogImport>("/api/admin/catalog", post({ yaml, dryRun: false, baseVersion })),
   catalogState: () => call<CatalogState>("/api/admin/catalog/state"),

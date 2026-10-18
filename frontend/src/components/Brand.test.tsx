@@ -6,7 +6,7 @@ import { Brand } from "./Brand";
 
 afterEach(cleanup);
 
-const instance = { title: "Acme portal", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true } as const;
+const instance = { title: "Acme portal", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true, oidc: null } as const;
 
 describe("Brand", () => {
   it("links the instance title to the home page", () => {

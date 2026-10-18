@@ -10,10 +10,12 @@ import { Field } from "../components/form/Field";
 import { FormActions, FormStack } from "../components/form/FormLayout";
 import { PasswordField } from "../components/form/PasswordField";
 import { SubmitButton } from "../components/form/PendingButton";
+import { OrDivider, type ProviderError, ProviderSignIn } from "../components/ProviderSignIn";
 import { Alert } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import type { Messages } from "../i18n/en";
 import { useStrings } from "../i18n/LocaleProvider";
+import { useInstance } from "../instance";
 import { focusPage } from "../lib/focus";
 import { type CodeRule, confirmationProblem, newPasswordProblem, useFormErrors } from "../lib/form-errors";
 import { useDocumentTitle } from "../lib/page";
@@ -72,13 +74,24 @@ function stepTitle(step: Step, s: Messages["setup"]): string {
   return s.title;
 }
 
+type SetupProps = {
+  onDone: () => void;
+  onClosed: () => void;
+  /** Error the server sent back from the identity provider (`?error=`), shown above its button. */
+  providerError?: ProviderError | null;
+};
+
 /**
  * First-run setup: the setup code, then the first administrator, then a final notice. `onDone` opens the app
  * (signed in); `onClosed` goes to sign-in when an administrator already exists.
+ *
+ * With OIDC configured, the first step also offers the provider's button, never started by itself: setup must stay
+ * reachable, and people of the provider can sign in before any local administrator exists.
  */
-export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () => void }) {
+export function Setup({ onDone, onClosed, providerError = null }: SetupProps) {
   const m = useStrings();
   const s = m.setup;
+  const { oidc } = useInstance();
   const [step, setStep] = useState<Step>("code");
   const [code, setCode] = useState("");
   const [admin, setAdmin] = useState<AdminInput>(EMPTY_ADMIN);
@@ -172,6 +185,12 @@ export function Setup({ onDone, onClosed }: { onDone: () => void; onClosed: () =
             </FormActions>
           </FormStack>
         </form>
+      )}
+      {step === "code" && oidc && (
+        <div className="mt-6 flex flex-col gap-6">
+          <OrDivider />
+          <ProviderSignIn provider={oidc} error={providerError} />
+        </div>
       )}
 
       {step === "admin" && (

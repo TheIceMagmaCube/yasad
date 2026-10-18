@@ -72,7 +72,7 @@ docker run -d -p 3000:3000 -v yasad-data:/data \
   ghcr.io/theicemagmacube/yasad:beta
 ```
 
-Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then remove `SETUP_CODE` and restart: setup only opens while no local administrator exists and the code is set.
+Open `PUBLIC_URL`, enter the setup code and create the first administrator. Then remove `SETUP_CODE` and restart: setup only opens while no local administrator exists and the code is set. While setup is open and OIDC is configured, the setup screen also offers the provider's sign-in.
 
 ### Configuration
 
@@ -93,6 +93,36 @@ Behind proxies, count every hop: with Cloudflare in front of your reverse proxy 
 Failed sign-ins are limited in the database: 5 per e-mail and IP, 30 per IP, per 15 minutes. Set `TRUST_PROXY` correctly: with a value too low, every visitor shares one counter.
 
 On Cloudflare Workers, set the same values as secrets (`wrangler secret put AUTH_SECRET`); the client IP comes from `CF-Connecting-IP`.
+
+### Sign-in with OIDC
+
+OIDC is on when the first three variables are set; setting only one or two of them stops the start.
+
+| Variable | Default | Description |
+|---|---|---|
+| `OIDC_DISCOVERY_URL` | | The provider's discovery URL (`.../.well-known/openid-configuration`). When `PUBLIC_URL` is https, it and the endpoints it lists must be https too. |
+| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | | The application registered at the provider. |
+| `OIDC_PROVIDER_NAME` | `SSO` | Label of the sign-in button ("Sign in with Okta"). |
+| `OIDC_GROUPS_CLAIM` | `groups` | ID token claim holding the groups, a list or a single string. |
+| `OIDC_ALLOWED_GROUPS` | | Comma-separated. When set, only their members (and members of admin groups) can sign in. Empty: anyone the provider accepts. Either way, a sign-in whose ID token marks the e-mail as unverified is refused. |
+| `OIDC_ADMIN_GROUPS` | | Comma-separated groups whose members are administrators, unless an admin set the person's role in the Users screen, which then takes precedence. |
+| `OIDC_SCOPES` | `openid email profile` | Scopes requested; some providers need `groups` too. |
+
+At the provider, register:
+
+* the sign-in redirect URI `PUBLIC_URL/api/auth/callback/oidc`;
+* the sign-out redirect URI `PUBLIC_URL/signed-out`;
+* an `email` claim and a groups claim in the **ID token**. YASAD never reads groups from the userinfo endpoint. With Okta, set a "Groups claim filter" on the application's Sign On tab.
+
+How it behaves:
+
+* Accounts are created at the first sign-in and keyed on the provider's issuer and subject, never on the e-mail. Name and e-mail are copied from the ID token at each sign-in; the provider is the source of truth.
+* Every group in the claim becomes an `oidc:<name>` group, created if missing, and the person's provider memberships are replaced at each sign-in. Removing someone from a group at the provider takes effect at their next sign-in. An `oidc` group never matches a `local` group of the same name.
+* A provider account never takes over a local account with the same e-mail: the sign-in is refused. Give the emergency local administrator an address of its own.
+* With `PASSWORD_SIGN_IN=false`, the sign-in screen sends people straight to the provider (not when `/` shows public links, after an error, or on `/signed-out`). Local administrators keep `/sign-in/local`, also linked from the error and signed-out screens.
+* Signing out of YASAD also ends the session at the provider when it offers that, so other applications of the same provider will ask to sign in again.
+* Changing provider: delete the old OIDC accounts in the Users screen first; they are created again at the next sign-in.
+* Starting a sign-in and receiving the provider's answer are each limited to 300 per IP per 15 minutes, enough for an office behind one address.
 
 ### Catalog
 

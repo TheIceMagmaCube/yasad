@@ -24,10 +24,14 @@ export function post(app: TestApp, path: string, body: unknown, ip?: string) {
 export const signIn = (app: TestApp, email: string, password = PASSWORD, ip?: string) =>
   post(app, "/api/auth/sign-in/email", { email, password }, ip);
 
-/** Insert a user known only through the identity provider: an account without a password. */
+/**
+ * Insert a user known only through the identity provider: an account without a password.
+ *
+ * Its account id is `<issuer>|<sub>` for the fake provider's default issuer and the subject `sub-<id>`.
+ */
 export async function addOidcUser(app: TestApp, { id, email, role = "user" }: { id: string; email: string; role?: "admin" | "user" }) {
   await app.exec(`insert into "user" (id, name, email, role) values ('${id}', '${id}', '${email}', '${role}')`);
-  await app.exec(`insert into account (id, account_id, provider_id, user_id) values ('acc-${id}', 'sub-${id}', 'oidc', '${id}')`);
+  await app.exec(`insert into account (id, account_id, provider_id, user_id) values ('acc-${id}', 'https://idp.test|sub-${id}', 'oidc', '${id}')`);
 }
 
 /** Send JSON with any method; state-changing requests always carry a JSON body, even an empty one. */
