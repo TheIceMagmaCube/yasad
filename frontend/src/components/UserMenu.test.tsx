@@ -24,18 +24,19 @@ describe("UserMenu", () => {
   it("shows a filled avatar with the initials and a chevron, the name hidden from the accessible name", () => {
     renderWithProviders(<UserMenu user={ADA} path="/" onSignOut={vi.fn()} />);
     const trigger = screen.getByRole("button", { name: "Account menu for Ada Lovelace" });
-    expect(within(trigger).getByText("AL")).toHaveClass("bg-primary", "text-primary-foreground");
+    expect(within(trigger).getByText("AL")).toHaveClass("pixel-corners", "bg-primary", "text-primary-foreground");
     expect(trigger.querySelectorAll("svg[aria-hidden=true]")).toHaveLength(1);
   });
 
-  it("lists the identity, the account page, administration, the shortcuts and sign-out, without a role line", async () => {
+  it("lists the identity, the sections, the account page, the shortcuts and sign-out, without a role line", async () => {
     const user = userEvent.setup();
     renderWithProviders(<UserMenu user={ADA} path="/" onSignOut={vi.fn()} />);
     const menu = await openMenu(user);
     expect(menu).toHaveTextContent("Ada Lovelace");
     expect(menu).toHaveTextContent("ada@example.invalid");
     expect(menu).not.toHaveTextContent("Administrator");
-    expect(items(menu)).toEqual(["My account", "Administration", "English", "Français", "System", "Light", "Dark", "Sign out"]);
+    expect(items(menu)).toEqual(["My links", "My account", "Administration", "English", "Français", "System", "Light", "Dark", "Sign out"]);
+    expect(within(menu).getByRole("menuitem", { name: "My links" })).toHaveAttribute("href", "/");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("href", "/account");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).not.toHaveAttribute("aria-current");
     expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("href", "/admin/users");
@@ -49,11 +50,41 @@ describe("UserMenu", () => {
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
   });
 
+  it.each([
+    ["/", "My links"],
+    ["/account", "My account"],
+    ["/admin/groups", "Administration"],
+    ["/admin", "Administration"],
+  ])("marks the entry of %s with more than colour", async (path, current) => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserMenu user={ADA} path={path} onSignOut={vi.fn()} />);
+    const menu = await openMenu(user);
+    for (const name of ["My links", "My account", "Administration"]) {
+      const item = within(menu).getByRole("menuitem", { name });
+      if (name === current) {
+        expect(item).toHaveAttribute("aria-current", "page");
+        expect(item.querySelector('[data-slot="current-mark"]')).not.toBeNull();
+        expect(item).toHaveClass("aria-[current=page]:font-semibold");
+      } else {
+        expect(item).not.toHaveAttribute("aria-current");
+        expect(item.querySelector('[data-slot="current-mark"]')).toBeNull();
+      }
+    }
+  });
+
+  it("lets the menu scroll when it is taller than the room left", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserMenu user={ADA} path="/" onSignOut={vi.fn()} />);
+    expect(await openMenu(user)).toHaveClass("overflow-y-auto");
+  });
+
   it("opens the account page with the keyboard", async () => {
     const user = userEvent.setup();
     renderWithProviders(<UserMenu user={ADA} path="/" onSignOut={vi.fn()} />);
     screen.getByRole("button", { name: "Account menu for Ada Lovelace" }).focus();
     await user.keyboard("{Enter}");
+    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My links" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
     expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My account" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(location.pathname).toBe("/account");

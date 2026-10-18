@@ -30,6 +30,12 @@ function signedIn(user: object): Routes {
   };
 }
 
+/** Open the account menu of `name` and return it. */
+async function openAccountMenu(user: ReturnType<typeof userEvent.setup>, name: string): Promise<HTMLElement> {
+  await user.click(screen.getByRole("button", { name: `Account menu for ${name}` }));
+  return screen.getByRole("menu");
+}
+
 /** Render the app on `path`. */
 function renderAt(path: string) {
   history.replaceState(null, "", path);
@@ -136,6 +142,7 @@ describe("App", () => {
     expect(menu).toHaveTextContent("ada@example.invalid");
     expect(menu).not.toHaveTextContent("Administrator");
     expect([...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual([
+      "My links",
       "My account",
       "Administration",
       "English",
@@ -300,23 +307,25 @@ describe("App", () => {
   });
 
   describe("navigation", () => {
-    it("shows the section links to an admin, marks the current one and keeps Administration out of the account menu", async () => {
+    it("gives an admin the sections in the account menu, the current one marked, and no section links in the header", async () => {
       const user = userEvent.setup();
       mockApi(signedIn(ADA));
       renderAt("/");
-      const nav = await screen.findByRole("navigation", { name: "Main" });
-      expect(within(nav).getByRole("link", { name: "My links" })).toHaveAttribute("aria-current", "page");
-      expect(within(nav).getByRole("link", { name: "Admin" })).not.toHaveAttribute("aria-current");
-      await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
-      expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: "Admin" })).toBeNull();
+      await screen.findByRole("heading", { name: "My links", level: 1 });
+      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+      const menu = await openAccountMenu(user, ADA.name);
+      expect(within(menu).getByRole("menuitem", { name: "My links" })).toHaveAttribute("aria-current", "page");
+      expect(within(menu).getByRole("menuitem", { name: "Administration" })).not.toHaveAttribute("aria-current");
     });
 
-    it("hides the Admin link from a user", async () => {
+    it("leaves Administration out of a user's account menu", async () => {
+      const user = userEvent.setup();
       mockApi(signedIn(BOB));
       renderAt("/");
-      const nav = await screen.findByRole("navigation", { name: "Main" });
-      expect(within(nav).getByRole("link", { name: "My links" })).toBeInTheDocument();
-      expect(within(nav).queryByRole("link", { name: "Admin" })).toBeNull();
+      await screen.findByRole("heading", { name: "My links", level: 1 });
+      const menu = await openAccountMenu(user, BOB.name);
+      expect(within(menu).getByRole("menuitem", { name: "My links" })).toHaveAttribute("href", "/");
+      expect(within(menu).queryByRole("menuitem", { name: "Administration" })).toBeNull();
     });
 
     it("moves between pages without reloading the session, then focuses the page heading", async () => {
@@ -327,15 +336,15 @@ describe("App", () => {
       expect(document.activeElement).toBe(document.body);
       await waitFor(() => expect(document.title).toBe("My links - YASAD"));
 
-      await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" }));
+      await user.click(within(await openAccountMenu(user, ADA.name)).getByRole("menuitem", { name: "Administration" }));
       const heading = await screen.findByRole("heading", { name: "Users", level: 1 });
       expect(location.pathname).toBe("/admin/users");
       expect(heading).toHaveFocus();
       await waitFor(() => expect(document.title).toBe("Users - Administration - YASAD"));
-      expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" })).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
+      const menu = await openAccountMenu(user, ADA.name);
+      expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("aria-current", "page");
+      expect(within(menu).getByRole("menuitem", { name: "My links" })).not.toHaveAttribute("aria-current");
+      await user.keyboard("{Escape}");
 
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
       expect(location.pathname).toBe("/admin/groups");
@@ -402,14 +411,14 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: "Retour à mes liens" })).toBeInTheDocument();
     });
 
-    it("keeps the password change in front of every page and hides the section links", async () => {
+    it("keeps the password change in front of every page, without the account menu", async () => {
       mockApi({
         ...signedIn({ ...ADA, mustChangePassword: true }),
         "GET /api/setup": { status: 403, body: { error: { code: "password_change_required", message: "" } } },
       });
       renderAt("/admin/users");
       expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
-      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
       await waitFor(() => expect(document.title).toBe("Choose your password - YASAD"));
     });
 
@@ -433,9 +442,9 @@ describe("App", () => {
         "GET /api/admin/users": required,
         "GET /api/admin/groups": required,
       });
-      await user.click(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Admin" }));
+      await user.click(within(await openAccountMenu(user, ADA.name)).getByRole("menuitem", { name: "Administration" }));
       expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
-      expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
     });
 
     it("shows the sign-in screen when the API says the session ended", async () => {
@@ -465,7 +474,7 @@ describe("App", () => {
       mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden });
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
       expect(await screen.findByRole("heading", { name: "Admins only" })).toHaveFocus();
-      expect(within(screen.getByRole("navigation", { name: "Main" })).queryByRole("link", { name: "Admin" })).toBeNull();
+      expect(within(await openAccountMenu(user, ADA.name)).queryByRole("menuitem", { name: "Administration" })).toBeNull();
     });
 
     it("signs a local admin in from /sign-in/local without showing the password sign-in off screen", async () => {
@@ -514,7 +523,7 @@ describe("App", () => {
     it.each(["/", "/admin/users", "/nowhere"])("is in the header on %s for a signed-in admin", async (path) => {
       mockApi(signedIn({ ...ADA, id: "ada" }));
       renderAt(path);
-      await screen.findByRole("navigation", { name: "Main" });
+      await screen.findByRole("button", { name: "Account menu for Ada Lovelace" });
       expect(search()).toBeInTheDocument();
     });
 
@@ -893,10 +902,9 @@ describe("App, temporary password and account", () => {
     expect(location.pathname).toBe("/account");
     expect(await screen.findByRole("heading", { level: 1, name: "My account" })).toHaveFocus();
     await waitFor(() => expect(document.title).toBe("My account - YASAD"));
-    const nav = screen.getByRole("navigation", { name: "Main" });
-    expect(within(nav).queryAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page")).toEqual([]);
-    await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
-    expect(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
+    const menu = await openAccountMenu(user, ADA.name);
+    expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
+    expect(within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-current") === "page")).toHaveLength(1);
   });
 
   it("shows the saved name everywhere once the profile is changed", async () => {

@@ -49,12 +49,6 @@ export const fr = {
   },
   languages: { en: "English", fr: "Français" },
   roles: { admin: "Administrateur", user: "Utilisateur" },
-  nav: {
-    label: "Principale",
-    home: "Mes liens",
-    homeShort: "Liens",
-    admin: "Admin",
-  },
   notFound: {
     title: "Page introuvable",
     body: "Cette adresse ne correspond à aucune page.",
@@ -67,6 +61,7 @@ export const fr = {
   },
   userMenu: {
     open: (name: string) => `Menu du compte de ${name}`,
+    home: "Mes liens",
     account: "Mon compte",
     admin: "Administration",
     signOut: "Se déconnecter",
