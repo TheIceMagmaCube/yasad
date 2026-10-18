@@ -1,0 +1,16 @@
+name: Idea
+description: A need YASAD does not cover yet.
+labels: ["type:feat"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: The need
+      description: Who needs what, and why. Describe the situation rather than the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How you manage today
+      description: The workaround you use, if any.

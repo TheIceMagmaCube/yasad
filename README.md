@@ -138,7 +138,7 @@ Open http://localhost:5173 and use the setup code from `backend/.env`. For the W
 
 ## Contributing
 
-Issues and ideas are welcome. Contribution guide to come.
+Issues and ideas are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). To report a security flaw, see [SECURITY.md](SECURITY.md).
 
 ## License
 
