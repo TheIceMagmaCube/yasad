@@ -13,11 +13,9 @@ import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
 import { navigate, normalizePath, useNavigations, usePath } from "./lib/router";
 import { clearSignInError, leavePage, LOCAL_SIGN_IN, readSignInError, SIGN_IN, SIGNED_OUT } from "./lib/sign-in";
 import { Account } from "./pages/Account";
-import { AdminCatalog } from "./pages/admin/AdminCatalog";
-import { AdminGroups } from "./pages/admin/AdminGroups";
-import { adminTab, AdminLayout } from "./pages/admin/AdminLayout";
-import { AdminUsers } from "./pages/admin/AdminUsers";
-import { Forbidden, NotFound } from "./pages/ErrorViews";
+import { ADMIN_HOME } from "./pages/admin/AdminLayout";
+import { AdminRoutes } from "./pages/admin/AdminRoutes";
+import { NotFound } from "./pages/ErrorViews";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
 import { SignedOut } from "./pages/SignedOut";
@@ -245,23 +243,14 @@ async function signOutThen(refresh: () => Promise<View>, oidc: boolean): Promise
 /** Return the canonical form of a path: no trailing slash, and the administration section opened on its first tab. */
 function canonicalPath(path: string): string {
   const normalized = normalizePath(path);
-  return normalized === "/admin" ? "/admin/users" : normalized;
+  return normalized === "/admin" ? ADMIN_HOME : normalized;
 }
 
 /** Return the page of a signed-in user for a canonical path; `onProfileChanged` reloads the session. */
 function SignedInPage({ user, path, onProfileChanged }: { user: User; path: string; onProfileChanged: () => Promise<unknown> }) {
   if (path === "/") return <Home user={user} />;
   if (path === "/account") return <Account user={user} onProfileChanged={onProfileChanged} />;
-  if (path === "/admin" || path.startsWith("/admin/")) {
-    if (user.role !== "admin") return <Forbidden />;
-    const tab = adminTab(path);
-    if (!tab) return <NotFound />;
-    return (
-      <AdminLayout tab={tab}>
-        {tab === "users" ? <AdminUsers me={user} /> : tab === "groups" ? <AdminGroups /> : <AdminCatalog />}
-      </AdminLayout>
-    );
-  }
+  if (path === "/admin" || path.startsWith("/admin/")) return <AdminRoutes path={path} user={user} />;
   return <NotFound />;
 }
 
