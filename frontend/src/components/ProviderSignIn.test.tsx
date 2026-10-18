@@ -76,7 +76,9 @@ describe("ProviderSignIn", () => {
     try {
       const fetchMock = mockApi({ [START]: { status: 503, body: errorBody("provider_unavailable") } });
       const { rerender } = renderWithProviders(<ProviderSignIn provider={OKTA} autoRedirect />);
-      expect(await screen.findByRole("group", { name: "Okta is not responding. Try again in a moment." })).toHaveFocus();
+      // The alert takes the focus in an effect, after it is in the document.
+      const alert = await screen.findByRole("group", { name: "Okta is not responding. Try again in a moment." });
+      await waitFor(() => expect(alert).toHaveFocus());
       rerender(<ProviderSignIn provider={OKTA} autoRedirect returnTo="/account" />);
       await vi.advanceTimersByTimeAsync(60_000);
       expect(starts(fetchMock)).toHaveLength(1);
@@ -129,7 +131,8 @@ describe("ProviderSignIn", () => {
       );
       vi.stubGlobal("fetch", fetchMock);
       renderWithProviders(<ProviderSignIn provider={OKTA} autoRedirect />);
-      expect(await screen.findByRole("group", { name: "Too many sign-in attempts. Try again in 2 minutes." })).toHaveFocus();
+      const alert = await screen.findByRole("group", { name: "Too many sign-in attempts. Try again in 2 minutes." });
+      await waitFor(() => expect(alert).toHaveFocus());
       await vi.advanceTimersByTimeAsync(180_000);
       expect(fetchMock).toHaveBeenCalledOnce();
     } finally {

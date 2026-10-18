@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Link } from "../Link";
 
-import { Button } from "./button";
+import { Button, buttonVariants } from "./button";
 
 afterEach(() => {
   cleanup();
@@ -13,6 +13,13 @@ afterEach(() => {
 });
 
 describe("Button", () => {
+  it("lets a given class override the variant's conflicting one, so a link styled as a button can wrap", () => {
+    const classes = buttonVariants({ variant: "outline", className: "h-auto whitespace-normal" }).split(" ");
+    expect(classes).toContain("whitespace-normal");
+    expect(classes).not.toContain("whitespace-nowrap");
+    expect(classes).not.toContain("h-10");
+  });
+
   it("renders the destructive variants with their tokens", () => {
     render(
       <>
