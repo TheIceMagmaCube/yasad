@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "./theme/themes/default.css";
 @import "./theme/themes/dusk.css";
-@import "./theme/themes/night.css";
 
 @custom-variant dark ([data-mode="dark"] &);
 
@@ -36,6 +35,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-selected: var(--selected);
   --color-header: var(--header);
   --color-header-foreground: var(--header-foreground);
   --color-header-muted: var(--header-muted);
@@ -47,14 +47,27 @@
   --color-category-4: var(--category-4);
   --color-category-5: var(--category-5);
   --color-category-6: var(--category-6);
+  --color-category-1-fill: var(--category-1-fill);
+  --color-category-2-fill: var(--category-2-fill);
+  --color-category-3-fill: var(--category-3-fill);
+  --color-category-4-fill: var(--category-4-fill);
+  --color-category-5-fill: var(--category-5-fill);
+  --color-category-6-fill: var(--category-6-fill);
+  --color-on-fill: var(--on-fill);
+  --color-primary-shade: var(--primary-shade);
+  --color-link-decoration: var(--link-decoration);
+  --color-control-ring: var(--control-ring);
   --shadow-card: var(--shadow-card);
   --shadow-raised: var(--shadow-raised);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-card: var(--radius-card);
   --font-sans: var(--font-body);
   --font-heading: var(--font-heading);
+  --font-mono: var(--font-mono);
+  --font-pixel: var(--font-pixel);
 }
 
 /* Heading and meta text styles; body text keeps text-base and text-sm. */
@@ -64,6 +77,7 @@
   line-height: 2.5rem;
   font-weight: var(--heading-weight);
   letter-spacing: var(--heading-tracking);
+  text-shadow: var(--heading-depth);
 }
 
 @utility text-title {
@@ -72,6 +86,7 @@
   line-height: 2rem;
   font-weight: var(--heading-weight);
   letter-spacing: var(--heading-tracking);
+  text-shadow: var(--heading-depth-sm);
 }
 
 @utility text-section {
@@ -86,7 +101,99 @@
   font-family: var(--font-caption);
   font-size: 0.75rem;
   line-height: 1rem;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--caption-tracking);
+}
+
+/* Short label in the pixel font: eyebrows, brand, large error codes. */
+@utility text-pixel {
+  font-family: var(--font-pixel);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Card surface: a thin ring and a hard base under it. */
+@utility panel {
+  border-radius: var(--radius-card);
+  background-color: var(--card);
+  color: var(--card-foreground);
+  box-shadow:
+    0 0 0 1.5px var(--border),
+    inset 0 2px 0 var(--relief-highlight),
+    0 6px 0 var(--panel-depth),
+    0 22px 40px -18px rgb(0 0 0 / 0.35);
+}
+
+/* Sunken field, the opposite of the relief. */
+@utility sunken {
+  --tw-inset-shadow: inset 0 2px 0 rgb(0 0 0 / 0.08);
+  box-shadow:
+    var(--tw-inset-shadow), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+}
+
+/* Raised surface on a hard coloured base; it lifts on hover and sinks when pressed.
+   --relief-base sets the base colour outright; otherwise it is --relief-color darkened. The stack lives in
+   --tw-shadow so a focus-visible:ring-* utility draws its ring over the relief instead of erasing it.
+   Only the shadow changes under reduced motion: the surface itself does not move. */
+@utility relief {
+  --relief-y: 4px;
+  --relief-shade: var(--relief-base, color-mix(in oklch, var(--relief-color, var(--border)) 62%, black));
+  --tw-shadow:
+    0 0 0 1.5px var(--relief-ring, transparent),
+    inset 0 2px 0 var(--relief-inset, var(--relief-highlight)),
+    inset 0 -3px 0 rgb(0 0 0 / 0.12),
+    0 var(--relief-y) 0 var(--relief-shade),
+    0 calc(var(--relief-y) * 2) 16px -6px rgb(0 0 0 / 0.3);
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    --relief-y: 6px;
+  }
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    --relief-y: 1px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    transition:
+      translate 120ms ease-out,
+      box-shadow 120ms ease-out;
+    &:hover:not(:disabled, [aria-disabled="true"]) {
+      translate: 0 -2px;
+    }
+    &:active:not(:disabled, [aria-disabled="true"]) {
+      translate: 0 3px;
+    }
+  }
+}
+
+/* Square corners cut in two pixel steps. */
+@utility pixel-corners {
+  border-radius: 0;
+  clip-path: polygon(
+    0 6px, 3px 6px, 3px 3px, 6px 3px, 6px 0,
+    calc(100% - 6px) 0, calc(100% - 6px) 3px, calc(100% - 3px) 3px, calc(100% - 3px) 6px, 100% 6px,
+    100% calc(100% - 6px), calc(100% - 3px) calc(100% - 6px), calc(100% - 3px) calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%,
+    6px 100%, 6px calc(100% - 3px), 3px calc(100% - 3px), 3px calc(100% - 6px), 0 calc(100% - 6px)
+  );
+}
+
+/* Dithered strip: a checker row over a solid row. */
+@utility pixel-band {
+  height: 6px;
+  background:
+    linear-gradient(var(--header-active), var(--header-active)) bottom / 100% 3px no-repeat,
+    repeating-conic-gradient(var(--header-active) 0 25%, transparent 0 50%) 0 0 / 6px 6px repeat-x;
+}
+
+/* Animated parts of the pixel drawings: transforms work on the cell grid of the SVG. Callers animate with
+   motion-safe:; the guard still stops a part if one forgets, and needs !important to beat an animate-* utility
+   emitted after it. */
+@utility pixel-part {
+  transform-box: fill-box;
+  transform-origin: center;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none !important;
+  }
 }
 
 /* Show an element only after 300 ms, so a quick load never flashes a placeholder. */
@@ -118,5 +225,13 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    /* A faint grid of 2 px square dots, the page's pixel texture; transparent in themes without one. */
+    background-image: conic-gradient(from 270deg at 2px 2px, var(--page-dot) 25%, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
   }
 }

@@ -1,7 +1,7 @@
 // Runs before the stylesheet so the first paint uses the right theme, mode and language.
 // A file rather than an inline script: the Content-Security-Policy forbids inline scripts.
 (function () {
-  var THEMES = ["default", "dusk", "night"];
+  var THEMES = ["default", "dusk"];
   var LANGUAGES = ["en", "fr"];
   function read(key) {
     try {
@@ -11,8 +11,9 @@
     }
   }
   var root = document.documentElement;
-  var dev = root.hasAttribute("data-dev");
-  var theme = (dev && read("devTheme")) || read("instanceTheme");
+  // An unknown id (a removed theme) is skipped like an absent one, as ThemeProvider does, so nothing flashes.
+  var devTheme = root.hasAttribute("data-dev") ? read("devTheme") : null;
+  var theme = THEMES.indexOf(devTheme) >= 0 ? devTheme : read("instanceTheme");
   root.setAttribute("data-theme", THEMES.indexOf(theme) >= 0 ? theme : "default");
 
   var mode = read("mode");

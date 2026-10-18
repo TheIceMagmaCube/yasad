@@ -27,7 +27,7 @@ export function AdminLayout({ tab, children }: { tab: AdminTab; children: ReactN
               <Link
                 href={`/admin/${t}`}
                 aria-current={t === tab ? "page" : undefined}
-                className="-mb-px inline-flex min-h-11 items-center rounded-t-md border-b-2 border-transparent px-3 py-2 text-base font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:border-primary aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground"
+                className="-mb-px inline-flex min-h-11 items-center rounded-t-md border-b-2 border-transparent px-3 py-2 text-base font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:border-selected aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground"
               >
                 {m.admin.tabs[t]}
               </Link>

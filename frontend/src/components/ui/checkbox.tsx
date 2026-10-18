@@ -15,7 +15,7 @@ function Checkbox({ className, ...props }: CheckboxProps) {
       <input
         type="checkbox"
         className={cn(
-          "peer size-5 shrink-0 cursor-pointer appearance-none rounded border-2 border-muted-foreground bg-background outline-none checked:border-primary checked:bg-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive forced-colors:appearance-auto",
+          "peer size-5 shrink-0 cursor-pointer appearance-none rounded border-2 border-muted-foreground bg-background outline-none checked:border-foreground checked:bg-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive forced-colors:appearance-auto",
           className,
         )}
         {...props}

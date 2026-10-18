@@ -10,7 +10,8 @@ const variants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // The ring is the boundary where the fill alone is below 3:1 against the page (transparent otherwise).
+        default: "bg-primary text-primary-foreground shadow-[0_0_0_1.5px_var(--control-primary-ring)] hover:bg-primary/90",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",

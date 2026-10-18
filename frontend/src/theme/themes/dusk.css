@@ -1,4 +1,4 @@
-/* Dusk theme: warm creams and terracotta, rounder shapes. */
+/* Dusk theme: warm creams and terracotta, rounder shapes; no page texture, heading depth or pixel font. */
 [data-theme="dusk"] {
   --background: oklch(0.985 0.012 75);
   --foreground: oklch(0.25 0.03 40);
@@ -8,6 +8,7 @@
   --popover-foreground: oklch(0.25 0.03 40);
   --primary: oklch(0.47 0.13 35);
   --primary-foreground: oklch(0.985 0.012 75);
+  --primary-shade: oklch(0.36 0.1 35);
   --secondary: oklch(0.94 0.025 70);
   --secondary-foreground: oklch(0.3 0.05 40);
   --muted: oklch(0.94 0.025 70);
@@ -29,6 +30,7 @@
   --border: oklch(0.88 0.03 70);
   --input: oklch(0.6 0.05 50);
   --ring: oklch(0.47 0.13 35);
+  --selected: oklch(0.47 0.13 35);
   --header: oklch(0.32 0.07 35);
   --header-foreground: oklch(0.985 0.012 75);
   --header-muted: oklch(0.85 0.03 70);
@@ -40,13 +42,32 @@
   --category-4: oklch(0.57 0.12 75);
   --category-5: oklch(0.53 0.1 125);
   --category-6: oklch(0.5 0.12 300);
+  --category-1-fill: oklch(0.84 0.08 40);
+  --category-2-fill: oklch(0.85 0.06 175);
+  --category-3-fill: oklch(0.85 0.07 0);
+  --category-4-fill: oklch(0.88 0.09 85);
+  --category-5-fill: oklch(0.86 0.08 125);
+  --category-6-fill: oklch(0.84 0.06 300);
+  --on-fill: oklch(0.25 0.03 40);
+  --panel-depth: oklch(0.84 0.04 65);
+  --control-ring: oklch(0.6 0.05 50);
+  /* Terracotta already stands out from the cream page. */
+  --control-primary-ring: transparent;
+  --link-decoration: oklch(0.47 0.13 35);
+  --page-dot: transparent;
   --shadow-card: 0 1px 2px oklch(0.25 0.03 40 / 0.07), 0 2px 6px oklch(0.25 0.03 40 / 0.05);
   --shadow-raised: 0 2px 6px oklch(0.25 0.03 40 / 0.09), 0 14px 30px -6px oklch(0.25 0.03 40 / 0.18);
+  --relief-highlight: oklch(1 0 0 / 0.5);
+  --heading-depth: none;
+  --heading-depth-sm: none;
   --radius: 0.875rem;
+  --radius-card: 1.25rem;
   --font-body: "Inter Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-heading: var(--font-body);
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-caption: var(--font-body);
+  --font-pixel: var(--font-heading);
+  --caption-tracking: 0.01em;
   --heading-weight: 700;
   --heading-tracking: -0.01em;
 }
@@ -60,6 +81,7 @@
   --popover-foreground: oklch(0.95 0.015 75);
   --primary: oklch(0.8 0.12 65);
   --primary-foreground: oklch(0.22 0.03 40);
+  --primary-shade: oklch(0.55 0.11 50);
   --secondary: oklch(0.3 0.03 40);
   --secondary-foreground: oklch(0.95 0.015 75);
   --muted: oklch(0.3 0.03 40);
@@ -81,6 +103,7 @@
   --border: oklch(0.36 0.03 40);
   --input: oklch(0.6 0.04 50);
   --ring: oklch(0.8 0.12 65);
+  --selected: oklch(0.8 0.12 65);
   --header: oklch(0.15 0.02 40);
   --header-foreground: oklch(0.95 0.015 75);
   --header-muted: oklch(0.8 0.03 60);
@@ -92,6 +115,21 @@
   --category-4: oklch(0.8 0.11 85);
   --category-5: oklch(0.78 0.1 125);
   --category-6: oklch(0.74 0.11 300);
+  --category-1-fill: oklch(0.76 0.11 40);
+  --category-2-fill: oklch(0.78 0.08 175);
+  --category-3-fill: oklch(0.78 0.1 0);
+  --category-4-fill: oklch(0.83 0.11 85);
+  --category-5-fill: oklch(0.8 0.1 125);
+  --category-6-fill: oklch(0.76 0.09 300);
+  --on-fill: oklch(0.2 0.025 40);
+  --panel-depth: oklch(0.13 0.02 40);
+  --control-ring: oklch(0.6 0.04 50);
+  --control-primary-ring: transparent;
+  --link-decoration: oklch(0.8 0.12 65);
+  --page-dot: transparent;
   --shadow-card: 0 1px 2px oklch(0 0 0 / 0.35), 0 2px 6px oklch(0 0 0 / 0.25);
   --shadow-raised: 0 2px 6px oklch(0 0 0 / 0.4), 0 14px 30px -6px oklch(0 0 0 / 0.55);
+  --relief-highlight: oklch(1 0 0 / 0.06);
+  --heading-depth: none;
+  --heading-depth-sm: none;
 }

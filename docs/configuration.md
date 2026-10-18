@@ -86,6 +86,10 @@ All optional. OIDC is on when `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID` and `OIDC_C
 
 Provider setup and behaviour: [oidc.md](oidc.md).
 
+## Themes
+
+The theme is not an environment variable. YASAD ships `default` and `dusk`, each in light and dark; each person picks light, dark or the system setting. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.
+
 ## Set by the Docker image
 
 The image already sets these. You only change them for an unusual setup.

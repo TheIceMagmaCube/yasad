@@ -54,6 +54,11 @@ describe("public/theme-init.js", () => {
     expect(run({ storage: { devTheme: "dusk" }, dev: true }).theme).toBe("dusk");
   });
 
+  it("falls back to the default theme for a removed theme id", () => {
+    expect(run({ storage: { instanceTheme: "night" } }).theme).toBe("default");
+    expect(run({ storage: { devTheme: "night", instanceTheme: "dusk" }, dev: true }).theme).toBe("dusk");
+  });
+
   it("ignores unknown stored values", () => {
     expect(run({ storage: { instanceTheme: "neon", language: "de" } })).toEqual({ theme: "default", mode: "light", lang: "en" });
   });
