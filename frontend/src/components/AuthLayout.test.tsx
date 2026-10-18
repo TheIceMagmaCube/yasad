@@ -13,21 +13,37 @@ afterEach(() => {
 const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe("AuthLayout", () => {
-  it("puts the actions and the language before the content, and the appearance in the footer", () => {
+  it("puts the actions, then the language and appearance choices, before the content, with no footer", () => {
     renderWithProviders(
       <AuthLayout actions={<button type="button">Sign out</button>}>
         <h1>Sign in</h1>
       </AuthLayout>,
     );
     const preferences = screen.getByRole("group", { name: "Preferences" });
-    const [action, language] = preferences.querySelectorAll("button, select");
-    expect(action).toHaveAccessibleName("Sign out");
-    expect(language).toHaveAccessibleName("Language / Langue");
+    expect(follows(screen.getByRole("button", { name: "Sign out" }), preferences)).toBe(true);
+    expect(within(preferences).getByRole("combobox")).toHaveAccessibleName("Language / Langue");
+    expect(within(preferences).getByRole("group", { name: "Appearance" })).toBeInTheDocument();
+    expect(within(preferences).getAllByRole("radio")).toHaveLength(3);
     expect(follows(preferences, screen.getByRole("main"))).toBe(true);
-    const footer = screen.getByRole("contentinfo");
-    expect(within(footer).getByLabelText("Appearance")).toBeInTheDocument();
-    expect(within(footer).queryByLabelText(/Language/)).toBeNull();
-    expect(screen.getByRole("banner")).toHaveTextContent("One clean screen");
+    expect(screen.queryByRole("contentinfo")).toBeNull();
+  });
+
+  it("shows the brand and the tagline on solid signs over a hidden decorative scene", () => {
+    renderWithProviders(
+      <AuthLayout>
+        <h1>Sign in</h1>
+      </AuthLayout>,
+    );
+    const banner = screen.getByRole("banner");
+    const scene = banner.querySelector('[data-slot="pixel-scene"]')!;
+    expect(scene).toHaveAttribute("aria-hidden", "true");
+    expect(scene).toHaveClass("forced-colors:hidden");
+    const brand = within(banner).getByRole("link", { name: "YASAD" });
+    const tagline = within(banner).getByText("One clean screen with the links each person is allowed to see.");
+    for (const text of [brand, tagline]) {
+      expect(scene.contains(text)).toBe(false);
+      expect(text.closest(".pixel-corners")).toHaveClass("bg-header", "text-header-foreground");
+    }
   });
 
   it("names the language in every language, each option in its own", async () => {

@@ -105,7 +105,7 @@ describe("App", () => {
       ...NO_PUBLIC_LINKS });
     const user = userEvent.setup();
     render(<App />);
-    await user.selectOptions(await screen.findByLabelText("Appearance"), "dark");
+    await user.click(await screen.findByRole("radio", { name: "Dark" }));
     expect(document.documentElement).toHaveAttribute("data-mode", "dark");
     expect(localStorage.getItem("yasad.mode")).toBe("dark");
     const preferences = screen.getByRole("group", { name: "Preferences" });
@@ -164,7 +164,8 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Choose your password" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/home")).toBe(false);
-    expect(within(screen.getByRole("group", { name: "Preferences" })).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    const signOut = screen.getByRole("button", { name: "Sign out" });
+    expect(signOut.compareDocumentPosition(screen.getByRole("group", { name: "Preferences" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
     await user.type(screen.getByLabelText("Temporary password"), "temporary password");
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
@@ -232,7 +233,7 @@ describe("App", () => {
       expect(card).not.toHaveAttribute("target");
       expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
       expect(screen.queryByRole("button", { name: /Account menu/ })).toBeNull();
-      expect(within(screen.getByRole("contentinfo")).getByLabelText("Language")).toBeInTheDocument();
+      expect(within(screen.getByRole("contentinfo")).getByLabelText(/Language/)).toBeInTheDocument();
       expect(fetchMock.mock.calls.filter(([path]) => path === "/api/home")).toHaveLength(1);
 
       await user.click(screen.getByRole("link", { name: "Sign in" }));

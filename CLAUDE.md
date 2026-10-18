@@ -58,7 +58,7 @@ The repository is public: never put the wiki's address, a link to one of its pag
 - No automatic linking between a local account and an OIDC account sharing an e-mail.
 - State-changing requests (POST, PUT, PATCH, DELETE), Better Auth routes included, must send a JSON body and come from PUBLIC_URL's origin. The CSP allows no inline script or style and no third-party origin: widen it in `security.ts` only, with the reason in the PR.
 - WCAG 2.2 AA; keyboard navigation must work everywhere.
-- Components use theme tokens only (`bg-background`, `text-primary`, `border-input`...), never raw Tailwind colors, so a theme can be swapped without touching them. A new theme must pass the E2E axe run in both modes.
+- Components use theme tokens only (`bg-background`, `text-primary`, `border-input`...), never raw Tailwind colors, so a theme can be swapped without touching them. One exception: purely decorative pixel art (`PixelScene`) keeps its own palette, provided it is `aria-hidden`, hidden in forced-colors mode and carries no text; anything read on top of it sits on a token-coloured plate. A new theme must pass the E2E axe run in both modes.
 - The API returns error codes, never sentences meant for display; the frontend translates them.
 - A user with `must_change_password` gets 403 `password_change_required` on every API route outside the short list in `app.ts`. New routes are covered automatically; do not add to that list without a reason.
 - Radix components that inject `<style>` (modal menus, Select, Dialog scroll lock) break the CSP: use non-modal variants or native elements. The E2E fails on any CSP violation.

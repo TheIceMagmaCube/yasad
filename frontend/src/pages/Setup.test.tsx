@@ -55,6 +55,8 @@ describe("Setup", () => {
     expect(within(steps).getAllByRole("listitem")[0]).toHaveTextContent("Step 1 of 2: Setup code, done");
     expect(within(steps).getAllByRole("listitem")[1]).toHaveAttribute("aria-current", "step");
     expect(steps).not.toHaveTextContent("✓");
+    // The yellow marker alone is too light against the page: the inset ring is its boundary.
+    expect(within(steps).getAllByRole("listitem")[1]!.querySelector("[aria-hidden]")).toHaveClass("shadow-[inset_0_0_0_2px_var(--control-primary-ring)]");
 
     await fillAdmin(user);
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
