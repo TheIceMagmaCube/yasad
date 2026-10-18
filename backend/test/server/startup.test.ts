@@ -2,6 +2,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -77,6 +78,27 @@ describe("server startup", () => {
     const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${dbFile}` });
     expect((await waitForHealth(server)).status).toBe(200);
     expect(existsSync(dbFile)).toBe(true);
+  }, 20_000);
+
+  it("waits for another process that holds the database's write lock instead of failing", async () => {
+    const dbFile = await tmpDb();
+    const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${dbFile}` });
+    await waitForHealth(server);
+    const other = new DatabaseSync(dbFile);
+    try {
+      other.exec("begin immediate");
+      // A failed sign-in counts the attempt, a write that has to wait for the lock.
+      const pending = fetch(`${server.url}/api/auth/sign-in/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: PUBLIC_URL },
+        body: JSON.stringify({ email: "nobody@example.invalid", password: "wrong password!" }),
+      });
+      await new Promise((r) => setTimeout(r, 300));
+      other.exec("commit");
+      expect((await pending).status).toBe(401);
+    } finally {
+      other.close();
+    }
   }, 20_000);
 
   it("refuses to start on an invalid configuration", async () => {

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 
 import { FAKE_OIDC_URL, OIDC_BASE_URL, OIDC_CLIENT, OIDC_E2E_DB, OIDC_PROVIDER_NAME } from "../playwright.config";
 import { expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, THEMES, watchCsp, WIDTHS } from "./helpers";
@@ -134,14 +134,16 @@ for (const theme of THEMES) {
         const csp = watchCsp(page);
         await control("POST", "reset");
 
-        // Hold the start of the sign-in to look at the screen shown while it runs.
-        await page.route("**/api/auth/sign-in/social", () => new Promise<void>(() => {}));
+        // Hold the start of the sign-in to look at the screen shown while it runs; it never reaches the server.
+        const held: Route[] = [];
+        await page.route("**/api/auth/sign-in/social", (route) => void held.push(route));
         await open(page, "/", theme, mode, width, OIDC_E2E_DB);
         await expect(page.getByRole("status").filter({ hasText: `Redirecting to ${OIDC_PROVIDER_NAME}…` })).toBeVisible();
         await expect(page.getByRole("link", { name: LOCAL_LINK })).toBeVisible();
         await expectAccessible(page, "sign-in, redirecting");
         await expectNoHorizontalScroll(page, "sign-in, redirecting");
-        await page.unrouteAll({ behavior: "ignoreErrors" });
+        await Promise.all(held.map((route) => route.abort()));
+        await page.unrouteAll();
 
         await open(page, "/sign-in?error=not_allowed", theme, mode, width, OIDC_E2E_DB);
         await expect(page.getByRole("group", { name: NOT_ALLOWED })).toBeFocused();
