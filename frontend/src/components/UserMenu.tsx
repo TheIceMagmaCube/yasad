@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { CheckIcon, ChevronDown } from "lucide-react";
 import { useRef } from "react";
 
 import type { User } from "../api";
@@ -33,9 +33,14 @@ function initials(name: string): string {
     .join("");
 }
 
+/** Return whether `path` belongs to the administration section. */
+function inAdmin(path: string): boolean {
+  return path === "/admin" || path.startsWith("/admin/");
+}
+
 /**
- * Account menu: identity, the account page, administration for admins, language and appearance shortcuts, and
- * sign-out. `path` is the current path, to mark the account page entry when it is open.
+ * Account menu: identity, the sections (my links, administration for admins) and the account page, language and
+ * appearance shortcuts, and sign-out. `path` is the current path, to mark the entry of the open section or page.
  *
  * Not modal: in modal mode Radix injects a <style> element to lock scrolling, which the CSP blocks.
  */
@@ -45,9 +50,12 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
   const { mode, setMode } = useTheme();
   // A page opened from the menu takes the focus, instead of the trigger the menu would give it back to.
   const navigated = useRef(false);
+  // The current entry carries a check mark and a heavier weight, so it is not marked by colour alone; every entry
+  // keeps the indent of the radio items, whose check sits in the same place.
   const page = (href: string, label: string, current: boolean) => (
-    <DropdownMenuItem asChild>
+    <DropdownMenuItem asChild className="pl-8 aria-[current=page]:font-semibold">
       <Link href={href} aria-current={current ? "page" : undefined} onClick={() => (navigated.current = true)}>
+        {current && <CheckIcon aria-hidden="true" data-slot="current-mark" className="absolute left-2 size-4" />}
         {label}
       </Link>
     </DropdownMenuItem>
@@ -56,7 +64,7 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" aria-label={m.userMenu.open(user.name)} className={`max-w-48 gap-1.5 px-1.5 sm:px-2 ${HEADER_BUTTON}`}>
-          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          <span aria-hidden="true" className="pixel-corners flex size-7 shrink-0 items-center justify-center bg-primary font-mono text-xs font-bold text-primary-foreground">
             {initials(user.name)}
           </span>
           <span aria-hidden="true" className="hidden truncate sm:inline">
@@ -68,7 +76,8 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
       <DropdownMenuContent
         align="end"
         collisionPadding={8}
-        className="w-64"
+        // Scrolls when taller than the room left, at 400 % zoom for one, so sign-out stays reachable by pointer too.
+        className="w-64 overflow-y-auto"
         onCloseAutoFocus={(e) => {
           if (!navigated.current) return;
           navigated.current = false;
@@ -81,8 +90,9 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
           <span className="block text-muted-foreground wrap-anywhere">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {page("/", m.userMenu.home, path === "/")}
         {page("/account", m.userMenu.account, path === "/account")}
-        {user.role === "admin" && page("/admin/users", m.userMenu.admin, false)}
+        {user.role === "admin" && page("/admin/users", m.userMenu.admin, inAdmin(path))}
         <DropdownMenuSeparator />
         <DropdownMenuLabel id="menu-language" className="text-xs text-muted-foreground">
           {m.preferences.language}

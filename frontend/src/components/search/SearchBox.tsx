@@ -255,7 +255,7 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
         }}
         onClick={toggle}
         className={cn(
-          "flex size-10 items-center justify-center rounded-md text-header-foreground outline-none hover:bg-header-foreground/15 focus-visible:ring-2 focus-visible:ring-header-foreground sm:hidden",
+          "flex size-10 items-center justify-center rounded-md text-header-foreground outline-none hover:bg-header-foreground/15 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-header-foreground sm:hidden",
           toggleClassName,
         )}
       >
@@ -296,7 +296,7 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
             }}
             onKeyDown={onKeyDown}
             onFocus={onFocus}
-            className="h-10 w-full min-w-0 rounded-md border border-header-muted bg-header-foreground/10 py-2 pr-10 pl-9 text-base text-header-foreground outline-none placeholder:text-header-muted focus-visible:ring-2 focus-visible:ring-header-foreground md:text-sm"
+            className="h-10 w-full min-w-0 rounded-lg border-[1.5px] border-header-muted bg-header-foreground/10 py-2 pr-10 pl-9 text-base text-header-foreground outline-none placeholder:text-header-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-header-foreground md:text-sm"
           />
           {query ? (
             <button
@@ -309,14 +309,14 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
                 setActiveId(null);
                 inputRef.current?.focus();
               }}
-              className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-header-foreground outline-none hover:bg-header-foreground/15 focus-visible:ring-2 focus-visible:ring-header-foreground"
+              className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-header-foreground outline-none hover:bg-header-foreground/15 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-header-foreground"
             >
               <X aria-hidden="true" className="size-4" />
             </button>
           ) : (
             <kbd
               aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border border-header-muted px-1.5 font-sans text-xs text-header-muted md:inline-block"
+              className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border border-header-muted px-1.5 font-mono text-xs text-header-muted md:inline-block"
             >
               {apple ? "⌘ K" : "Ctrl K"}
             </kbd>
@@ -325,9 +325,11 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
             hidden={!showPopup || (!listShown && !message)}
             // Keep the focus in the field when the list, its scrollbar or its footer is pressed.
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute inset-x-0 top-full z-40 mt-1 max-h-[min(28rem,calc(100dvh-8rem))] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-raised sm:right-0 sm:left-auto sm:w-[min(28rem,calc(100vw-2rem))]"
+            // A real border, which forced colors mode keeps, over a hard base. A copy of the menu panel in ui/dropdown-menu.tsx:
+            // a change there is made here too.
+            className="absolute inset-x-0 top-full z-40 mt-2 max-h-[min(28rem,calc(100dvh-8rem))] overflow-y-auto rounded-lg border-[1.5px] border-border bg-popover p-1 text-popover-foreground shadow-[0_6px_0_var(--panel-depth),var(--shadow-raised)] sm:right-0 sm:left-auto sm:w-[min(28rem,calc(100vw-2rem))]"
           >
-            <ul id={listId} role="listbox" aria-label={m.resultsLabel} hidden={!listShown} className="py-1">
+            <ul id={listId} role="listbox" aria-label={m.resultsLabel} hidden={!listShown}>
               {options.map((result, order) => {
                 const id = optionId(order);
                 const active = order === activeIndex;
@@ -341,7 +343,8 @@ export function SearchBox({ homeKey, className, toggleClassName, openLink = (url
                     onClick={(e) => onOptionClick(e, result)}
                     onAuxClick={(e) => onOptionAuxClick(e, result)}
                     onPointerMove={() => !active && setActiveId(result.link.id)}
-                    className="group flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground aria-selected:ring-2 aria-selected:ring-ring aria-selected:ring-inset"
+                    // An outline rather than a ring marks the selected option, so it survives forced colors mode.
+                    className="group flex min-h-11 cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground aria-selected:outline-2 aria-selected:-outline-offset-2 aria-selected:outline-solid aria-selected:outline-ring"
                   >
                     <SearchResult result={result} />
                   </li>

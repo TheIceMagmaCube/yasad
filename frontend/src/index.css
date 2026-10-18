@@ -230,6 +230,14 @@
     background-size: 24px 24px;
   }
 
+  /* The header sticks from sm up (AppShell): an element scrolled into view by focus or an anchor stops below it
+     (WCAG 2.4.11). The padding covers the header frame, its base and a margin. */
+  @media (width >= 40rem) {
+    html {
+      scroll-padding-top: 6rem;
+    }
+  }
+
   ::selection {
     background-color: var(--primary);
     color: var(--primary-foreground);

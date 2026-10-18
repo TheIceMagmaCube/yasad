@@ -49,12 +49,6 @@ export const en = {
   },
   languages: { en: "English", fr: "Français" },
   roles: { admin: "Administrator", user: "User" },
-  nav: {
-    label: "Main",
-    home: "My links",
-    homeShort: "Links",
-    admin: "Admin",
-  },
   notFound: {
     title: "Page not found",
     body: "This address does not match any page.",
@@ -67,6 +61,7 @@ export const en = {
   },
   userMenu: {
     open: (name: string) => `Account menu for ${name}`,
+    home: "My links",
     account: "My account",
     admin: "Administration",
     signOut: "Sign out",

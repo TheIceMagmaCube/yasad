@@ -210,7 +210,7 @@ test.describe("search", () => {
 
     for (const path of ["/", "/admin/groups"]) {
       await page.goto(path);
-      await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+      await expect(page.getByRole("button", { name: `Account menu for ${ADMIN.name}` })).toBeVisible();
       await page.keyboard.press("/");
       const field = searchField(page);
       for (const query of ["secret", "kw-hidden", "vault", "retired"]) {
@@ -266,12 +266,10 @@ test.describe("search", () => {
     for (const path of ["/", "/admin/users"]) {
       await page.goto(path);
       const toggle = page.getByRole("button", { name: "Search", exact: true });
-      const active = page.getByRole("navigation", { name: "Main" }).locator('[aria-current="page"]');
-      const borderAtRowBottom = async () => {
-        const box = (await active.boundingBox())!;
-        expect(Math.round(box.y + box.height)).toBe(56);
-      };
-      await borderAtRowBottom();
+      const trigger = page.getByRole("button", { name: `Account menu for ${ADMIN.name}` });
+      // The search row opens under the first row: the toggle and the account menu stay where they were.
+      const firstRow = async () => [(await toggle.boundingBox())!.y, (await trigger.boundingBox())!.y];
+      const before = await firstRow();
       await expect(searchField(page)).toBeHidden();
       await toggle.click();
       await expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -279,7 +277,7 @@ test.describe("search", () => {
       await page.keyboard.type("m");
       await expect(page.getByRole("listbox")).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-      await borderAtRowBottom();
+      expect(await firstRow()).toEqual(before);
       await page.keyboard.press("Escape");
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
       await expect(toggle).toBeFocused();
@@ -347,11 +345,6 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("banner").getByRole("link", { name: "YASAD" })).toBeFocused();
-  const nav = page.getByRole("navigation", { name: "Main" });
-  for (const name of ["My links", "Admin"]) {
-    await page.keyboard.press("Tab");
-    await expect(nav.getByRole("link", { name })).toBeFocused();
-  }
   await page.keyboard.press("Tab");
   await expect(searchField(page)).toBeFocused();
   await page.keyboard.press("Tab");
@@ -359,9 +352,12 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
-  await expect(menu.getByRole("menuitem", { name: "My account" })).toBeFocused();
-  await page.keyboard.press("ArrowDown");
-  await expect(menu.getByRole("menuitem", { name: "Administration" })).toBeFocused();
+  await expect(menu.getByRole("menuitem", { name: "My links" })).toBeFocused();
+  await expect(menu.getByRole("menuitem", { name: "My links" })).toHaveAttribute("aria-current", "page");
+  for (const name of ["My account", "Administration"]) {
+    await page.keyboard.press("ArrowDown");
+    await expect(menu.getByRole("menuitem", { name })).toBeFocused();
+  }
 
   for (const name of ["English", "Français", "System", "Light", "Dark"]) {
     await page.keyboard.press("ArrowDown");
@@ -382,6 +378,55 @@ test("the account menu works with the keyboard", async ({ page }) => {
   const card = page.getByRole("link", { name: "Status page" });
   await expect(card).toBeFocused();
   expect(await card.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+});
+
+// 320 by 256 CSS pixels is a 1280 by 1024 window at 400 % zoom.
+test("the sections and sign-out stay reachable at 400 % zoom, without horizontal scroll", async ({ page }) => {
+  setInstanceTheme("default");
+  await signIn(page);
+  await page.setViewportSize({ width: 320, height: 256 });
+  for (const [path, current] of [["/", "My links"], ["/admin/groups", "Administration"]] as const) {
+    await page.goto(path);
+    const trigger = page.getByRole("button", { name: `Account menu for ${ADMIN.name}` });
+    await expect(trigger).toBeInViewport();
+    await trigger.click();
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem", { name: current })).toHaveAttribute("aria-current", "page");
+    for (const name of ["My links", "Administration", "Sign out"]) {
+      const item = menu.getByRole("menuitem", { name });
+      await item.scrollIntoViewIfNeeded();
+      await expect(item).toBeInViewport();
+    }
+    await expectNoHorizontalScroll(page, `account menu at 400 % zoom on ${path}`);
+    await page.keyboard.press("Escape");
+  }
+  await page.getByRole("button", { name: `Account menu for ${ADMIN.name}` }).click();
+  await page.getByRole("menu").getByRole("menuitem", { name: "My links" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "My links", level: 1 })).toBeFocused();
+});
+
+test("the sticky header never hides the focused element", async ({ page }) => {
+  setInstanceTheme("default");
+  await signIn(page);
+  await page.setViewportSize({ width: 1280, height: 400 });
+  await page.goto("/");
+  await page.getByRole("link", { name: "Status page" }).focus();
+  /** Return where the focused element sits against the header, or null when the focus is in the header or gone. */
+  const place = () =>
+    page.evaluate(() => {
+      const focused = document.activeElement;
+      if (!focused || focused === document.body || focused.closest("header")) return null;
+      return { top: focused.getBoundingClientRect().top, headerBottom: document.querySelector("header")!.getBoundingClientRect().bottom };
+    });
+  for (const key of ["Tab", "Shift+Tab"]) {
+    for (let i = 0; i < 15; i += 1) {
+      await page.keyboard.press(key);
+      const at = await place();
+      if (!at) break;
+      expect(at.top).toBeGreaterThanOrEqual(at.headerBottom);
+    }
+  }
 });
 
 test("the language follows the person's choice", async ({ page }) => {

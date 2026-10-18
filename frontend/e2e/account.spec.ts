@@ -73,6 +73,9 @@ test("the account menu opens the account page with the focus on its heading", as
   const trigger = page.getByRole("button", { name: `Account menu for ${ADMIN.name}` });
   await trigger.focus();
   await page.keyboard.press("Enter");
+  // The menu opens on its first entry, My links; My account is the next one.
+  await expect(page.getByRole("menuitem", { name: "My links" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("menuitem", { name: "My account" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/account$/);
