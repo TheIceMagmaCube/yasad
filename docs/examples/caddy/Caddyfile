@@ -1,0 +1,5 @@
+# Replace with your domain. Its DNS record must point to this machine, and ports 80 and 443 must be
+# reachable from the internet, so Caddy can get the certificate.
+portal.example.org {
+	reverse_proxy yasad:3000
+}

@@ -40,6 +40,7 @@ frontend/public/icons/
 frontend/test-results/
 frontend/playwright-report/
 frontend/.vitest/
+backend/.vitest/
 
 # Design specs live outside the repo.
 docs/superpowers/

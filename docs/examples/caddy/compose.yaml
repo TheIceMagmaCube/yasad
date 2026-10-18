@@ -1,0 +1,35 @@
+# YASAD behind Caddy, with automatic HTTPS. Put the values in a .env file next to this one
+# (see docs/deployment.md) and replace portal.example.org in the Caddyfile.
+services:
+  yasad:
+    image: ghcr.io/theicemagmacube/yasad:beta
+    # Every variable in .env reaches YASAD (see docs/configuration.md).
+    env_file: .env
+    # Stop with a clear message when a required value is missing.
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env (openssl rand -base64 32)}
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env, e.g. https://portal.example.org}
+      SETUP_CODE: ${SETUP_CODE:-}
+      # Caddy is the only proxy in front of YASAD.
+      TRUST_PROXY: "1"
+    # No ports: only Caddy reaches YASAD.
+    volumes:
+      - yasad-data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  yasad-data:
+  caddy-data:
+  caddy-config:
