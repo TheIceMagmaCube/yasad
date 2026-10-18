@@ -41,7 +41,7 @@ export function PasswordField({ id, label, hint, error, invalid, describedBy, cl
   return (
     <FormField id={id} label={label} hint={hint} error={error} invalid={invalid} describedBy={describedBy} className={className}>
       {(control) => (
-        <div className="sunken flex h-10 w-full min-w-0 rounded-md border-[1.5px] border-input bg-card has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background has-[input:focus-visible]:outline-hidden has-[[aria-invalid=true]]:border-destructive">
+        <div className="sunken flex h-11 w-full min-w-0 rounded-md border-[1.5px] border-input bg-card has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background has-[input:focus-visible]:outline-hidden has-[[aria-invalid=true]]:border-destructive">
           <input
             ref={ref}
             {...input}

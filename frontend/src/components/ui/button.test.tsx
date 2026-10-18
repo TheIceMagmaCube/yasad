@@ -17,7 +17,12 @@ describe("Button", () => {
     const classes = buttonVariants({ variant: "outline", className: "h-auto whitespace-normal" }).split(" ");
     expect(classes).toContain("whitespace-normal");
     expect(classes).not.toContain("whitespace-nowrap");
-    expect(classes).not.toContain("h-10");
+    expect(classes).not.toContain("h-11");
+  });
+
+  it("gives the default and icon sizes a 44 px target", () => {
+    expect(buttonVariants().split(" ")).toContain("h-11");
+    expect(buttonVariants({ size: "icon" }).split(" ")).toContain("size-11");
   });
 
   it("renders the destructive variants with their tokens", () => {
