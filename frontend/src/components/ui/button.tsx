@@ -25,9 +25,9 @@ const variants = cva(
         "destructive-ghost": `${FLAT} text-destructive hover:bg-destructive-surface`,
       },
       size: {
-        default: "h-10 px-4 py-2",
+        default: "h-11 px-4 py-2",
         sm: "h-9 px-3",
-        icon: "size-10",
+        icon: "size-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

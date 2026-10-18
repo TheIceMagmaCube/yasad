@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
-  default: "h-10 pr-9 pl-3 text-base md:text-sm",
+  default: "h-11 pr-9 pl-3 text-base md:text-sm",
   sm: "h-9 pr-8 pl-2 text-sm",
 } as const;
 
