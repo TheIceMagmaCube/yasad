@@ -1,6 +1,6 @@
 # Deployment
 
-YASAD runs as one Docker image or as a Cloudflare Worker. The image does not handle TLS: put a reverse proxy in front of it. Every variable is described in [configuration.md](configuration.md).
+YASAD runs as one Docker image or as a Cloudflare Worker. The image does not handle TLS: put a reverse proxy in front of it. Every variable is described in [configuration.md](configuration.md), and the themes YASAD ships are listed in its [Themes](configuration.md#themes) section.
 
 ## Docker behind Caddy
 

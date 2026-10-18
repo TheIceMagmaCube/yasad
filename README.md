@@ -120,6 +120,10 @@ A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:
 
 Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
 
+### Themes
+
+YASAD ships two themes, each in light and dark: `default` (cream and ink, yellow accents, pixel touches) and `dusk` (warm creams and terracotta). Each person picks light, dark or the system setting under **Appearance**. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.
+
 ### Going further
 
 * [Configuration](docs/configuration.md): every environment variable, with its default and an example.
@@ -143,6 +147,8 @@ Issues and ideas are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). To report 
 ## License
 
 GNU Affero General Public License v3.0 (AGPL-3.0).
+
+Fonts are served by YASAD itself, from [Fontsource](https://fontsource.org), under the SIL Open Font License 1.1: [Inter](https://github.com/rsms/inter), [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), [Azeret Mono](https://github.com/displaay/azeret) and [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans).
 
 Catalog icons are generated at build time (`scripts/generate-icons.mjs`), with their licences in `icons/<hash>/NOTICE.txt` next to them:
 

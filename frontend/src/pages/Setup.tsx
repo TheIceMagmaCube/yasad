@@ -50,8 +50,8 @@ function Steps({ step }: { step: "code" | "admin" }) {
           aria-current={i === current ? "step" : undefined}
           className={cn(
             "flex flex-1 items-center gap-1.5 border-t-4 pt-1.5",
-            i < current && "border-primary/40 text-muted-foreground",
-            i === current && "border-primary font-semibold",
+            i < current && "border-selected/40 text-muted-foreground",
+            i === current && "border-selected font-semibold",
             i > current && "border-border text-muted-foreground",
           )}
         >

@@ -32,6 +32,12 @@ describe("GET /api/instance", () => {
     expect(await (await app.request("/api/instance")).json()).toMatchObject({ title: "YASAD", logo: null, theme: "default" });
   });
 
+  it("falls back to the default theme for a removed theme id", async () => {
+    const app = await testApp();
+    await app.exec("insert into setting (key, value) values ('instance.theme', 'night')");
+    expect(await (await app.request("/api/instance")).json()).toMatchObject({ theme: "default" });
+  });
+
   it("is public", async () => {
     const res = await (await testApp()).request("/api/instance", { headers: { origin: "" } });
     expect(res.status).toBe(200);
