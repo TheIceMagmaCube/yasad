@@ -249,3 +249,43 @@
     }
   }
 }
+
+/* Motions of the pixel drawing of the signed-out screens, used on pixel-part elements under motion-safe: only, so
+   reduced motion leaves the drawing still. */
+@keyframes pixel-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.2); }
+}
+
+@keyframes pixel-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+
+@keyframes pixel-steam {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(-5px); opacity: 0; }
+}
+
+@keyframes pixel-sway {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(1px); }
+}
+
+@keyframes pixel-float {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(3px, -7px); opacity: 0; }
+}
+
+@keyframes pixel-type {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1px); }
+}
+
+/* Wordmark of the sign-in panel: Nabla from Google Fonts (OFL), instanced and subset to Latin with its COLR, CPAL and
+   SVG colour tables, which the fontsource build drops (the face then renders plain white). Its default palette keeps
+   every layer at 3:1 on the header plate in both themes and modes. */
+@font-face { font-family: Nabla; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/nabla-latin.woff2") format("woff2"); }
+.wordmark { font-family: "Nabla", var(--font-heading); font-weight: 400; letter-spacing: 0.02em; }

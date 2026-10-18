@@ -58,7 +58,8 @@ type ButtonProps = ComponentProps<"button"> &
 /**
  * Render a button.
  *
- * While `pending`, it carries aria-disabled instead of disabled, so focus stays on it.
+ * While `pending`, it carries aria-disabled instead of disabled, so focus stays on it, and it is not dimmed like
+ * an aria-disabled button: its label is the progress text.
  */
 function Button({ className, variant, size, asChild = false, pending = false, pendingLabel, onClickCapture, children, ...props }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
@@ -74,7 +75,8 @@ function Button({ className, variant, size, asChild = false, pending = false, pe
   return (
     <Comp
       data-slot="button"
-      className={buttonVariants({ variant, size, className })}
+      // A pending label is read while waiting, so it keeps full contrast; the spinner shows the wait, not a dimmed fill.
+      className={buttonVariants({ variant, size, className: cn(pending && "aria-disabled:cursor-progress aria-disabled:opacity-100", className) })}
       aria-disabled={pending || undefined}
       {...props}
       onClickCapture={handleClickCapture}

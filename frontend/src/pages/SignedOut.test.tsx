@@ -10,6 +10,7 @@ const INSTANCE: Instance = { title: "YASAD", logo: null, theme: "default", defau
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function renderWith(instance: Partial<Instance>) {
@@ -29,6 +30,14 @@ describe("SignedOut", () => {
     expect(screen.getByRole("link", { name: "Administrator? Sign in with a password" })).toHaveAttribute("href", "/sign-in/local");
     await waitFor(() => expect(document.title).toBe("You are signed out - YASAD"));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("says goodbye with a line drawn from the farewells, over the desk asleep", () => {
+    mockApi({});
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { container } = renderWith({});
+    expect(screen.getByText("See you soon! Your links will keep the seat warm.")).toBeInTheDocument();
+    expect(container.querySelector("main svg[data-state]")).toHaveAttribute("data-state", "asleep");
   });
 
   it("links to the password form when password sign-in is on", () => {

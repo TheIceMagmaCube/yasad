@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { AuthLayout } from "../components/AuthLayout";
 import { PendingButton } from "../components/form/PendingButton";
+import { Alert } from "../components/ui/alert";
 import { useStrings } from "../i18n/LocaleProvider";
 import { useDocumentTitle } from "../lib/page";
 
@@ -32,11 +33,11 @@ export function Unreachable({ onRetry }: { onRetry: () => Promise<boolean> }) {
       </h1>
       <p className="mt-3">{s.body}</p>
       {failures > 0 && (
-        <p key={failures} role="alert" className="mt-4 text-sm font-semibold text-destructive">
+        <Alert key={failures} variant="destructive" className="mt-5">
           {s.still}
-        </p>
+        </Alert>
       )}
-      <PendingButton className="mt-6 w-full" pending={pending} pendingLabel={m.retrying} onClick={() => void retry()}>
+      <PendingButton className="mt-6 min-h-11 w-full" pending={pending} pendingLabel={m.retrying} onClick={() => void retry()}>
         {m.retry}
       </PendingButton>
     </AuthLayout>

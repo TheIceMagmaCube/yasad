@@ -10,6 +10,7 @@ import { SignIn } from "./SignIn";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const INSTANCE = { title: "YASAD", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true, oidc: null } as const;
@@ -26,6 +27,23 @@ async function signIn(password: string, email = "ada@example.invalid") {
 const summary = (name: string) => screen.getByRole("group", { name });
 
 describe("SignIn", () => {
+  it("greets with a line drawn from the greetings, under the title, and keeps the main submit", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    renderWithProviders(<SignIn onSignedIn={vi.fn()} />);
+    const heading = screen.getByRole("heading", { level: 1, name: "Sign in" });
+    const greeting = screen.getByText("Your links missed you. Mostly the bookmarks.");
+    expect(heading.compareDocumentPosition(greeting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign in" })).toHaveClass("bg-primary");
+  });
+
+  it("shows the greeting in the language just chosen on the same screen", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    renderWithProviders(<SignIn onSignedIn={vi.fn()} />);
+    await userEvent.setup().selectOptions(screen.getByLabelText("Language / Langue"), "fr");
+    expect(screen.getByText("Vos liens vous ont manqué. Surtout les favoris.")).toBeInTheDocument();
+    expect(screen.queryByText("Your links missed you. Mostly the bookmarks.")).toBeNull();
+  });
+
   it("signs in with e-mail and password", async () => {
     const fetchMock = mockApi({ "POST /api/auth/sign-in/email": { status: 200, body: {} } });
     const onSignedIn = vi.fn();
@@ -191,6 +209,9 @@ describe("SignIn", () => {
       const email = screen.getByLabelText("E-mail");
       expect(button.compareDocumentPosition(or) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(or.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // The provider is the one main action: the password submit steps down to the outline style.
+      expect(screen.getByRole("button", { name: "Sign in" })).toHaveClass("bg-card");
+      expect(screen.getByRole("button", { name: "Sign in" })).not.toHaveClass("bg-primary");
     });
 
     it("offers only the provider and the administrator link when password sign-in is off", () => {
