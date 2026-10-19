@@ -16,6 +16,7 @@ import { CheckboxField } from "../../../components/ui/checkbox";
 import { useStrings } from "../../../i18n/LocaleProvider";
 import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefLabel } from "../../../lib/group-ref";
+import { RecentChanges } from "../history/RecentChanges";
 import { GroupsChooser, refsWith, sameRefs } from "./GroupsChooser";
 import { Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
 
@@ -189,6 +190,7 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
             </FormActions>
           )}
         </form>
+        <RecentChanges type="link" id={link.id} scoped version={link} />
         {!readOnly && (
           <PaneDanger>
             {confirm ? (

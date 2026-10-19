@@ -192,6 +192,38 @@ test("the links pages are accessible in each of their states, in every theme, mo
   }
 });
 
+test("the history page is accessible, an entry open, in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInAsAdmin(page);
+  await importCatalog(page.request, CATALOG);
+  const joined = await page.request.put(`/api/admin/groups/adm-reviewers/members/${MARGARET.id}`, { data: {} });
+  expect(joined.ok(), await joined.text()).toBe(true);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `history (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/admin/history", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+        const member = page.getByRole("button", { name: "Details: Member added, Reviewers" }).first();
+        await expect(member).toBeVisible();
+        await expectClean(page, label);
+        await member.click();
+        await expect(member).toHaveAttribute("aria-expanded", "true");
+        const imported = page.getByRole("button", { name: "Details: Import, Catalog" }).first();
+        await imported.click();
+        await expect(imported).toHaveAttribute("aria-expanded", "true");
+        await expectClean(page, `${label}, entries open`);
+
+        await open(page, "/admin/groups/adm-reviewers", theme, mode, width);
+        await expect(page.getByRole("region", { name: "Latest changes" })).toBeVisible();
+        await expectClean(page, `${label}, latest changes of a group`);
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+});
+
 test("the YAML file page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
@@ -255,6 +287,7 @@ test("the administration pages fit a 320 px screen in French", async ({ page }) 
     ["/admin/links/new", "Ajouter"],
     ["/admin/links/mail", "Mail"],
     ["/admin/links/file", "Fichier YAML"],
+    ["/admin/history", "Historique"],
   ] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();

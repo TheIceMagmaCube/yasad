@@ -14,6 +14,7 @@ import { Button } from "../../../components/ui/button";
 import { useStrings } from "../../../i18n/LocaleProvider";
 import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefLabel } from "../../../lib/group-ref";
+import { RecentChanges } from "../history/RecentChanges";
 import { GroupsChooser, refsWith, sameRefs } from "./GroupsChooser";
 import { Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
 
@@ -122,6 +123,7 @@ export function CategoryPage({ category, groups, readOnly, onSaved, onDeleted, o
             </FormActions>
           )}
         </form>
+        <RecentChanges type="category" id={category.id} scoped version={category} />
         {!readOnly && (
           <PaneDanger>
             {confirm ? (
