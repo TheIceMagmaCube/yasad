@@ -165,7 +165,8 @@ test("language and appearance change from the account page with the keyboard, an
   await expect(french).toHaveAttribute("aria-pressed", "false");
   await french.focus();
   await page.keyboard.press("Enter");
-  await expect(french).toHaveAttribute("aria-pressed", "true");
+  // The page is now in French: the group is named again in that language.
+  await expect(page.getByRole("group", { name: "Langue" }).getByRole("button", { name: "Français" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
   await expect(page.getByRole("button", { name: "Changer le mot de passe" })).toBeVisible();
 
