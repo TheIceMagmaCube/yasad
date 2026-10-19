@@ -62,7 +62,32 @@ export type AdminUser = {
   lastSignInAt: string | null;
 };
 export type UserChanges = { name?: string; email?: string; role?: Role; roleOverride?: Role | null; disabled?: boolean };
-export type AdminGroup = { id: string; name: string; source: GroupSource; memberIds: string[]; categories: number; links: number };
+export type AdminGroup = {
+  id: string;
+  name: string;
+  source: GroupSource;
+  memberIds: string[];
+  categories: number;
+  links: number;
+  /** When a provider group last came in a sign-in token; null for one only typed (catalog, import) and never received. */
+  seenAt: string | null;
+};
+/** A link as the catalog stores it: inactive links and links without a group included. */
+export type AdminLink = {
+  id: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  url: string;
+  icon: string | null;
+  iconKnown: boolean;
+  keywords: string[];
+  active: boolean;
+  /** Group references: `@everyone`, `@authenticated`, `local:<name>`, `oidc:<name>`. */
+  groups: string[];
+  revision: number;
+};
+export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -158,4 +183,6 @@ export const api = {
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("PUT")),
   removeMember: (groupId: string, userId: string) =>
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("DELETE")),
+  /** Return the whole catalog as stored, to say what each group opens. */
+  categories: async () => (await call<{ categories: AdminCategory[] }>("/api/admin/categories")).categories,
 };

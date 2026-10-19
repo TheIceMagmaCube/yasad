@@ -15,11 +15,6 @@ export function adminErrorText(err: unknown, m: Messages): string {
   return field ? fieldErrorMessage(field, m) : errorMessage(err, m);
 }
 
-/** Return whether the API said the item an action targets no longer exists. */
-export function isNotFound(err: unknown): boolean {
-  return err instanceof ApiError && err.body.code === "not_found";
-}
-
 /** Return a stable index for a key, so a person keeps the same colour from one visit to the next. */
 export function hashIndex(key: string): number {
   let h = 0;
