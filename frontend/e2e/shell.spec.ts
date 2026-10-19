@@ -98,10 +98,12 @@ for (const theme of THEMES) {
         for (const title of HIDDEN_LINKS) expect(body).not.toContain(title);
 
         const everyday = page.getByRole("region", { name: "Everyday" });
-        await expect(everyday.getByRole("link", { name: "Mail" }).locator("svg")).toBeVisible();
-        await expect(everyday.getByRole("link", { name: "Code" }).locator("svg")).toBeVisible();
-        await expect(everyday.getByRole("link", { name: "Chat" }).locator('[data-slot="link-icon"]')).toHaveText("C");
-        await expect(everyday.getByRole("link", { name: "Chat" }).locator("svg")).toHaveCount(0);
+        // The icon sits in the card, beside the title link.
+        const card = (name: string) => everyday.locator(".relief").filter({ has: page.getByRole("link", { name, exact: true }) });
+        await expect(card("Mail").locator("svg")).toBeVisible();
+        await expect(card("Code").locator("svg")).toBeVisible();
+        await expect(card("Chat").locator('[data-slot="link-icon"]')).toHaveText("C");
+        await expect(card("Chat").locator("svg")).toHaveCount(0);
 
         await expectAccessible(page, "home with links");
         await expectSearchAccessible(page, "mail", width, `home (${theme}, ${mode}, ${width}px)`);
