@@ -354,22 +354,12 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem", { name: "My links" })).toBeFocused();
   await expect(menu.getByRole("menuitem", { name: "My links" })).toHaveAttribute("aria-current", "page");
-  for (const name of ["My account", "Administration"]) {
+  // Language and appearance live on the account page: sign-out comes right after the pages.
+  for (const name of ["My account", "Administration", "Sign out"]) {
     await page.keyboard.press("ArrowDown");
     await expect(menu.getByRole("menuitem", { name })).toBeFocused();
   }
-
-  for (const name of ["English", "Français", "System", "Light", "Dark"]) {
-    await page.keyboard.press("ArrowDown");
-    await expect(menu.getByRole("menuitemradio", { name })).toBeFocused();
-  }
-  await page.keyboard.press("Enter");
-  await expect(page.locator("html")).toHaveAttribute("data-mode", "dark");
-  await expect(menu).toBeHidden();
-  await expect(trigger).toBeFocused();
-
-  await page.keyboard.press("Enter");
-  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
   await expect(trigger).toBeFocused();
