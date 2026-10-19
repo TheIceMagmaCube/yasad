@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
 
+import { type AuditEntry, type Auditor, auditStatements } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, setting } from "../schema";
@@ -28,6 +29,9 @@ export type CatalogDiff = {
 };
 
 const REVISION_KEY = "catalog.revision";
+
+// Above this size, an import's entry keeps the summary only: a row must stay under D1's 2 MB.
+const MAX_AUDIT_COLUMN = 512 * 1024;
 
 // D1 refuses a statement with more than 100 bound parameters.
 const MAX_IDS_PER_STATEMENT = 90;
@@ -231,7 +235,7 @@ export function linkGroupRows(db: DB, linkId: string, refs: string[]) {
  * concurrently is still the one used. Each updated item gets a new revision, so an edit started in
  * the app before the import is refused.
  */
-export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, revision: string): Promise<void> {
+export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, revision: string, audit: unknown[] = []): Promise<void> {
   if (isEmpty(diff)) return;
   const now = new Date();
   const cats = categoriesOf(next);
@@ -289,12 +293,43 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, rev
   }
   const nextRevision = String(Number(revision) + 1);
   statements.push(
+    ...audit,
     db
       .insert(setting)
       .values({ key: REVISION_KEY, value: nextRevision, updatedAt: now })
       .onConflictDoUpdate({ target: setting.key, set: { value: nextRevision, updatedAt: now } }),
   );
   await db.batch(statements as [unknown, ...unknown[]]);
+}
+
+const bytes = (text: string) => new TextEncoder().encode(text).length;
+
+/**
+ * Return the audit entry of an import: the diff as summary, and the items it changes or removes as they
+ * were (`before`) and the items it adds or changes as they become (`after`), keyed by id.
+ */
+function importEntry(current: Catalog, next: Catalog, diff: CatalogDiff, source?: "catalog_file"): AuditEntry {
+  const [cur, nxt] = [normalize(current), normalize(next)];
+  const pick = <T>(items: Map<string, T>, ids: string[]) => Object.fromEntries(ids.map((id) => [id, items.get(id)!]));
+  let before: string | null = JSON.stringify({
+    categories: pick(categoriesOf(cur), [...diff.updated.categories, ...diff.removed.categories]),
+    links: pick(linksOf(cur), [...diff.updated.links, ...diff.removed.links]),
+  });
+  let after: string | null = JSON.stringify({
+    categories: pick(categoriesOf(nxt), [...diff.added.categories, ...diff.updated.categories]),
+    links: pick(linksOf(nxt), [...diff.added.links, ...diff.updated.links]),
+  });
+  const { added, updated, removed, groupsCreated, labels } = diff;
+  const details: Record<string, unknown> = { added, updated, removed, groupsCreated, labels, ...(source && { source }) };
+  if (bytes(before) > MAX_AUDIT_COLUMN || bytes(after) > MAX_AUDIT_COLUMN) {
+    [before, after] = [null, null];
+    details.truncated = true;
+  }
+  if (bytes(JSON.stringify(details)) > MAX_AUDIT_COLUMN) {
+    delete details.labels;
+    details.truncated = true;
+  }
+  return { action: "import", type: "catalog", id: null, label: null, before, after, details, when: sql`1` };
 }
 
 export type ImportResult =
@@ -309,15 +344,21 @@ export type ImportResult =
  * the diff was computed from. Applying with the `baseVersion` of a preview refuses a catalog changed
  * since; without one, the revision just read is used. An invalid file writes nothing.
  */
-export async function importCatalog(db: DB, text: string, options: { dryRun: boolean; baseVersion?: string }): Promise<ImportResult> {
+export async function importCatalog(
+  db: DB,
+  text: string,
+  options: { dryRun: boolean; baseVersion?: string; auditor: Auditor; source?: "catalog_file" },
+): Promise<ImportResult> {
   const parsed = parseCatalog(text);
   if (!parsed.ok) return { status: "invalid", errors: parsed.errors };
   const baseVersion = await readRevision(db);
   if (options.baseVersion !== undefined && options.baseVersion !== baseVersion) return { status: "changed" };
-  const diff = await diffCatalog(db, await readCatalog(db), parsed.catalog);
+  const current = await readCatalog(db);
+  const diff = await diffCatalog(db, current, parsed.catalog);
   if (!options.dryRun) {
     try {
-      await applyCatalog(db, parsed.catalog, diff, baseVersion);
+      const audit = auditStatements(options.auditor, importEntry(current, parsed.catalog, diff, options.source));
+      await applyCatalog(db, parsed.catalog, diff, baseVersion, audit);
     } catch (err) {
       if ((await readRevision(db)) !== baseVersion) return { status: "changed" };
       throw err;

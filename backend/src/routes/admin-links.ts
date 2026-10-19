@@ -1,6 +1,5 @@
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 
-import { sessionFor } from "../auth";
 import {
   type Author,
   applyEdit,
@@ -20,7 +19,7 @@ import type { AppEnv } from "../context";
 import { apiError } from "../errors";
 import { catalogWritable } from "./admin-catalog";
 import { readJson } from "./body";
-import { requireAdmin } from "./require-admin";
+import { auditorOf, requireAdmin } from "./require-admin";
 
 const MESSAGES: Record<string, string> = {
   invalid_input: "Some fields are not valid.",
@@ -35,10 +34,9 @@ async function run<T>(
   prepare: (author: Author, body: Record<string, unknown>) => Promise<Edit<T> | EditFailure>,
   render: (after: T | null, edit: Edit<T>) => Response,
 ): Promise<Response> {
-  const { db } = c.var;
-  const author: Author = { db, userId: (await sessionFor(c))!.user.id };
+  const author: Author = await auditorOf(c);
   const body = await readJson(c);
-  const result = await applyEdit(db, () => prepare(author, body));
+  const result = await applyEdit(author, () => prepare(author, body));
   if ("status" in result) return apiError(c, result.status, result.code, MESSAGES[result.code] ?? result.code, result.details);
   return render(result.after, result.edit);
 }

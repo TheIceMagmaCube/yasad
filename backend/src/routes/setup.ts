@@ -1,6 +1,7 @@
 import { and, eq, notExists } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
+import { auditStatements, snapshot } from "../audit";
 import { authFor, MAX_PASSWORD, MIN_PASSWORD } from "../auth";
 import type { AppEnv } from "../context";
 import { apiError } from "../errors";
@@ -109,6 +110,10 @@ setup.post("/", async (c) => {
         createdAt: now,
         updatedAt: now,
       }),
+      ...auditStatements(
+        { db, actorId: null, retentionDays: c.var.config.auditRetentionDays },
+        { action: "create", type: "user", id: userId, before: null, after: snapshot.user(userId), details: { source: "setup" } },
+      ),
     ]);
   } catch (err) {
     if (await hasLocalAdmin(db)) return apiError(c, 409, "setup_closed", "Setup was just completed by another request.");

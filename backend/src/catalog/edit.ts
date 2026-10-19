@@ -1,6 +1,7 @@
 import { and, asc, count, eq, inArray, notExists, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { type AuditAction, type AuditEntry, type Auditor, auditStatements, readSnapshot, snapshot, unchangedSince } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup } from "../schema";
@@ -32,12 +33,18 @@ export type EditWarning = "no_group" | "unknown_icon" | "groups_differ_by_case" 
 export type EditFailure = { status: 404 | 409 | 422; code: string; details?: Record<string, unknown> };
 
 /**
+ * The audit entry of an edit. `snapshot` is the expression `entry.before` was read with: the batch fails
+ * when it no longer gives that text, so the entry never shows a state the object was not in.
+ */
+export type EditAudit = { snapshot?: SQL; entry: AuditEntry };
+
+/**
  * One admin gesture on the catalog, prepared but not run.
  *
- * The caller runs `statements` in one db.batch (an audit entry can be added to them first, so it exists
- * exactly when the write does), then reads the result with `afterOf`. The batch starts by checking what
- * `before` was read from, so `before` is exact when the batch succeeds. When it fails, `failureOf` reads
- * the database again and says why, or returns null for an error this gesture did not foresee.
+ * {@link applyEdit} runs `statements` in one db.batch with the audit entry, so the entry exists exactly
+ * when the write does, then reads the result with `afterOf`. The batch starts by checking what `before`
+ * was read from, so `before` is exact when the batch succeeds. When it fails, `failureOf` reads the
+ * database again and says why, or returns null for an error this gesture did not foresee.
  */
 export type Edit<T> = {
   statements: [unknown, ...unknown[]];
@@ -45,10 +52,21 @@ export type Edit<T> = {
   afterOf: () => Promise<T | null>;
   failureOf: () => Promise<EditFailure | "retry" | null>;
   warnings: EditWarning[];
+  audit: EditAudit;
 };
 
 /** Who makes the change, for the audit log. */
-export type Author = { db: DB; userId: string };
+export type Author = Auditor;
+
+/** Return the audit of a change to an existing item, its snapshot read now. */
+async function auditChange(db: DB, action: AuditAction, type: "category" | "link", id: string, expression: SQL, deletes = false): Promise<EditAudit> {
+  const before = await readSnapshot(db, expression);
+  return { snapshot: expression, entry: { action, type, id, before, after: deletes ? null : expression } };
+}
+
+const auditCreate = (type: "category" | "link", id: string, expression: SQL): EditAudit => ({
+  entry: { action: "create", type, id, before: null, after: expression },
+});
 
 const REVISION = z.number().int();
 const DIRECTION = z.strictObject({ direction: z.enum(["up", "down"]) });
@@ -278,6 +296,7 @@ export async function createCategory({ db }: Author, body: unknown): Promise<Edi
     ],
     before: null,
     afterOf: () => readCategory(db, id),
+    audit: auditCreate("category", id, snapshot.category(id)),
     failureOf: async () => {
       if (await readCategory(db, id)) return derived ? "retry" : invalid({ id: "id_taken" });
       if (await lacksGroup(db, input.groups)) return invalid({ groups: "unknown_group" });
@@ -318,6 +337,7 @@ export async function updateCategory({ db }: Author, id: string, body: unknown):
     ],
     before,
     afterOf: () => readCategory(db, id),
+    audit: await auditChange(db, "update", "category", id, snapshot.category(id)),
     failureOf: async () => {
       const stale = staleFailure(await readCategory(db, id), input.revision);
       if (stale) return stale;
@@ -347,6 +367,7 @@ export async function moveCategory({ db }: Author, id: string, body: unknown): P
     ],
     before: await order(),
     afterOf: order,
+    audit: await auditChange(db, "move", "category", id, snapshot.category(id)),
     failureOf: async () => ((await readCategoryRow(db, id)) ? null : NOT_FOUND),
     warnings: [],
   };
@@ -379,6 +400,7 @@ export async function deleteCategory({ db }: Author, id: string, body: unknown):
     ],
     before,
     afterOf: () => readCategory(db, id),
+    audit: await auditChange(db, "delete", "category", id, snapshot.deletedCategory(id), true),
     failureOf: async () => staleOf(await readCategory(db, id)),
     warnings: [],
   };
@@ -418,6 +440,7 @@ export async function createLink({ db }: Author, body: unknown): Promise<Edit<Ad
     ],
     before: null,
     afterOf: () => readLink(db, id),
+    audit: auditCreate("link", id, snapshot.link(id)),
     failureOf: async () => {
       if (await readLink(db, id)) return derived ? "retry" : invalid({ id: "id_taken" });
       if (!(await readCategoryRow(db, input.categoryId))) return invalid({ categoryId: "unknown_category" });
@@ -471,6 +494,7 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
     ],
     before,
     afterOf: () => readLink(db, id),
+    audit: await auditChange(db, "update", "link", id, snapshot.link(id)),
     failureOf: async () => {
       const stale = staleFailure(await readLink(db, id), revision);
       if (stale) return stale;
@@ -506,6 +530,7 @@ export async function moveLink({ db }: Author, id: string, body: unknown): Promi
     ],
     before: await order(),
     afterOf: order,
+    audit: await auditChange(db, "move", "link", id, snapshot.link(id)),
     failureOf: async () => {
       const current = await readLink(db, id);
       if (!current) return NOT_FOUND;
@@ -528,25 +553,32 @@ export async function deleteLink({ db }: Author, id: string, body: unknown): Pro
     statements: [bumpRevision(db), revisionGuard(db, link, id, revision), db.delete(link).where(eq(link.id, id)), placeLinks(db, before.categoryId)],
     before,
     afterOf: () => readLink(db, id),
+    audit: await auditChange(db, "delete", "link", id, snapshot.link(id), true),
     failureOf: async () => staleFailure(await readLink(db, id), revision),
     warnings: [],
   };
 }
 
 /**
- * Prepare and run an edit, and return it with the state after it, or why it was refused.
+ * Prepare and run an edit with its audit entry, and return it with the state after it, or why it was refused.
  *
- * An id derived from the title that another write took meanwhile is derived again, a few times.
+ * An id derived from the title that another write took meanwhile is derived again, a few times; so is
+ * an edit whose audit snapshot changed meanwhile without making the edit stale (a group renamed, a
+ * neighbour moved), so that the entry's `before` is the state the edit really changed.
  */
-export async function applyEdit<T>(db: DB, prepare: () => Promise<Edit<T> | EditFailure>): Promise<{ edit: Edit<T>; after: T | null } | EditFailure> {
+export async function applyEdit<T>(author: Author, prepare: () => Promise<Edit<T> | EditFailure>): Promise<{ edit: Edit<T>; after: T | null } | EditFailure> {
+  const { db } = author;
   for (let attempt = 1; ; attempt++) {
     const edit = await prepare();
     if ("status" in edit) return edit;
+    const { snapshot: expression, entry } = edit.audit;
+    const statements: unknown[] = [...(expression ? [unchangedSince(db, expression, entry.before)] : []), ...edit.statements, ...auditStatements(author, entry)];
     try {
-      await db.batch(edit.statements);
+      await db.batch(statements as [unknown, ...unknown[]]);
     } catch (err) {
       const failure = await edit.failureOf();
-      if (failure === "retry" && attempt < 5) continue;
+      const moved = failure === null && expression !== undefined && (await readSnapshot(db, expression)) !== entry.before;
+      if ((failure === "retry" || moved) && attempt < 5) continue;
       if (failure === null || failure === "retry") throw err;
       return failure;
     }
