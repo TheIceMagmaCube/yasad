@@ -194,7 +194,7 @@ test.describe("search", () => {
       await expect(field).toBeFocused();
       await expect(field).toHaveValue("");
       await page.keyboard.type("cour");
-      const mail = results(page).and(page.getByRole("option", { name: /^Mail Everyday/ }));
+      const mail = results(page).and(page.getByRole("option", { name: /^Mail, Everyday/ }));
       await expect(mail).toHaveAttribute("aria-selected", "true");
       await expect(field).toHaveAttribute("aria-activedescendant", (await mail.getAttribute("id"))!);
       await page.keyboard.press("ArrowDown");

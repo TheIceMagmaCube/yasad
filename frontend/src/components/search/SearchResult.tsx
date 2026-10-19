@@ -8,18 +8,19 @@ import type { SearchResult as Result } from "@/lib/search";
 import { Highlight } from "./Highlight";
 
 /**
- * Return the accessible name of an option: title, category, then the keyword or extract shown, space separated
- * ("Mail Everyday Keyword: courrier"), so the name holds the visible text word for word (WCAG 2.5.3). A plain
- * string: browsers insert spaces between the parts of a name built from several elements, flex items included.
+ * Return the accessible name of an option: title, category, then the keyword or extract shown, comma separated
+ * ("Mail, Everyday, Keyword: courrier"). A plain string: browsers insert spaces between the parts of a name built
+ * from several elements, around visually hidden commas and flex items alike.
  */
 export function resultLabel(result: Result, m: Messages["search"]): string {
   const reason = result.keyword ? `${m.keyword} ${result.keyword.text}` : result.excerpt?.text;
-  return [result.link.title, result.category.title, ...(reason ? [reason] : [])].join(" ");
+  return [result.link.title, result.category.title, ...(reason ? [reason] : [])].join(", ");
 }
 
 /**
  * Content of one search option: icon, highlighted title, category, and the keyword or description extract that
- * matched. Nothing in it is interactive.
+ * matched. Nothing in it is interactive. A space separates the parts in the text itself, not only in the layout, so
+ * their text reads as the option's name word for word (WCAG 2.5.3).
  */
 export function SearchResult({ result }: { result: Result }) {
   const m = useStrings().search;
@@ -29,8 +30,8 @@ export function SearchResult({ result }: { result: Result }) {
       <span className="min-w-0 flex-1">
         <span className="block font-medium wrap-anywhere">
           <Highlight {...result.title} />
-        </span>
-        <span className="block text-xs text-muted-foreground group-aria-selected:text-accent-foreground">{result.category.title}</span>
+        </span>{" "}
+        <span className="block text-xs text-muted-foreground group-aria-selected:text-accent-foreground">{result.category.title}</span>{" "}
         {result.keyword && (
           <Badge variant="outline" className="mt-1 max-w-full whitespace-normal text-inherit">
             <span className="wrap-anywhere">
@@ -38,6 +39,7 @@ export function SearchResult({ result }: { result: Result }) {
             </span>
           </Badge>
         )}
+        {result.keyword && result.excerpt && " "}
         {result.excerpt && (
           <span className="mt-1 block text-xs wrap-anywhere text-muted-foreground group-aria-selected:text-accent-foreground">
             <Highlight {...result.excerpt} />
