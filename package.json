@@ -19,6 +19,11 @@
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspace frontend && npm run build --workspace backend"
   },
+  "overrides": {
+    "@semantic-release/npm": {
+      "npm": "^11.21.1"
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
