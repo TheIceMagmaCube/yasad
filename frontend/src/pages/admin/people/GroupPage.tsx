@@ -31,16 +31,17 @@ export function groupName(group: AdminGroup): string {
 }
 
 /**
- * Add and remove the members of a group, one request each; `pending` holds the people whose request runs. A success
+ * Add and remove the members of a group, one request each; `pending` maps the people whose request runs to the state
+ * asked for, shown at once so the box follows the click (`shownMembers`) and put back if the request fails. A success
  * is announced, a failure shown by `error` (give it to an Alert keyed by `n`, so it is read again).
  */
 export function useMembership(group: AdminGroup, onMembership: (user: AdminUser, member: boolean) => void) {
   const m = useStrings();
   const announce = useAnnounce();
-  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  const [pending, setPending] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [error, setError] = useState<{ text: string; n: number } | null>(null);
   async function change(user: AdminUser, member: boolean) {
-    setPending((prev) => new Set(prev).add(user.id));
+    setPending((prev) => new Map(prev).set(user.id, member));
     setError(null);
     try {
       if (member) await api.addMember(group.id, user.id);
@@ -52,13 +53,23 @@ export function useMembership(group: AdminGroup, onMembership: (user: AdminUser,
       setError((prev) => ({ text: adminErrorText(err, m), n: (prev?.n ?? 0) + 1 }));
     } finally {
       setPending((prev) => {
-        const next = new Set(prev);
+        const next = new Map(prev);
         next.delete(user.id);
         return next;
       });
     }
   }
   return { pending, error, change };
+}
+
+/** The members as the boxes show them: the stored ones, with the requests still running applied. */
+export function shownMembers(memberIds: readonly string[], pending: ReadonlyMap<string, boolean>): Set<string> {
+  const shown = new Set(memberIds);
+  for (const [id, member] of pending) {
+    if (member) shown.add(id);
+    else shown.delete(id);
+  }
+  return shown;
 }
 
 /** Return what a group opens, from the catalog as stored: the categories and the links that cite it. */
@@ -123,8 +134,8 @@ export function GroupPage({ group, users, onMembership, onRenamed, onDeleted }: 
                   items={users}
                   labelOf={(u) => u.name}
                   hintOf={(u) => u.email}
-                  checked={memberIds}
-                  busy={pending}
+                  checked={shownMembers(group.memberIds, pending)}
+                  busy={new Set(pending.keys())}
                   onToggle={(user, member) => void change(user, member)}
                 />
                 {error && (

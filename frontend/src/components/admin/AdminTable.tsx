@@ -99,7 +99,7 @@ export function AdminTable<T extends { id: string }>({ caption, columns, section
                     <button
                       type="button"
                       onClick={() => toggleSort(column.id)}
-                      className="-mx-2 inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      className="-mx-2 inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
                     >
                       <span className={cn(direction && "font-bold text-foreground")}>{column.header}</span>
                       {direction === "ascending" ? (
@@ -180,7 +180,7 @@ export function RowLink({
         onClick?.(e);
       }}
       className={cn(
-        "font-medium text-foreground outline-none after:absolute after:inset-0 after:content-[''] hover:underline hover:decoration-link-decoration hover:decoration-2 hover:underline-offset-4 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset aria-[current=true]:font-bold",
+        "font-medium text-foreground outline-none after:absolute after:inset-0 after:content-[''] hover:underline hover:decoration-link-decoration hover:decoration-2 hover:underline-offset-4 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset focus-visible:after:outline-hidden aria-[current=true]:font-bold",
         className,
       )}
       {...props}

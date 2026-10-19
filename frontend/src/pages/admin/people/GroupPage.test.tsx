@@ -81,6 +81,9 @@ describe("GroupPage", () => {
     await user.click(screen.getByRole("checkbox", { name: "Ada" }));
     await user.click(screen.getByRole("checkbox", { name: "Carol" }));
     await waitFor(() => expect(held).toHaveLength(2));
+    // The boxes follow the clicks before any answer.
+    expect(screen.getByRole("checkbox", { name: "Ada" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Carol" })).toBeChecked();
     held[0]!();
     await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Ada added to Finance."));
     held[1]!();

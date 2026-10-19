@@ -74,7 +74,7 @@ export function TypeChoice<T extends string>({ name, options, value, onChange }:
             value={option.value}
             checked={value === option.value}
             onChange={() => onChange(option.value)}
-            className="mt-1 size-4 shrink-0 cursor-pointer accent-selected outline-none"
+            className="mt-1 size-4 shrink-0 cursor-pointer accent-selected outline-none focus-visible:outline-hidden"
           />
           <span>
             <span className="block font-heading text-lg font-bold">{option.label}</span>

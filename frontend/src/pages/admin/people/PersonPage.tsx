@@ -267,13 +267,14 @@ function Memberships({ user, groups, onMembership }: { user: AdminUser; groups: 
   const m = useStrings();
   const s = m.users;
   const announce = useAnnounce();
-  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  // The state asked for while its request runs, so the box follows the click; dropped when the request ends.
+  const [pending, setPending] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [error, setError] = useState<{ text: string; n: number } | null>(null);
   if (groups.length === 0) return <p className="text-sm text-muted-foreground">{s.noLocalGroups}</p>;
   const held = new Set(user.groups.map((g) => g.id));
 
   async function toggle(group: AdminGroup, member: boolean) {
-    setPending((prev) => new Set(prev).add(group.id));
+    setPending((prev) => new Map(prev).set(group.id, member));
     setError(null);
     try {
       if (member) await api.addMember(group.id, user.id);
@@ -285,7 +286,7 @@ function Memberships({ user, groups, onMembership }: { user: AdminUser; groups: 
       setError((prev) => ({ text: s.membershipFailed(group.name), n: (prev?.n ?? 0) + 1 }));
     } finally {
       setPending((prev) => {
-        const next = new Set(prev);
+        const next = new Map(prev);
         next.delete(group.id);
         return next;
       });
@@ -299,7 +300,7 @@ function Memberships({ user, groups, onMembership }: { user: AdminUser; groups: 
           <li key={group.id}>
             <CheckboxField
               label={group.name}
-              checked={held.has(group.id)}
+              checked={pending.get(group.id) ?? held.has(group.id)}
               aria-busy={pending.has(group.id) || undefined}
               onChange={(e) => {
                 if (pending.has(group.id)) return;

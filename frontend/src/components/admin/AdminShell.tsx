@@ -28,7 +28,7 @@ export const ADMIN_HOME = ADMIN_SECTIONS[0].href;
 // The current entry has a bar under it in its section colour and a bold label, so it stands out without colour
 // alone; in forced colors mode the bar takes the text colour.
 const ENTRY =
-  "relative flex min-h-11 items-center rounded-md px-3 text-base text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring before:absolute before:inset-x-3 before:bottom-0.5 before:hidden before:h-1 before:rounded-full forced-colors:before:bg-[CanvasText] aria-[current=page]:font-bold aria-[current=page]:text-foreground aria-[current=page]:before:block";
+  "relative flex min-h-11 items-center rounded-md px-3 text-base text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden before:absolute before:inset-x-3 before:bottom-0.5 before:hidden before:h-1 before:rounded-full forced-colors:before:bg-[CanvasText] aria-[current=page]:font-bold aria-[current=page]:text-foreground aria-[current=page]:before:block";
 
 type AdminShellProps = {
   section: AdminSection;
@@ -73,7 +73,7 @@ export function AdminShell({ section, title, titleParts = [], back, leading, sub
       {back && (
         <Link
           href={back.href}
-          className="mb-3 inline-flex min-h-11 items-center gap-1.5 text-sm underline decoration-link-decoration decoration-2 underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="mb-3 inline-flex min-h-11 items-center gap-1.5 text-sm underline decoration-link-decoration decoration-2 underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
           {back.label}
