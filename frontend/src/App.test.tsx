@@ -141,18 +141,8 @@ describe("App", () => {
     await user.click(await screen.findByRole("button", { name: "Account menu for Ada Lovelace" }));
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent("ada@example.invalid");
-    expect(menu).not.toHaveTextContent("Administrator");
-    expect([...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual([
-      "My links",
-      "My account",
-      "Administration",
-      "English",
-      "Français",
-      "System",
-      "Light",
-      "Dark",
-      "Sign out",
-    ]);
+    expect(menu).toHaveTextContent("Administrator");
+    expect([...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual(["My links", "My account", "Administration", "Sign out"]);
     await user.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/auth/sign-out")).toBe(true);
@@ -911,7 +901,7 @@ describe("App, temporary password and account", () => {
     await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
     await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My account" }));
     expect(location.pathname).toBe("/account");
-    expect(await screen.findByRole("heading", { level: 1, name: "My account" })).toHaveFocus();
+    expect(await screen.findByRole("heading", { level: 1, name: "Ada Lovelace" })).toHaveFocus();
     await waitFor(() => expect(document.title).toBe("My account - YASAD"));
     const menu = await openAccountMenu(user, ADA.name);
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
@@ -930,14 +920,15 @@ describe("App, temporary password and account", () => {
       "PATCH /api/account": { status: 200, body: { user: { id: "ada", name: "Augusta Ada King", email: ADA.email } } },
     });
     renderAt("/account");
-    await user.click(await screen.findByRole("button", { name: "Edit profile" }));
-    const name = screen.getByLabelText("Name");
+    await user.click(await screen.findByRole("button", { name: "Edit: Name" }));
+    const name = screen.getByRole("textbox", { name: "Name" });
     await user.clear(name);
     await user.type(name, "Augusta Ada King");
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     expect(await screen.findByRole("button", { name: "Account menu for Augusta Ada King" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Edit profile" })).toHaveFocus());
-    expect(screen.getByText("Profile saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit: Name" })).toHaveFocus());
+    expect(screen.getByRole("heading", { level: 1, name: "Augusta Ada King" })).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="account-status"]')).toHaveTextContent("Profile saved.");
   });
 });
 

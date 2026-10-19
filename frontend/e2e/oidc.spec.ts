@@ -70,7 +70,7 @@ test("a deep link survives the sign-in at the provider", async ({ page }) => {
   const csp = watchCsp(page);
   await signedInAtProvider(ALICE);
   await page.goto("/account");
-  await expect(page.getByRole("heading", { name: "My account", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: ALICE.name, level: 1 })).toBeVisible();
   await expect(page).toHaveURL(`${OIDC_BASE_URL}/account`);
   expect(csp).toEqual([]);
 });
