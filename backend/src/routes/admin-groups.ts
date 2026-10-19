@@ -14,6 +14,8 @@ export type AdminGroup = {
   name: string;
   source: "oidc" | "local" | "system";
   memberIds: string[];
+  /** Last sign-in whose token named this OIDC group, or null when the provider never sent it. */
+  seenAt: string | null;
   /** How many catalog categories and links the group opens, shown before deleting it. */
   categories: number;
   links: number;
@@ -35,6 +37,7 @@ async function listGroups(db: DB): Promise<AdminGroup[]> {
       name: g.name,
       source: g.source,
       memberIds: members.filter((m) => m.groupId === g.id).map((m) => m.userId),
+      seenAt: g.seenAt?.toISOString() ?? null,
       categories: countOf(categories, g.id),
       links: countOf(links, g.id),
     }))

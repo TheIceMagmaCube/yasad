@@ -183,6 +183,36 @@ describe("provider sign-in", () => {
     expect(await app.query(`select name from "group" where source = 'oidc' order by name`)).toEqual([{ name: "lab" }, { name: "office" }, { name: "staff" }]);
   });
 
+  it("stamps the token's groups as seen, and keeps the stamp of a group that left the token", async () => {
+    const app = await oidcApp();
+    // Named by the catalog before any sign-in: the provider has not sent them yet.
+    await app.exec(`insert into "group" (id, name, source) values ('o-lab', 'lab', 'oidc'), ('o-ops', 'ops', 'oidc')`);
+    const seenAt = async () =>
+      Object.fromEntries((await app.query(`select name, seen_at from "group" where source = 'oidc'`)).map((r) => [r.name, r.seen_at]));
+
+    const before = Date.now() - 1000;
+    await providerSignIn(app, { ...alice, groups: ["staff", "lab"] });
+    const first = await seenAt();
+    expect(first.ops).toBeNull();
+    for (const name of ["staff", "lab"]) expect(Number(first[name])).toBeGreaterThanOrEqual(before);
+
+    await app.exec(`update "group" set seen_at = 1000 where source = 'oidc' and seen_at is not null`);
+    await providerSignIn(app.another(), { ...alice, groups: ["staff", "office"] });
+    const second = await seenAt();
+    expect(second.lab).toBe(1000);
+    expect(second.ops).toBeNull();
+    for (const name of ["staff", "office"]) expect(Number(second[name])).toBeGreaterThanOrEqual(before);
+
+    await addUser(app, { id: "ada", email: "ada@example.invalid", role: "admin" });
+    const admin = app.another();
+    expect((await signIn(admin, "ada@example.invalid")).status).toBe(200);
+    await app.exec(`insert into "group" (id, name, source) values ('l-staff', 'staff', 'local')`);
+    const { groups } = (await (await admin.request("/api/admin/groups")).json()) as { groups: { source: string; name: string; seenAt: string | null }[] };
+    const listed = Object.fromEntries(groups.map((g) => [`${g.source}:${g.name}`, g.seenAt]));
+    expect(listed).toMatchObject({ "oidc:lab": new Date(1000).toISOString(), "oidc:ops": null, "local:staff": null, "system:everyone": null });
+    expect(Date.parse(listed["oidc:office"]!)).toBe(Number(second.office));
+  });
+
   it("keeps the role set in YASAD over the provider's", async () => {
     const app = await oidcApp({ OIDC_ADMIN_GROUPS: "admins" });
     await providerSignIn(app, { ...alice, groups: ["admins"] });

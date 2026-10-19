@@ -125,6 +125,9 @@ function refusal(oidc: OidcConfig, claims: SignInClaims): string | null {
 /**
  * Write the person's OIDC groups and role from the token, in one batch.
  *
+ * Each group of the token is stamped as seen, so the admin screens can tell a group the provider
+ * sent from one only typed in the catalog.
+ *
  * Every statement binds the group list as a single JSON parameter, so a long list stays under D1's
  * limit on bound parameters. Local groups are left alone. The role is written over
  * `role_override`, so an override set while the person signs in is kept.
@@ -145,12 +148,18 @@ async function writeGroupsAndRole(db: DB, oidc: OidcConfig, userId: string, grou
             name: sql<string>`json_extract(value, '$.name')`.as("name"),
             source: sql<"oidc">`'oidc'`.as("source"),
             createdAt: sql<Date>`unixepoch() * 1000`.as("created_at"),
+            seenAt: sql<Date>`unixepoch() * 1000`.as("seen_at"),
           })
           .from(sql`json_each(${created})`)
           // SQLite needs a WHERE clause to tell an upsert from a join on an INSERT ... SELECT.
           .where(sql`true`),
       )
       .onConflictDoNothing({ target: [group.source, group.name] }),
+    // The insert above skips the groups that already exist.
+    db
+      .update(group)
+      .set({ seenAt: sql`unixepoch() * 1000` })
+      .where(and(eq(group.source, "oidc"), inArray(group.name, tokenNames))),
     db.delete(userGroup).where(and(eq(userGroup.userId, userId), inArray(userGroup.groupId, oidcGroupIds))),
     db
       .insert(userGroup)
