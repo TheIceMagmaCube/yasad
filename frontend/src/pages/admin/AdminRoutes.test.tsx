@@ -30,6 +30,11 @@ describe("adminRoute", () => {
     expect(adminRoute("/admin/links/file")).toEqual({ section: "links-file" });
   });
 
+  it("routes the history, its filters left to the query", () => {
+    expect(adminRoute("/admin/history")).toEqual({ section: "history" });
+    expect(adminRoute("/admin/history/x")).toBeNull();
+  });
+
   it("opens nothing for an unknown or too deep address, or a broken escape", () => {
     const paths = ["/admin/nowhere", "/admin/users/a/b", "/admin/catalog", "/admin/catalog/x", "/admin/groups", "/admin/users/%E0"];
     for (const path of [...paths, "/admin/links/wiki/x", "/admin/links/categories", "/admin/links/categories/a/b", "/admin/links/file/x", "/admin/links/%E0"]) {

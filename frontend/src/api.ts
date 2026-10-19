@@ -107,6 +107,49 @@ export type LinkInput = {
 export type CategoryInput = { id?: string; title: string; groups: string[] };
 type Direction = "up" | "down";
 
+/** Kinds of objects the change log names; `catalog` stands for a whole import. */
+export type HistoryObjectType = "user" | "group" | "category" | "link" | "catalog";
+export type HistoryAction = "create" | "update" | "delete" | "move" | "password_reset" | "member_add" | "member_remove" | "import";
+/** An object an entry names, as it was then; `exists` says whether it is still there, to link to its page. */
+export type HistoryObject = { type: HistoryObjectType; id: string | null; label: string | null; exists: boolean };
+/** Who wrote an entry, name and e-mail as they were then; null in an entry for what YASAD did by itself. */
+export type HistoryAuthor = { id: string; name: string | null; email: string | null; exists: boolean };
+/** A snapshot of the fields an entry keeps (no secret ever), or an import's summary. */
+export type HistorySnapshot = Record<string, unknown>;
+export type HistoryEntry = {
+  id: number;
+  at: string;
+  actor: HistoryAuthor | null;
+  action: HistoryAction;
+  object: HistoryObject;
+  /** The person added to or removed from a group. */
+  related: HistoryObject | null;
+  before: HistorySnapshot | null;
+  after: HistorySnapshot | null;
+  /** An import's summary, or where a write without author came from (`source`: `setup`, `catalog_file`). */
+  details: HistorySnapshot | null;
+};
+/** One page of the change log, newest first; `next` is the cursor of the following page. */
+export type HistoryPage = { entries: HistoryEntry[]; next: number | null };
+/**
+ * Filters of the change log: `actor` is a person id or `none` for YASAD itself, `object` matches the object or the
+ * related one, `from` (included) and `to` (excluded) are ISO instants, `before` is the cursor `next`.
+ */
+export type HistoryQuery = { actor?: string; type?: HistoryObjectType; object?: string; from?: string; to?: string; before?: number; limit?: number };
+/** Someone who wrote entries still kept, deleted people included. */
+export type HistoryActor = { id: string; name: string; email: string; exists: boolean };
+
+/** Return the query string of a change log request, its keys in a fixed order and empty ones left out. */
+export function historyQueryString(query: HistoryQuery): string {
+  const params = new URLSearchParams();
+  for (const key of ["actor", "type", "object", "from", "to", "before", "limit"] as const) {
+    const value = query[key];
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
+
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
 export type AdminInput = { name: string; email: string; password: string; passwordConfirm: string };
@@ -217,4 +260,6 @@ export const api = {
   /** Move a link one step in its category; `order` is the list of that category's link ids after the move. */
   moveLink: (id: string, direction: Direction) => call<{ order: string[] }>(`/api/admin/links/${encodeURIComponent(id)}/move`, post({ direction })),
   deleteLink: (id: string, revision: number) => call<void>(`/api/admin/links/${encodeURIComponent(id)}`, send("DELETE", { revision })),
+  history: (query: HistoryQuery = {}) => call<HistoryPage>(`/api/admin/history${historyQueryString(query)}`),
+  historyActors: async () => (await call<{ actors: HistoryActor[] }>("/api/admin/history/actors")).actors,
 };

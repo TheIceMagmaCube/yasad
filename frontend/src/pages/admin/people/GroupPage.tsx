@@ -22,6 +22,7 @@ import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefOf, neverReceived } from "../../../lib/group-ref";
 import { invalidateHome } from "../../../lib/home-store";
 import { categoryHref, linkHref } from "../links/item-edit";
+import { RecentChanges } from "../history/RecentChanges";
 import { adminErrorText } from "../shared";
 
 const LIST = "/admin/users";
@@ -167,47 +168,50 @@ export function GroupPage({ group, users, onMembership, onRenamed, onDeleted }: 
           </PaneSection>
         }
         side={
-          <PaneSection title={s.opensTitle}>
-            {catalog.status === "error" ? (
-              <p className="text-sm">{s.opensLoadError}</p>
-            ) : !opens ? (
-              <p className="text-sm text-muted-foreground">{m.loading}</p>
-            ) : opens.categories.length + opens.links.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{s.opensNone}</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {opens.categories.length > 0 && (
-                  <div>
-                    <p className="mb-1 text-sm text-muted-foreground">{s.opensCategories}</p>
-                    <ul className="flex flex-col">
-                      {opens.categories.map((c) => (
-                        <li key={c.id}>
-                          <Link href={categoryHref(c.id)} className={ITEM_LINK}>
-                            {c.title}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {opens.links.length > 0 && (
-                  <div>
-                    <p className="mb-1 text-sm text-muted-foreground">{s.opensLinks}</p>
-                    <ul className="flex flex-col">
-                      {opens.links.map((l) => (
-                        <li key={l.id}>
-                          <Link href={linkHref(l.id)} className={ITEM_LINK}>
-                            {l.title}
-                          </Link>
-                          <span className="ml-2 text-sm text-muted-foreground">{l.category}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-          </PaneSection>
+          <>
+            <PaneSection title={s.opensTitle}>
+              {catalog.status === "error" ? (
+                <p className="text-sm">{s.opensLoadError}</p>
+              ) : !opens ? (
+                <p className="text-sm text-muted-foreground">{m.loading}</p>
+              ) : opens.categories.length + opens.links.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{s.opensNone}</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {opens.categories.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-sm text-muted-foreground">{s.opensCategories}</p>
+                      <ul className="flex flex-col">
+                        {opens.categories.map((c) => (
+                          <li key={c.id}>
+                            <Link href={categoryHref(c.id)} className={ITEM_LINK}>
+                              {c.title}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {opens.links.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-sm text-muted-foreground">{s.opensLinks}</p>
+                      <ul className="flex flex-col">
+                        {opens.links.map((l) => (
+                          <li key={l.id}>
+                            <Link href={linkHref(l.id)} className={ITEM_LINK}>
+                              {l.title}
+                            </Link>
+                            <span className="ml-2 text-sm text-muted-foreground">{l.category}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </PaneSection>
+            <RecentChanges type="group" id={group.id} version={group} />
+          </>
         }
         danger={
           local && (

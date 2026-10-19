@@ -1,11 +1,16 @@
 import type { User } from "../../api";
 import { ADMIN_HOME } from "../../components/admin/AdminShell";
 import { Forbidden, NotFound } from "../ErrorViews";
+import { HistoryPage } from "./history/HistoryPage";
 import { LinksFilePage, LinksPage, type LinksRoute } from "./links/LinksPage";
 import { PeoplePage, type PeopleRoute } from "./people/PeoplePage";
 
 /** What a canonical /admin path opens; `open` is the item whose page shows, or the wizard adding one. */
-export type AdminRoute = { section: "users"; open: PeopleRoute } | { section: "links"; open: LinksRoute } | { section: "links-file" };
+export type AdminRoute =
+  | { section: "users"; open: PeopleRoute }
+  | { section: "links"; open: LinksRoute }
+  | { section: "links-file" }
+  | { section: "history" };
 
 /** Address of the YAML import and export, which /admin/catalog used to be. */
 export const LINKS_FILE = "/admin/links/file";
@@ -31,6 +36,7 @@ export function adminRoute(path: string): AdminRoute | null {
     return null;
   }
   if (parts[0] === "links") return linksRoute(parts.slice(1));
+  if (parts[0] === "history") return parts.length === 1 ? { section: "history" } : null;
   const [section, id, ...rest] = parts;
   if (rest.length > 0) return null;
   if (section === "users") {
@@ -63,5 +69,6 @@ export function AdminRoutes({ path, user }: { path: string; user: User }) {
   if (!route) return <NotFound />;
   if (route.section === "links") return <LinksPage open={route.open} />;
   if (route.section === "links-file") return <LinksFilePage />;
+  if (route.section === "history") return <HistoryPage />;
   return <PeoplePage me={user} open={route.open} />;
 }

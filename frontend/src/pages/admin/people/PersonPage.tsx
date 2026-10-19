@@ -21,6 +21,7 @@ import { focusById } from "../../../lib/focus";
 import { useFormErrors } from "../../../lib/form-errors";
 import { invalidateHome } from "../../../lib/home-store";
 import { formatRelative } from "../../../lib/relative-time";
+import { RecentChanges } from "../history/RecentChanges";
 import { adminErrorText, PersonTile } from "../shared";
 
 const LIST = "/admin/users";
@@ -127,6 +128,7 @@ export function PersonPage({ user, self, localGroups, secret, onUpdated, onMembe
                 <dd>{last.exact ?? last.text}</dd>
               </dl>
             </PaneSection>
+            <RecentChanges type="user" id={user.id} version={`${JSON.stringify(user)}:${secret ?? ""}`} />
           </>
         }
         danger={
