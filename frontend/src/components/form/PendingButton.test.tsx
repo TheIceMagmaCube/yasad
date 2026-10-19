@@ -54,6 +54,31 @@ describe("PendingButton", () => {
     expect(onClick).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts the next click as soon as the first one re-rendered it idle, before any timer runs", () => {
+    // A wizard's Next becomes Create on the same element; a fast key press on it must not hit the double-click guard.
+    vi.useFakeTimers();
+    function Wizard({ onStep }: { onStep: (step: number) => void }) {
+      const [step, setStep] = useState(0);
+      return (
+        <PendingButton
+          pending={false}
+          pendingLabel="Creating…"
+          onClick={() => {
+            onStep(step);
+            setStep(step + 1);
+          }}
+        >
+          {step === 0 ? "Next" : "Create"}
+        </PendingButton>
+      );
+    }
+    const onStep = vi.fn();
+    render(<Wizard onStep={onStep} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(onStep.mock.calls).toEqual([[0], [1]]);
+  });
+
   it("accepts a new click once the pending action is over", () => {
     function Saver({ onClick }: { onClick: () => void }) {
       const [pending, setPending] = useState(false);
