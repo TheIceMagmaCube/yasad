@@ -570,7 +570,7 @@ describe("SearchBox, results", () => {
     await user.type(input, "mail cour");
     await vi.waitFor(() => expect(options()).toHaveLength(1));
     const [option] = options();
-    expect(option).toHaveAccessibleName("Mail, Everyday, Keyword: courrier");
+    expect(option).toHaveAccessibleName("Mail Everyday Keyword: courrier");
     expect(within(option!).getByText("Everyday")).toBeInTheDocument();
     expect([...option!.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual(["Mail", "cour"]);
     expect(option!.querySelector("a, button, input")).toBeNull();
@@ -581,7 +581,7 @@ describe("SearchBox, results", () => {
     const { input } = setup();
     await user.type(input, "knowledge");
     await vi.waitFor(() => expect(options()).toHaveLength(1));
-    expect(options()[0]).toHaveAccessibleName("Wiki, Docs, Team knowledge base");
+    expect(options()[0]).toHaveAccessibleName("Wiki Docs Team knowledge base");
     expect(options()[0]!.querySelector("mark")).toHaveTextContent("knowledge");
   });
 
@@ -593,6 +593,6 @@ describe("SearchBox, results", () => {
     expect(screen.getByRole("search", { name: "Rechercher un lien" })).toBeInTheDocument();
     await user.type(input, "mail cour");
     await vi.waitFor(() => expect(options()).toHaveLength(1));
-    expect(options()[0]).toHaveAccessibleName("Mail, Everyday, Mot-clé : courrier");
+    expect(options()[0]).toHaveAccessibleName("Mail Everyday Mot-clé : courrier");
   });
 });

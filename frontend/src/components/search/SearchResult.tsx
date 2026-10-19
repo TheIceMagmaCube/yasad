@@ -8,13 +8,13 @@ import type { SearchResult as Result } from "@/lib/search";
 import { Highlight } from "./Highlight";
 
 /**
- * Return the accessible name of an option: title, category, then the keyword or extract shown, comma separated
- * ("Mail, Everyday, Keyword: courrier"). A plain string: browsers insert spaces between the parts of a name built
- * from several elements, around visually hidden commas and flex items alike.
+ * Return the accessible name of an option: title, category, then the keyword or extract shown, space separated
+ * ("Mail Everyday Keyword: courrier"), so the name holds the visible text word for word (WCAG 2.5.3). A plain
+ * string: browsers insert spaces between the parts of a name built from several elements, flex items included.
  */
 export function resultLabel(result: Result, m: Messages["search"]): string {
   const reason = result.keyword ? `${m.keyword} ${result.keyword.text}` : result.excerpt?.text;
-  return [result.link.title, result.category.title, ...(reason ? [reason] : [])].join(", ");
+  return [result.link.title, result.category.title, ...(reason ? [reason] : [])].join(" ");
 }
 
 /**
