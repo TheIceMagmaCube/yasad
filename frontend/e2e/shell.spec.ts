@@ -98,10 +98,12 @@ for (const theme of THEMES) {
         for (const title of HIDDEN_LINKS) expect(body).not.toContain(title);
 
         const everyday = page.getByRole("region", { name: "Everyday" });
-        await expect(everyday.getByRole("link", { name: "Mail" }).locator("svg")).toBeVisible();
-        await expect(everyday.getByRole("link", { name: "Code" }).locator("svg")).toBeVisible();
-        await expect(everyday.getByRole("link", { name: "Chat" }).locator('[data-slot="link-icon"]')).toHaveText("C");
-        await expect(everyday.getByRole("link", { name: "Chat" }).locator("svg")).toHaveCount(0);
+        // The icon sits in the card, beside the title link.
+        const card = (name: string) => everyday.locator(".relief").filter({ has: page.getByRole("link", { name, exact: true }) });
+        await expect(card("Mail").locator("svg")).toBeVisible();
+        await expect(card("Code").locator("svg")).toBeVisible();
+        await expect(card("Chat").locator('[data-slot="link-icon"]')).toHaveText("C");
+        await expect(card("Chat").locator("svg")).toHaveCount(0);
 
         await expectAccessible(page, "home with links");
         await expectSearchAccessible(page, "mail", width, `home (${theme}, ${mode}, ${width}px)`);
@@ -367,7 +369,8 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await page.keyboard.press("Tab");
   const card = page.getByRole("link", { name: "Status page" });
   await expect(card).toBeFocused();
-  expect(await card.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+  // The focus outline is drawn on the whole card, around the title link.
+  expect(await card.evaluate((el) => getComputedStyle(el.closest(".relief")!).outlineStyle)).not.toBe("none");
 });
 
 // 320 by 256 CSS pixels is a 1280 by 1024 window at 400 % zoom.

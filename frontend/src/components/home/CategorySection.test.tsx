@@ -35,6 +35,6 @@ describe("CategorySection", () => {
     const selector = (classes: string) => classes.split(" ").map((c) => `.${CSS.escape(c)}`).join("");
     expect(container.querySelector(`h2 .size-4${selector(tone.bar)}`)).toHaveAttribute("aria-hidden", "true");
     expect(container.querySelectorAll(`[data-slot="link-icon"]${selector(tone.tile)}`)).toHaveLength(3);
-    expect(container.querySelectorAll(`a${selector(tone.card)}`)).toHaveLength(3);
+    expect(container.querySelectorAll(`.relief${selector(tone.card)}`)).toHaveLength(3);
   });
 });

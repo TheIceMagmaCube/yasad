@@ -140,10 +140,10 @@ test("the links pages are accessible in each of their states, in every theme, mo
 
         await open(page, "/admin/links", theme, mode, width);
         await page.getByRole("button", { name: "Reorder" }).click();
-        await expect(page.getByRole("button", { name: "Move the category Everyday up" })).toHaveAttribute("aria-disabled", "true");
+        await expect(page.getByRole("button", { name: "Move up the category Everyday" })).toHaveAttribute("aria-disabled", "true");
         await expectClean(page, `${label}, reorder categories`);
         await page.getByRole("button", { name: "Links", exact: true }).click();
-        await expect(page.getByRole("button", { name: "Move the link Jira down" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Move down the link Jira" })).toBeVisible();
         await expectClean(page, `${label}, reorder links`);
 
         await open(page, "/admin/links/new", theme, mode, width);
@@ -448,7 +448,7 @@ test.describe("keyboard and focus", () => {
     await page.keyboard.press("Enter");
     await page.getByRole("button", { name: "Links", exact: true }).focus();
     await page.keyboard.press("Enter");
-    const up = page.getByRole("button", { name: "Move the link Second door up" });
+    const up = page.getByRole("button", { name: "Move up the link Second door" });
     await up.focus();
     await page.keyboard.press("Enter");
     await expect(announcer(page)).toHaveText("Second door: position 1 of 2 in Keyboard shelf");
