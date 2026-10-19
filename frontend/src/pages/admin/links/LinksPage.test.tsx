@@ -104,19 +104,19 @@ describe("Reorder mode", () => {
     expect(within(mode).getByRole("button", { name: "Categories" })).toHaveAttribute("aria-pressed", "true");
     expect(within(mode).getByRole("button", { name: "Links" })).toHaveAttribute("aria-pressed", "false");
 
-    const up = screen.getByRole("button", { name: "Move the category Tools up" });
+    const up = screen.getByRole("button", { name: "Move up the category Tools" });
     expect(up).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: "Move the category Empty shelf down" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Move down the category Empty shelf" })).toHaveAttribute("aria-disabled", "true");
     await user.click(up);
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/admin/categories/tools/move")).toBe(false);
 
-    const down = screen.getByRole("button", { name: "Move the category Tools down" });
+    const down = screen.getByRole("button", { name: "Move down the category Tools" });
     down.focus();
     await user.keyboard("{Enter}");
     await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Tools: position 2 of 3"));
-    expect(screen.getByRole("button", { name: "Move the category Tools down" })).toHaveFocus();
-    expect(screen.getByRole("button", { name: "Move the category Tools up" })).not.toHaveAttribute("aria-disabled");
-    expect(screen.getByRole("button", { name: "Move the category Development up" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Move down the category Tools" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Move up the category Tools" })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("button", { name: "Move up the category Development" })).toHaveAttribute("aria-disabled", "true");
     expect(within(screen.getByRole("list", { name: "Categories" })).getAllByRole("listitem").map((li) => li.textContent?.split(/\d/)[0])).toEqual(["Development", "Tools", "Empty shelf"]);
     expect(isCached()).toBe(false);
   });
@@ -127,14 +127,14 @@ describe("Reorder mode", () => {
     await user.click(screen.getByRole("button", { name: "Reorder" }));
     await user.click(screen.getByRole("button", { name: "Links" }));
     expect(screen.getByRole("button", { name: "Links" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("button", { name: /Move the category/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Move the link Git up" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: "Move the link Git down" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByRole("button", { name: /Move (up|down) the category/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Move up the link Git" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Move down the link Git" })).toHaveAttribute("aria-disabled", "true");
 
-    await user.click(screen.getByRole("button", { name: "Move the link Mail up" }));
+    await user.click(screen.getByRole("button", { name: "Move up the link Mail" }));
     await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Mail: position 1 of 3 in Tools"));
-    expect(screen.getByRole("button", { name: "Move the link Mail up" })).toHaveFocus();
-    expect(screen.getByRole("button", { name: "Move the link Mail up" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Move up the link Mail" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Move up the link Mail" })).toHaveAttribute("aria-disabled", "true");
     const tools = screen.getByRole("region", { name: "Tools" });
     expect(within(tools).getAllByRole("listitem").map((li) => li.textContent?.replace(/^\d+/, "").split("Move")[0])).toEqual(["Mail", "Wiki", "Old intranet"]);
   });
@@ -149,7 +149,7 @@ describe("Reorder mode", () => {
     await screen.findByRole("table", { name: "Links of Tools" });
     await user.click(screen.getByRole("button", { name: "Reorder" }));
     await user.click(screen.getByRole("button", { name: "Links" }));
-    await user.click(screen.getByRole("button", { name: "Move the link Wiki down" }));
+    await user.click(screen.getByRole("button", { name: "Move down the link Wiki" }));
     expect(await screen.findByRole("group", { name: "This link went to another category meanwhile. The list has been read again." })).toHaveFocus();
     await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === "/api/admin/categories")).toHaveLength(2));
 

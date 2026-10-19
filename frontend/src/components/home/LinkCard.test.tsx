@@ -18,8 +18,10 @@ describe("LinkCard", () => {
     expect(card).toHaveAttribute("href", "https://jira.example.invalid/board");
     expect(card).not.toHaveAttribute("target");
     expect(card).toHaveAccessibleDescription("Tickets and sprints");
-    expect(card).toHaveClass("focus-visible:outline-2", "focus-visible:outline-ring");
-    expect(card.className).not.toMatch(/outline-none/);
+    // Only the title is the anchor, so the name is exactly the text it shows; its ::after covers the card.
+    expect(card).toHaveTextContent(/^Jira$/);
+    expect(card).toHaveClass("after:absolute", "after:inset-0");
+    expect(card.parentElement?.parentElement).toHaveClass("relative", "has-[a:focus-visible]:outline-2", "has-[a:focus-visible]:outline-ring");
   });
 
   it("has no description reference without a description", () => {
@@ -37,7 +39,7 @@ describe("LinkCard", () => {
 
   it("is a raised card on a base of the category colour, with a boundary kept in forced colors", () => {
     renderWithProviders(<LinkCard link={LINK} tone={TONE} />);
-    const card = screen.getByRole("link", { name: "Jira" });
+    const card = screen.getByRole("link", { name: "Jira" }).parentElement?.parentElement;
     expect(card).toHaveClass("relief", TONE.card);
     // Forced colors drop the relief shadows; the .relief outline drawn instead would vanish under outline-none.
     expect(card).not.toHaveClass("outline-none");
@@ -46,7 +48,7 @@ describe("LinkCard", () => {
   it("wraps long titles and descriptions instead of truncating them", () => {
     const long = "x".repeat(60);
     renderWithProviders(<LinkCard link={{ ...LINK, title: long, description: long }} tone={TONE} />);
-    const card = screen.getByRole("link", { name: long });
+    const card = screen.getByRole("link", { name: long }).parentElement!.parentElement!;
     expect(card.querySelectorAll(".wrap-anywhere")).toHaveLength(2);
     expect(card.querySelector(".truncate")).toBeNull();
   });
