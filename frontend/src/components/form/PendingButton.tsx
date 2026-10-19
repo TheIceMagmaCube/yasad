@@ -22,8 +22,10 @@ export function PendingButton({ pending, pendingLabel, onClick, ...props }: Pend
   const pendingNow = useRef(pending);
   useLayoutEffect(() => {
     pendingNow.current = pending;
+    // Any commit that leaves the button idle ends the guard: the click it blocked a double of has been handled. A
+    // timer alone is not enough, since browsers run queued key presses before timers.
     if (!pending) guard.current = false;
-  }, [pending]);
+  });
   useAnnounceAfter(pending, pendingLabel, ANNOUNCE_AFTER);
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
