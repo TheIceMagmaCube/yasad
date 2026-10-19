@@ -25,7 +25,7 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
           <p>{m.catalog.body}</p>
           <ol className="mt-4 list-inside list-decimal space-y-2 text-left text-foreground sm:text-center">
             <li>
-              <Link href="/admin/catalog" className={stepLink}>
+              <Link href="/admin/links/file" className={stepLink}>
                 {m.catalog.import}
               </Link>
             </li>
@@ -60,7 +60,7 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
               <Link href="/admin/groups" className={buttonVariants()}>
                 {m.adminNoAccess.manageGroups}
               </Link>
-              <Link href="/admin/catalog" className={buttonVariants({ variant: "outline" })}>
+              <Link href="/admin/links" className={buttonVariants({ variant: "outline" })}>
                 {m.adminNoAccess.manageCatalog}
               </Link>
             </>

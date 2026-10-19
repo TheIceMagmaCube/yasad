@@ -21,9 +21,12 @@ import { focusById } from "../../../lib/focus";
 import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefOf, neverReceived } from "../../../lib/group-ref";
 import { invalidateHome } from "../../../lib/home-store";
+import { categoryHref, linkHref } from "../links/item-edit";
 import { adminErrorText } from "../shared";
 
 const LIST = "/admin/users";
+const ITEM_LINK =
+  "inline-flex min-h-11 items-center underline decoration-link-decoration decoration-2 underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden";
 
 /** Return the name a group shows: built-in groups with their `@`, as the catalog cites them. */
 export function groupName(group: AdminGroup): string {
@@ -178,7 +181,11 @@ export function GroupPage({ group, users, onMembership, onRenamed, onDeleted }: 
                     <p className="mb-1 text-sm text-muted-foreground">{s.opensCategories}</p>
                     <ul className="flex flex-col">
                       {opens.categories.map((c) => (
-                        <li key={c.id}>{c.title}</li>
+                        <li key={c.id}>
+                          <Link href={categoryHref(c.id)} className={ITEM_LINK}>
+                            {c.title}
+                          </Link>
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -189,7 +196,9 @@ export function GroupPage({ group, users, onMembership, onRenamed, onDeleted }: 
                     <ul className="flex flex-col">
                       {opens.links.map((l) => (
                         <li key={l.id}>
-                          {l.title}
+                          <Link href={linkHref(l.id)} className={ITEM_LINK}>
+                            {l.title}
+                          </Link>
                           <span className="ml-2 text-sm text-muted-foreground">{l.category}</span>
                         </li>
                       ))}

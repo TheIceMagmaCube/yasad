@@ -17,7 +17,7 @@ import { Label } from "../ui/label";
  */
 export const ADMIN_SECTIONS = [
   { id: "users", href: "/admin/users", bar: "before:bg-category-3-fill" },
-  { id: "catalog", href: "/admin/catalog", bar: "before:bg-category-2-fill" },
+  { id: "links", href: "/admin/links", bar: "before:bg-category-2-fill" },
 ] as const;
 
 export type AdminSection = (typeof ADMIN_SECTIONS)[number]["id"];

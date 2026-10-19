@@ -123,7 +123,7 @@ describe("Home", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Your catalog is empty" })).toBeInTheDocument();
     const steps = within(screen.getByRole("list")).getAllByRole("link");
     expect(steps.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
-      ["Import the catalog", "/admin/catalog"],
+      ["Import the catalog", "/admin/links/file"],
       ["Create the groups", "/admin/groups"],
       ["Add people to the groups", "/admin/groups"],
     ]);
@@ -135,7 +135,7 @@ describe("Home", () => {
     renderWithProviders(<Home user={ADA} />);
     expect(await screen.findByRole("heading", { level: 2, name: "No link is open to you" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Manage groups" })).toHaveAttribute("href", "/admin/groups");
-    expect(screen.getByRole("link", { name: "Manage the catalog" })).toHaveAttribute("href", "/admin/catalog");
+    expect(screen.getByRole("link", { name: "Manage the catalog" })).toHaveAttribute("href", "/admin/links");
   });
 
   it.each([

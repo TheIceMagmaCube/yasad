@@ -27,6 +27,7 @@ function signedIn(user: object): Routes {
     "GET /api/admin/users": { status: 200, body: { users: [] } },
     "GET /api/admin/groups": { status: 200, body: { groups: [] } },
     "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } },
+    "GET /api/admin/categories": { status: 200, body: { categories: [] } },
   };
 }
 
@@ -346,10 +347,10 @@ describe("App", () => {
       expect(within(menu).getByRole("menuitem", { name: "My links" })).not.toHaveAttribute("aria-current");
       await user.keyboard("{Escape}");
 
-      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
-      expect(location.pathname).toBe("/admin/catalog");
-      await waitFor(() => expect(document.title).toBe("Catalog - Administration - YASAD"));
-      expect(screen.getByRole("heading", { name: "Catalog", level: 1 })).toHaveFocus();
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
+      expect(location.pathname).toBe("/admin/links");
+      await waitFor(() => expect(document.title).toBe("Links - Administration - YASAD"));
+      expect(screen.getByRole("heading", { name: "Links", level: 1 })).toHaveFocus();
 
       act(() => {
         history.back();
@@ -374,6 +375,13 @@ describe("App", () => {
       renderAt("/admin/groups/");
       expect(await screen.findByRole("link", { name: "People", current: "page" })).toBeInTheDocument();
       expect(location.pathname).toBe("/admin/users");
+      expect(history.length).toBe(length);
+      cleanup();
+
+      mockApi(signedIn(ADA));
+      renderAt("/admin/catalog");
+      expect(await screen.findByRole("heading", { name: "YAML file", level: 1 })).toBeInTheDocument();
+      expect(location.pathname).toBe("/admin/links/file");
       expect(history.length).toBe(length);
     });
 
@@ -461,8 +469,9 @@ describe("App", () => {
         "GET /api/admin/users": unauthenticated,
         "GET /api/admin/groups": unauthenticated,
         "GET /api/admin/catalog/state": unauthenticated,
+        "GET /api/admin/categories": unauthenticated,
       });
-      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     });
 
@@ -472,8 +481,8 @@ describe("App", () => {
       renderAt("/admin/users");
       await screen.findByRole("heading", { name: "People" });
       const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
-      mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden, "GET /api/admin/catalog/state": forbidden });
-      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+      mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden, "GET /api/admin/catalog/state": forbidden, "GET /api/admin/categories": forbidden });
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
       expect(await screen.findByRole("heading", { name: "Admins only" })).toHaveFocus();
       expect(within(await openAccountMenu(user, ADA.name)).queryByRole("menuitem", { name: "Administration" })).toBeNull();
     });
@@ -727,18 +736,19 @@ describe("App, views and focus", () => {
       "GET /api/admin/users": [unauthenticated, { status: 200, body: { users: [] } }],
       "GET /api/admin/groups": [unauthenticated, { status: 200, body: { groups: [] } }],
       "GET /api/admin/catalog/state": [unauthenticated, { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } }],
+      "GET /api/admin/categories": [unauthenticated, { status: 200, body: { categories: [] } }],
       "POST /api/auth/sign-in/email": { status: 200, body: {} },
     });
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
     const notice = await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." });
     expect(notice).toHaveFocus();
-    expect(location.pathname).toBe("/admin/catalog");
+    expect(location.pathname).toBe("/admin/links");
 
     await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
     await user.type(screen.getByLabelText("Password"), "a long enough password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Catalog" })).toHaveFocus();
-    expect(location.pathname).toBe("/admin/catalog");
+    expect(await screen.findByRole("heading", { level: 1, name: "Links" })).toHaveFocus();
+    expect(location.pathname).toBe("/admin/links");
     expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
   });
 
@@ -839,8 +849,8 @@ describe("App, views and focus", () => {
       "fetch",
       vi.fn(() => new Promise<Response>(() => {})),
     );
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
-    expect(screen.getByRole("heading", { level: 1, name: "Catalog" })).toHaveFocus();
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Links" })).toHaveFocus();
   });
 });
 
@@ -871,7 +881,7 @@ describe("App, temporary password and account", () => {
     expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
     await waitFor(() => expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Password saved."));
 
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
     expect(screen.queryByRole("note")).toBeNull();
   });
 
@@ -957,12 +967,12 @@ describe("App, OIDC sign-in", () => {
 
   it("goes to the provider at once on a deep link when password sign-in is off, coming back to it", async () => {
     const fetchMock = mockApi(anonymous());
-    renderAt("/admin/catalog");
+    renderAt("/admin/links");
     expect(await screen.findByText("Redirecting to Okta…")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Administrator? Sign in with a password" })).toBeInTheDocument();
     await waitFor(() => expect(replace).toHaveBeenCalledWith(AUTHORIZE));
     const call = starts(fetchMock)[0]!;
-    expect(JSON.parse(String(call[1]!.body))).toEqual({ returnTo: "/admin/catalog" });
+    expect(JSON.parse(String(call[1]!.body))).toEqual({ returnTo: "/admin/links" });
     expect(starts(fetchMock)).toHaveLength(1);
   });
 
@@ -1045,8 +1055,9 @@ describe("App, OIDC sign-in", () => {
       "GET /api/admin/users": unauthenticated,
       "GET /api/admin/groups": unauthenticated,
       "GET /api/admin/catalog/state": unauthenticated,
+      "GET /api/admin/categories": unauthenticated,
     });
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
     expect(await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." })).toHaveFocus();
     expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
     expect(starts(fetchMock)).toHaveLength(0);

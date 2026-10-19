@@ -122,7 +122,77 @@ test("the people pages are accessible in each of their states, in every theme, m
   }
 });
 
-test("the catalog page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
+test("the links pages are accessible in each of their states, in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInAsAdmin(page);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `links (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await importCatalog(page.request, CATALOG);
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByRole("table", { name: "Links of Everyday" })).toBeVisible();
+        await expectClean(page, label);
+        await open(page, "/admin/links?state=inactive", theme, mode, width);
+        await expect(page.getByText("Filter: Inactive")).toBeVisible();
+        await expectClean(page, `${label}, narrowed to a state`);
+
+        await open(page, "/admin/links", theme, mode, width);
+        await page.getByRole("button", { name: "Reorder" }).click();
+        await expect(page.getByRole("button", { name: "Move the category Everyday up" })).toHaveAttribute("aria-disabled", "true");
+        await expectClean(page, `${label}, reorder categories`);
+        await page.getByRole("button", { name: "Links", exact: true }).click();
+        await expect(page.getByRole("button", { name: "Move the link Jira down" })).toBeVisible();
+        await expectClean(page, `${label}, reorder links`);
+
+        await open(page, "/admin/links/new", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 2, name: "What do you want to add?" })).toBeVisible();
+        await expectClean(page, `${label}, add wizard`);
+        await page.getByRole("button", { name: "Next" }).click();
+        await page.getByRole("button", { name: "Next" }).click();
+        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+        await expectClean(page, `${label}, add wizard with errors`);
+        await open(page, "/admin/links/categories/new", theme, mode, width);
+        await page.getByRole("button", { name: "Next" }).click();
+        await page.getByRole("textbox", { name: "Title" }).fill("Shelf");
+        await page.getByRole("button", { name: "Next" }).click();
+        await expect(page.getByRole("checkbox", { name: "@everyone" })).toBeVisible();
+        await expectClean(page, `${label}, add wizard, groups`);
+
+        await open(page, "/admin/links/grafana", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "Grafana" })).toBeVisible();
+        await expectClean(page, `${label}, link page`);
+        await page.getByLabel("Title", { exact: true }).fill("");
+        await page.getByRole("button", { name: "Save" }).click();
+        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+        await expectClean(page, `${label}, link page with errors`);
+        await page.getByRole("button", { name: "Delete Grafana" }).click();
+        await expect(page.getByRole("group", { name: "Delete the link Grafana?" })).toBeFocused();
+        await expectClean(page, `${label}, delete confirmation`);
+
+        await open(page, "/admin/links/categories/dev-tools", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "Developer tools" })).toBeVisible();
+        await expect(page.getByRole("checkbox", { name: "Developers typed, never received" })).toBeChecked();
+        await expectClean(page, `${label}, category page`);
+
+        await page.route("**/api/admin/catalog/state", (route) =>
+          route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3 }, headers: { "cache-control": "no-store" } }),
+        );
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByText("Managed by CATALOG_FILE: read only.")).toBeVisible();
+        await expectClean(page, `${label}, read-only`);
+        await open(page, "/admin/links/mail", theme, mode, width);
+        await expect(page.getByLabel("Title", { exact: true })).toBeDisabled();
+        await expectClean(page, `${label}, read-only link page`);
+        await page.unroute("**/api/admin/catalog/state");
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+});
+
+test("the YAML file page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
   for (const theme of THEMES) {
@@ -131,7 +201,7 @@ test("the catalog page is accessible in each of its states, in every theme, mode
         const label = `catalog (${theme}, ${mode}, ${width}px)`;
         const csp = watchCsp(page);
         await importCatalog(page.request, CATALOG);
-        await open(page, "/admin/catalog", theme, mode, width);
+        await open(page, "/admin/links/file", theme, mode, width);
         await expect(page.getByText("2 categories, 3 links, 3 groups in use.")).toBeVisible();
         await expectClean(page, label);
 
@@ -181,7 +251,10 @@ test("the administration pages fit a 320 px screen in French", async ({ page }) 
     ["/admin/users/new", "Ajouter"],
     [`/admin/users/${GRACE.id}`, GRACE.name],
     ["/admin/groups/adm-staff", "Staff"],
-    ["/admin/catalog", "Catalogue"],
+    ["/admin/links", "Liens"],
+    ["/admin/links/new", "Ajouter"],
+    ["/admin/links/mail", "Mail"],
+    ["/admin/links/file", "Fichier YAML"],
   ] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
@@ -269,7 +342,7 @@ test.describe("keyboard and focus", () => {
 
   test("exports the catalog as a YAML file", async ({ page }) => {
     await importCatalog(page.request, CATALOG);
-    await page.goto("/admin/catalog");
+    await page.goto("/admin/links/file");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export the catalog (YAML)" }).click();
     const file = await download;
@@ -281,7 +354,7 @@ test.describe("keyboard and focus", () => {
 
   test("previews again when the catalog changes between the preview and the import", async ({ page }) => {
     await importCatalog(page.request, CATALOG);
-    await page.goto("/admin/catalog");
+    await page.goto("/admin/links/file");
     await page.getByLabel("Choose a file").setInputFiles("e2e/fixtures/catalog-next.yaml");
     await expect(page.getByRole("heading", { level: 2, name: "Import preview" })).toBeFocused();
     await importCatalog(page.request, CATALOG.replace("title: Mail", "title: Webmail"));
@@ -290,6 +363,79 @@ test.describe("keyboard and focus", () => {
     await expect(warning).toBeFocused();
     // The file now renames Webmail back to Mail: the new preview lists that change.
     await expect(page.getByRole("region", { name: "Import preview" })).toContainText("Mail mail");
+  });
+
+  test("the former catalog address opens the YAML file page", async ({ page }) => {
+    await page.goto("/admin/catalog");
+    await expect(page.getByRole("heading", { level: 1, name: "YAML file" })).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/links\/file$/);
+  });
+
+  test("creates a category and a link, moves and deactivates the link with the keyboard, and the home page follows", async ({ page }) => {
+    await importCatalog(page.request, CATALOG);
+    await page.goto("/admin/links/categories/new");
+    await expect(page.getByRole("heading", { level: 1, name: "Add" })).toBeVisible();
+    const next = page.getByRole("button", { name: "Next" });
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("textbox", { name: "Title" }).fill("Keyboard shelf");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("checkbox", { name: "@authenticated" }).focus();
+    await page.keyboard.press("Space");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Create" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("link", { name: "Keyboard shelf" })).toBeFocused();
+
+    for (const [title, url] of [["First door", "https://first.example.org"], ["Second door", "https://second.example.org"]] as const) {
+      await page.goto("/admin/links/new");
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("textbox", { name: "Address" }).fill(url);
+      await page.getByRole("textbox", { name: "Title" }).fill(title);
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("combobox", { name: "Category" }).selectOption({ label: "Keyboard shelf" });
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("checkbox", { name: "@authenticated" }).focus();
+      await page.keyboard.press("Space");
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("button", { name: "Skip" }).focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("button", { name: "Create" }).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("link", { name: title })).toBeFocused();
+    }
+
+    await page.getByRole("button", { name: "Reorder" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Links", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    const up = page.getByRole("button", { name: "Move the link Second door up" });
+    await up.focus();
+    await page.keyboard.press("Enter");
+    await expect(announcer(page)).toHaveText("Second door: position 1 of 2 in Keyboard shelf");
+    await expect(up).toBeFocused();
+    await expect(up).toHaveAttribute("aria-disabled", "true");
+    await page.getByRole("button", { name: "Done" }).focus();
+    await page.keyboard.press("Enter");
+
+    await page.goto("/");
+    const shelf = page.getByRole("region", { name: "Keyboard shelf" });
+    await expect(shelf.getByRole("link")).toHaveText([/Second door/, /First door/]);
+
+    await page.goto("/admin/links/first-door");
+    await page.getByRole("checkbox", { name: "Active" }).focus();
+    await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Save" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(announcer(page)).toHaveText("Saved: First door.");
+    await page.goto("/");
+    await expect(shelf.getByRole("link")).toHaveText([/Second door/]);
   });
 
   test("lists every account as a check box on a group page, narrowed by its filter, with 300 accounts", async ({ page }) => {

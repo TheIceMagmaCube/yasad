@@ -101,13 +101,15 @@ describe("GroupPage", () => {
     expect(screen.getByRole("checkbox", { name: "Ada" })).not.toBeChecked();
   });
 
-  it("says what the group opens, from the catalog as stored", async () => {
+  it("says what the group opens, from the catalog as stored, each item a link to its page", async () => {
     renderAdmin("/admin/groups/g1", routes());
     await screen.findByRole("heading", { level: 1, name: "Finance" });
     const opens = section("What this group opens");
     await waitFor(() => expect(within(opens).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Tools", "BooksTools"]));
     expect(within(opens).getByText("Categories")).toBeInTheDocument();
     expect(within(opens).getByText("Links")).toBeInTheDocument();
+    expect(within(opens).getByRole("link", { name: "Tools" })).toHaveAttribute("href", "/admin/links/categories/tools");
+    expect(within(opens).getByRole("link", { name: "Books" })).toHaveAttribute("href", "/admin/links/books");
   });
 
   it("shows the members of a provider group read-only, a disabled account said in words", async () => {
