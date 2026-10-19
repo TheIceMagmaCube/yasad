@@ -106,7 +106,7 @@ Then install:
 3. Enter the setup code from `.env`.
 4. Create the first administrator: name, e-mail, and a password of 12 to 128 characters. This local account is also your emergency access if an identity provider is down. If you plan to sign in with an OIDC provider, give it an address that no account at the provider uses: YASAD refuses a provider sign-in whose e-mail belongs to a local account.
 5. YASAD signs you in as that administrator. The **YASAD is ready** screen appears: select **Go to YASAD**. Its reminder about `SETUP_CODE` is step 8. Later, sign in from the **Sign in** screen with that e-mail and password.
-6. Import a catalog: open **Admin**, then the **Catalog** tab, and choose a YAML file. To try it, save [catalog.example.yaml](https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/catalog.example.yaml) on the computer you browse from. Check the preview, then select **Import**.
+6. Import a catalog: open **Admin**, then **Links**, then **YAML file**, and choose a YAML file. To try it, save [catalog.example.yaml](https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/catalog.example.yaml) on the computer you browse from. Check the preview, then select **Import**.
 7. Go back to **My links**: the home page shows the links your groups allow. With the example file, an administrator sees the "Mail" link of "Everyday".
 8. Remove the `SETUP_CODE` line from `.env` and run `docker compose up -d` again. Setup only opens while the code is set and no enabled local administrator exists.
 
@@ -114,11 +114,15 @@ Then install:
 
 ### Catalog
 
-Categories and links come from a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. Admins import and export it from the **Catalog** tab of the administration (**Admin** in the header); importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
+Admins edit categories and links in the **Links** section of the administration (**Admin** in the header), or as a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. They import and export that file from **Links**, **YAML file**; importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
 
 A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
 
 Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
+
+### Themes
+
+YASAD ships two themes, each in light and dark: `default` (cream and ink, yellow accents, pixel touches) and `dusk` (warm creams and terracotta). Each person picks light, dark or the system setting under **Appearance**. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.
 
 ### Going further
 
@@ -138,11 +142,13 @@ Open http://localhost:5173 and use the setup code from `backend/.env`. For the W
 
 ## Contributing
 
-Issues and ideas are welcome. Contribution guide to come.
+Issues and ideas are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). To report a security flaw, see [SECURITY.md](SECURITY.md).
 
 ## License
 
 GNU Affero General Public License v3.0 (AGPL-3.0).
+
+Fonts are served by YASAD itself, from [Fontsource](https://fontsource.org), under the SIL Open Font License 1.1: [Inter](https://github.com/rsms/inter), [Bricolage Grotesque](https://github.com/ateliertriay/bricolage), [Azeret Mono](https://github.com/displaay/azeret) and [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans). The sign-in wordmark uses [Nabla](https://github.com/justvanrossum/nabla) (same licence), subset from the Google Fonts build to keep its colour tables; its licence is in `frontend/src/fonts/nabla-OFL.txt`.
 
 Catalog icons are generated at build time (`scripts/generate-icons.mjs`), with their licences in `icons/<hash>/NOTICE.txt` next to them:
 

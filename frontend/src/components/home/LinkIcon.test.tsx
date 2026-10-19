@@ -53,14 +53,17 @@ describe("LinkIcon", () => {
   it("shows the first letter without an icon, without fetching", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    expect(tile(null)).toHaveTextContent("G");
+    const el = tile(null);
+    expect(el.querySelector("[data-initial]")).toHaveAttribute("data-initial", "G");
+    // Drawn as generated content, so it adds no text to a name or label around it.
+    expect(el).toHaveTextContent(/^$/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("shows the first letter when the file comes back as HTML with a 200", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<!doctype html>", { status: 200, headers: { "content-type": "text/html" } })));
     const el = tile({ set: "si", name: "unknown" });
-    await waitFor(() => expect(el).toHaveTextContent("G"));
+    await waitFor(() => expect(el.querySelector("[data-initial]")).toHaveAttribute("data-initial", "G"));
     expect(el.querySelector("svg")).toBeNull();
   });
 
@@ -72,10 +75,10 @@ describe("LinkIcon", () => {
       .mockResolvedValue(json({ path: "M0 0z" }));
     vi.stubGlobal("fetch", fetchMock);
     const first = tile({ set: "si", name: "grafana" });
-    await waitFor(() => expect(first).toHaveTextContent("G"));
+    await waitFor(() => expect(first.querySelector("[data-initial]")).toHaveAttribute("data-initial", "G"));
     cleanup();
     const second = tile({ set: "si", name: "grafana" });
-    await waitFor(() => expect(second).toHaveTextContent("G"));
+    await waitFor(() => expect(second.querySelector("[data-initial]")).toHaveAttribute("data-initial", "G"));
     cleanup();
     const third = tile({ set: "si", name: "grafana" });
     await waitFor(() => expect(third.querySelector("svg")).not.toBeNull());

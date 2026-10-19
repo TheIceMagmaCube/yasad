@@ -43,4 +43,10 @@ describe("theme and language lists", () => {
     expect(init).toContain(`var THEMES = ${JSON.stringify(THEMES).replaceAll(",", ", ")};`);
     expect(init).toContain(`var LANGUAGES = ${JSON.stringify(LANGUAGES).replaceAll(",", ", ")};`);
   });
+
+  it("are all imported by the stylesheet", async () => {
+    const css = await readFile("src/index.css", "utf8");
+    const imported = [...css.matchAll(/@import "\.\/theme\/themes\/([\w-]+)\.css";/g)].map((match) => match[1]);
+    expect(imported.sort()).toEqual([...THEMES].sort());
+  });
 });

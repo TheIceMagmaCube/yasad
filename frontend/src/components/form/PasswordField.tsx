@@ -41,7 +41,7 @@ export function PasswordField({ id, label, hint, error, invalid, describedBy, cl
   return (
     <FormField id={id} label={label} hint={hint} error={error} invalid={invalid} describedBy={describedBy} className={className}>
       {(control) => (
-        <div className="flex h-10 w-full min-w-0 rounded-md border border-input bg-background has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background has-[[aria-invalid=true]]:border-destructive">
+        <div className="sunken flex h-11 w-full min-w-0 rounded-md border-[1.5px] border-input bg-card has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2 has-[input:focus-visible]:ring-offset-background has-[input:focus-visible]:outline-hidden has-[[aria-invalid=true]]:border-destructive">
           <input
             ref={ref}
             {...input}
@@ -58,7 +58,7 @@ export function PasswordField({ id, label, hint, error, invalid, describedBy, cl
             aria-controls={id}
             aria-label={m.forms.showPassword}
             onClick={() => setShown((x) => !x)}
-            className="flex shrink-0 items-center gap-1.5 rounded-r-md border-l border-input px-3 text-sm font-semibold text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="flex shrink-0 items-center gap-1.5 rounded-r-md border-l-[1.5px] border-input px-3 font-heading text-sm font-bold text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-hidden focus-visible:-outline-offset-4"
           >
             <Icon aria-hidden="true" className="size-4" />
             {m.forms.show}

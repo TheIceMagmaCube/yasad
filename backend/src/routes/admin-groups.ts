@@ -1,27 +1,26 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
+import { auditStatements, readSnapshot, retrying, snapshot, unchangedSince } from "../audit";
 import { bumpRevision } from "../catalog/sync";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { apiError } from "../errors";
 import { categoryGroup, group, linkGroup, user, userGroup } from "../schema";
-import { requireAdmin } from "./require-admin";
+import { readJson } from "./body";
+import { auditorOf, requireAdmin } from "./require-admin";
 
 export type AdminGroup = {
   id: string;
   name: string;
   source: "oidc" | "local" | "system";
   memberIds: string[];
+  /** Last sign-in whose token named this OIDC group, or null when the provider never sent it. */
+  seenAt: string | null;
   /** How many catalog categories and links the group opens, shown before deleting it. */
   categories: number;
   links: number;
 };
-
-async function readJson(c: Context): Promise<Record<string, unknown>> {
-  const body: unknown = await c.req.json().catch(() => null);
-  return body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-}
 
 /** Return every group with its members and catalog use, system groups first, then by name. */
 async function listGroups(db: DB): Promise<AdminGroup[]> {
@@ -39,6 +38,7 @@ async function listGroups(db: DB): Promise<AdminGroup[]> {
       name: g.name,
       source: g.source,
       memberIds: members.filter((m) => m.groupId === g.id).map((m) => m.userId),
+      seenAt: g.seenAt?.toISOString() ?? null,
       categories: countOf(categories, g.id),
       links: countOf(links, g.id),
     }))
@@ -100,7 +100,10 @@ adminGroups.post("/", async (c) => {
   if (await nameTaken(db, name)) return taken();
   const id = crypto.randomUUID();
   try {
-    await db.insert(group).values({ id, name, source: "local" });
+    await db.batch([
+      db.insert(group).values({ id, name, source: "local" }),
+      ...auditStatements(await auditorOf(c), { action: "create", type: "group", id, before: null, after: snapshot.group(id) }),
+    ]);
   } catch (err) {
     if (await nameTaken(db, name)) return taken();
     throw err;
@@ -111,34 +114,79 @@ adminGroups.post("/", async (c) => {
 /** Rename a local group; the catalog keeps pointing at it, under its new name. */
 adminGroups.patch("/:id", async (c) => {
   const { db } = c.var;
-  const target = await localGroup(c);
-  if (target instanceof Response) return target;
-  const refused = await usedByCatalogFile(c, target.id);
-  if (refused) return refused;
-  const name = parseName((await readJson(c)).name);
-  if (name === null) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "invalid_name" } });
-  if (name === target.name) return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });
-  const taken = () => apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "name_taken" } });
-  if (await nameTaken(db, name, target.id)) return taken();
-  try {
-    await db.batch([db.update(group).set({ name }).where(eq(group.id, target.id)), bumpRevision(db)]);
-  } catch (err) {
+  const auditor = await auditorOf(c);
+  const body = await readJson(c);
+  return retrying(async (last) => {
+    const target = await localGroup(c);
+    if (target instanceof Response) return target;
+    const refused = await usedByCatalogFile(c, target.id);
+    if (refused) return refused;
+    const name = parseName(body.name);
+    if (name === null) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "invalid_name" } });
+    if (name === target.name) return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });
+    const taken = () => apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { name: "name_taken" } });
     if (await nameTaken(db, name, target.id)) return taken();
-    throw err;
-  }
-  return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });
+    const current = snapshot.group(target.id);
+    const before = await readSnapshot(db, current);
+    try {
+      await db.batch([
+        unchangedSince(db, current, before),
+        db.update(group).set({ name }).where(eq(group.id, target.id)),
+        bumpRevision(db),
+        ...auditStatements(auditor, { action: "update", type: "group", id: target.id, before, after: current }),
+      ]);
+    } catch (err) {
+      if (await nameTaken(db, name, target.id)) return taken();
+      if (!last && (await readSnapshot(db, current)) !== before) return "retry";
+      throw err;
+    }
+    return c.json({ group: (await listGroups(db)).find((g) => g.id === target.id) });
+  });
 });
 
 /** Delete a local group; its memberships and its place in the catalog cascade. */
 adminGroups.delete("/:id", async (c) => {
   const { db } = c.var;
-  const target = await localGroup(c);
-  if (target instanceof Response) return target;
-  const refused = await usedByCatalogFile(c, target.id);
-  if (refused) return refused;
-  await db.batch([db.delete(group).where(eq(group.id, target.id)), bumpRevision(db)]);
-  return c.body(null, 204);
+  const auditor = await auditorOf(c);
+  return retrying(async (last) => {
+    const target = await localGroup(c);
+    if (target instanceof Response) return target;
+    const refused = await usedByCatalogFile(c, target.id);
+    if (refused) return refused;
+    const current = snapshot.deletedGroup(target.id);
+    const before = await readSnapshot(db, current);
+    try {
+      await db.batch([
+        unchangedSince(db, current, before),
+        db.delete(group).where(eq(group.id, target.id)),
+        bumpRevision(db),
+        ...auditStatements(auditor, { action: "delete", type: "group", id: target.id, before, after: null }),
+      ]);
+    } catch (err) {
+      if (!last && (await readSnapshot(db, current)) !== before) return "retry";
+      throw err;
+    }
+    return c.body(null, 204);
+  });
 });
+
+/**
+ * Return the audit entry of a membership change, written only when the membership changes: the entry
+ * goes before the write in the batch, with the same condition.
+ */
+function memberEntry(groupId: string, userId: string, adds: boolean) {
+  const member = sql`exists (select 1 from user_group where user_id = ${userId} and group_id = ${groupId})`;
+  return {
+    action: adds ? "member_add" : "member_remove",
+    type: "group",
+    id: groupId,
+    label: sql`(select name from "group" where id = ${groupId})`,
+    related: { type: "user", id: userId, label: sql`(select name from "user" where id = ${userId})` },
+    before: null,
+    after: null,
+    when: adds ? sql`not ${member}` : member,
+  } as const;
+}
 
 adminGroups.put("/:id/members/:userId", async (c) => {
   const { db } = c.var;
@@ -146,13 +194,21 @@ adminGroups.put("/:id/members/:userId", async (c) => {
   if (target instanceof Response) return target;
   const userId = c.req.param("userId");
   if (!(await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).get())) return apiError(c, 404, "not_found", "No such user.");
-  await db.insert(userGroup).values({ userId, groupId: target.id }).onConflictDoNothing();
+  await db.batch([
+    ...auditStatements(await auditorOf(c), memberEntry(target.id, userId, true)),
+    db.insert(userGroup).values({ userId, groupId: target.id }).onConflictDoNothing(),
+  ]);
   return c.body(null, 204);
 });
 
 adminGroups.delete("/:id/members/:userId", async (c) => {
+  const { db } = c.var;
   const target = await localGroup(c);
   if (target instanceof Response) return target;
-  await c.var.db.delete(userGroup).where(and(eq(userGroup.groupId, target.id), eq(userGroup.userId, c.req.param("userId"))));
+  const userId = c.req.param("userId");
+  await db.batch([
+    ...auditStatements(await auditorOf(c), memberEntry(target.id, userId, false)),
+    db.delete(userGroup).where(and(eq(userGroup.groupId, target.id), eq(userGroup.userId, userId))),
+  ]);
   return c.body(null, 204);
 });

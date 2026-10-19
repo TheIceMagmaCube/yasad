@@ -16,7 +16,7 @@ describe("NativeSelect", () => {
     );
     const select = screen.getByRole("combobox", { name: "Role" });
     expect(select.tagName).toBe("SELECT");
-    expect(select).toHaveClass("appearance-none", "forced-colors:appearance-auto", "border-input", "custom", "h-10");
+    expect(select).toHaveClass("appearance-none", "forced-colors:appearance-auto", "border-input", "custom", "h-11");
     expect(select.parentElement!.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     await userEvent.setup().selectOptions(select, "admin");
     expect(select).toHaveValue("admin");

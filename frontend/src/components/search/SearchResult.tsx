@@ -19,7 +19,8 @@ export function resultLabel(result: Result, m: Messages["search"]): string {
 
 /**
  * Content of one search option: icon, highlighted title, category, and the keyword or description extract that
- * matched. Nothing in it is interactive.
+ * matched. Nothing in it is interactive. A space separates the parts in the text itself, not only in the layout, so
+ * their text reads as the option's name word for word (WCAG 2.5.3).
  */
 export function SearchResult({ result }: { result: Result }) {
   const m = useStrings().search;
@@ -29,8 +30,8 @@ export function SearchResult({ result }: { result: Result }) {
       <span className="min-w-0 flex-1">
         <span className="block font-medium wrap-anywhere">
           <Highlight {...result.title} />
-        </span>
-        <span className="block text-xs text-muted-foreground group-aria-selected:text-accent-foreground">{result.category.title}</span>
+        </span>{" "}
+        <span className="block text-xs text-muted-foreground group-aria-selected:text-accent-foreground">{result.category.title}</span>{" "}
         {result.keyword && (
           <Badge variant="outline" className="mt-1 max-w-full whitespace-normal text-inherit">
             <span className="wrap-anywhere">
@@ -38,6 +39,7 @@ export function SearchResult({ result }: { result: Result }) {
             </span>
           </Badge>
         )}
+        {result.keyword && result.excerpt && " "}
         {result.excerpt && (
           <span className="mt-1 block text-xs wrap-anywhere text-muted-foreground group-aria-selected:text-accent-foreground">
             <Highlight {...result.excerpt} />

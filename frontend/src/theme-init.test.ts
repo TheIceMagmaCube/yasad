@@ -11,20 +11,17 @@ beforeAll(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  document.documentElement.removeAttribute("data-dev");
 });
 
 /** Run public/theme-init.js and return the attributes it sets on <html>. */
-function run({ storage = {}, languages = ["en-US"], systemDark = false, dev = false }: {
+function run({ storage = {}, languages = ["en-US"], systemDark = false }: {
   storage?: Record<string, string>;
   languages?: string[];
   systemDark?: boolean;
-  dev?: boolean;
 }) {
   for (const [key, value] of Object.entries(storage)) localStorage.setItem(`yasad.${key}`, value);
   vi.stubGlobal("navigator", { languages, language: languages[0] });
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: systemDark })));
-  if (dev) document.documentElement.setAttribute("data-dev", "");
   new Function(script)();
   const root = document.documentElement;
   return { theme: root.dataset.theme, mode: root.dataset.mode, lang: root.lang };
@@ -49,9 +46,13 @@ describe("public/theme-init.js", () => {
     expect(run({ languages: ["de-DE"], storage: { instanceLanguage: "fr" } }).lang).toBe("fr");
   });
 
-  it("honours the dev theme override only on the dev server", () => {
+  it("ignores a theme left by the removed dev override", () => {
     expect(run({ storage: { devTheme: "dusk" } }).theme).toBe("default");
-    expect(run({ storage: { devTheme: "dusk" }, dev: true }).theme).toBe("dusk");
+    expect(run({ storage: { devTheme: "dusk", instanceTheme: "default" } }).theme).toBe("default");
+  });
+
+  it("falls back to the default theme for a removed theme id", () => {
+    expect(run({ storage: { instanceTheme: "night" } }).theme).toBe("default");
   });
 
   it("ignores unknown stored values", () => {

@@ -26,6 +26,8 @@ const MARGARET = { id: "adm-margaret", name: "Margaret Hamilton", email: "margar
 // Sorts before the administrator, Ada Lovelace, so the row after it is known whatever other specs added.
 const TEMP = { id: "adm-temp", name: "Abel Temp", email: "temp@example.invalid", password: "a temporary account" };
 const KEN = { id: "adm-ken", name: "Ken Thompson", email: "ken@example.invalid" };
+// Holds a temporary password, so the dashboard has something to do and the people table a state to filter on.
+const BARBARA = { id: "adm-barbara", name: "Barbara Liskov", email: "barbara@example.invalid", password: "barbara's temporary one", mustChangePassword: true };
 
 const CATALOG = readFileSync("../docs/catalog.example.yaml", "utf8");
 
@@ -49,35 +51,71 @@ test.beforeAll(async () => {
   await addLocalUser(LINUS);
   await addLocalUser(MARGARET);
   await addLocalUser(TEMP);
+  await addLocalUser(BARBARA);
   addOidcUser(KEN);
   addGroup({ id: "adm-staff", name: "Staff", memberIds: [GRACE.id, KEN.id, LINUS.id] });
   addGroup({ id: "adm-reviewers", name: "Reviewers" });
   addGroup({ id: "adm-engineering", name: "Engineering", source: "oidc", memberIds: [KEN.id] });
 });
 
-test("the users page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
+test("the dashboard is accessible, and its items open the list filtered on them, in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInAsAdmin(page);
+  await importCatalog(page.request, CATALOG);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `dashboard (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/admin", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+        const temporary = page.getByRole("link", { name: /temporary passwords? not used yet/ });
+        await expect(temporary).toBeVisible();
+        await expectClean(page, label);
+
+        await temporary.click();
+        await expect(page).toHaveURL(/\/admin\/users\?state=temporary$/);
+        await expect(page.getByText("Filter: Temporary password")).toBeVisible();
+        await expect(page.getByRole("link", { name: BARBARA.name, exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: GRACE.name, exact: true })).toBeHidden();
+        await expectClean(page, `${label}, people narrowed to a state`);
+        await page.getByRole("button", { name: "Show all" }).click();
+        await expect(page.getByLabel("Filter by name or e-mail")).toBeFocused();
+        await expect(page).toHaveURL(/\/admin\/users$/);
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+});
+
+test("the people pages are accessible in each of their states, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
   for (const theme of THEMES) {
     for (const mode of MODES) {
       for (const width of WIDTHS) {
-        const label = `users (${theme}, ${mode}, ${width}px)`;
+        const label = `people (${theme}, ${mode}, ${width}px)`;
         const csp = watchCsp(page);
         await open(page, "/admin/users", theme, mode, width);
-        await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
-        await expect(page.getByText(GRACE.name, { exact: true })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "People" })).toBeVisible();
+        await expect(page.getByRole("link", { name: GRACE.name, exact: true })).toBeVisible();
         await expectClean(page, label);
+        await page.getByLabel("Group", { exact: true }).selectOption({ label: "Staff (3)" });
+        await expect(page.getByRole("link", { name: "Manage the group" })).toBeVisible();
+        await expectClean(page, `${label}, narrowed to a group`);
 
-        await page.getByRole("button", { name: "New user" }).click();
-        await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
-        await expectClean(page, `${label}, new user form`);
-        await page.getByRole("button", { name: "Create the account" }).click();
+        await open(page, "/admin/users/new", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 2, name: "What do you want to add?" })).toBeVisible();
+        await expectClean(page, `${label}, add wizard`);
+        await page.getByRole("button", { name: "Next" }).click();
+        await page.getByRole("button", { name: "Next" }).click();
         await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
-        await expectClean(page, `${label}, new user form with errors`);
-        await page.keyboard.press("Escape");
-        await expect(page.getByRole("button", { name: "New user" })).toBeFocused();
+        await expectClean(page, `${label}, add wizard with errors`);
 
-        await page.getByRole("button", { name: `Reset password for ${LINUS.name}` }).click();
+        await open(page, `/admin/users/${LINUS.id}`, theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: LINUS.name })).toBeVisible();
+        await expectClean(page, `${label}, person page`);
+        await page.getByRole("button", { name: "Reset password" }).click();
         await expect(page.getByRole("group", { name: `Reset the password of ${LINUS.name}?` })).toBeFocused();
         await expectClean(page, `${label}, reset confirmation`);
         await page.getByRole("button", { name: "Reset", exact: true }).click();
@@ -85,56 +123,141 @@ test("the users page is accessible in each of its states, in every theme, mode a
         await expect(secret).toBeFocused();
         await expectClean(page, `${label}, temporary password`);
         await secret.getByRole("button", { name: "I have noted it" }).click();
-        await expect(page.getByRole("button", { name: `Reset password for ${LINUS.name}` })).toBeFocused();
-
-        await page.getByRole("button", { name: `Delete ${GRACE.name}` }).click();
-        await expect(page.getByRole("group", { name: `Delete ${GRACE.name}?` })).toBeFocused();
+        await expect(page.getByRole("button", { name: "Reset password" })).toBeFocused();
+        await page.getByRole("button", { name: `Delete ${LINUS.name}` }).click();
+        await expect(page.getByRole("group", { name: `Delete ${LINUS.name}?` })).toBeFocused();
         await expectClean(page, `${label}, delete confirmation`);
         await page.keyboard.press("Escape");
-        await expect(page.getByRole("button", { name: `Delete ${GRACE.name}` })).toBeFocused();
+        await expect(page.getByRole("button", { name: `Delete ${LINUS.name}` })).toBeFocused();
+
+        await open(page, `/admin/users/${KEN.id}`, theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: KEN.name })).toBeVisible();
+        await expectClean(page, `${label}, provider person page`);
+
+        await open(page, "/admin/groups/adm-staff", theme, mode, width);
+        await expect(page.getByRole("checkbox", { name: GRACE.name })).toBeChecked();
+        await expectClean(page, `${label}, group page`);
+        await page.getByRole("button", { name: "Rename" }).click();
+        await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
+        await page.getByLabel("Name", { exact: true }).fill("Reviewers");
+        await page.keyboard.press("Enter");
+        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+        await expectClean(page, `${label}, rename with errors`);
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("button", { name: "Rename" })).toBeFocused();
+
+        await open(page, "/admin/groups/adm-engineering", theme, mode, width);
+        await expect(page.getByRole("link", { name: KEN.name })).toBeVisible();
+        await expectClean(page, `${label}, provider group page`);
         expect(csp).toEqual([]);
       }
     }
   }
 });
 
-test("the groups page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
+test("the links pages are accessible in each of their states, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
   for (const theme of THEMES) {
     for (const mode of MODES) {
       for (const width of WIDTHS) {
-        const label = `groups (${theme}, ${mode}, ${width}px)`;
+        const label = `links (${theme}, ${mode}, ${width}px)`;
         const csp = watchCsp(page);
-        await open(page, "/admin/groups", theme, mode, width);
-        await expect(page.getByRole("heading", { level: 2, name: "Built-in" })).toBeVisible();
-        await expect(page.getByRole("heading", { level: 2, name: "Local" })).toBeVisible();
-        await expect(page.getByRole("heading", { level: 2, name: "Identity provider" })).toBeVisible();
+        await importCatalog(page.request, CATALOG);
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByRole("table", { name: "Links of Everyday" })).toBeVisible();
         await expectClean(page, label);
+        await open(page, "/admin/links?state=inactive", theme, mode, width);
+        await expect(page.getByText("Filter: Inactive")).toBeVisible();
+        await expectClean(page, `${label}, narrowed to a state`);
 
-        await page.getByRole("button", { name: "Members (3) of Staff" }).click();
-        await expect(page.getByLabel("Add people")).toBeFocused();
-        await expect(page.getByRole("list", { name: "Members of Staff" }).getByRole("listitem")).toHaveCount(3);
-        await expect(page.getByRole("button", { name: /^Add .* to Staff$/ }).first()).toBeVisible();
-        await expectClean(page, `${label}, members`);
-        await page.keyboard.press("Escape");
-        await expect(page.getByRole("button", { name: "Members (3) of Staff" })).toBeFocused();
+        await open(page, "/admin/links", theme, mode, width);
+        await page.getByRole("button", { name: "Reorder" }).click();
+        await expect(page.getByRole("button", { name: "Move up the category Everyday" })).toHaveAttribute("aria-disabled", "true");
+        await expectClean(page, `${label}, reorder categories`);
+        await page.getByRole("button", { name: "Links", exact: true }).click();
+        await expect(page.getByRole("button", { name: "Move down the link Jira" })).toBeVisible();
+        await expectClean(page, `${label}, reorder links`);
 
-        await page.getByRole("button", { name: "Rename Staff" }).click();
-        await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
-        await page.keyboard.type("reviewers");
-        await page.keyboard.press("Enter");
+        await open(page, "/admin/links/new", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 2, name: "What do you want to add?" })).toBeVisible();
+        await expectClean(page, `${label}, add wizard`);
+        await page.getByRole("button", { name: "Next" }).click();
+        await page.getByRole("button", { name: "Next" }).click();
         await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
-        await expectClean(page, `${label}, rename with errors`);
-        await page.keyboard.press("Escape");
-        await expect(page.getByRole("button", { name: "Rename Staff" })).toBeFocused();
+        await expectClean(page, `${label}, add wizard with errors`);
+        await open(page, "/admin/links/categories/new", theme, mode, width);
+        await page.getByRole("button", { name: "Next" }).click();
+        await page.getByRole("textbox", { name: "Title" }).fill("Shelf");
+        await page.getByRole("button", { name: "Next" }).click();
+        await expect(page.getByRole("checkbox", { name: "@everyone" })).toBeVisible();
+        await expectClean(page, `${label}, add wizard, groups`);
+
+        await open(page, "/admin/links/grafana", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "Grafana" })).toBeVisible();
+        await expectClean(page, `${label}, link page`);
+        await page.getByLabel("Title", { exact: true }).fill("");
+        await page.getByRole("button", { name: "Save" }).click();
+        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+        await expectClean(page, `${label}, link page with errors`);
+        await page.getByRole("button", { name: "Delete Grafana" }).click();
+        await expect(page.getByRole("group", { name: "Delete the link Grafana?" })).toBeFocused();
+        await expectClean(page, `${label}, delete confirmation`);
+
+        await open(page, "/admin/links/categories/dev-tools", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "Developer tools" })).toBeVisible();
+        await expect(page.getByRole("checkbox", { name: "Developers typed, never received" })).toBeChecked();
+        await expectClean(page, `${label}, category page`);
+
+        await page.route("**/api/admin/catalog/state", (route) =>
+          route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3 }, headers: { "cache-control": "no-store" } }),
+        );
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByText("Managed by CATALOG_FILE: read only.")).toBeVisible();
+        await expectClean(page, `${label}, read-only`);
+        await open(page, "/admin/links/mail", theme, mode, width);
+        await expect(page.getByLabel("Title", { exact: true })).toBeDisabled();
+        await expectClean(page, `${label}, read-only link page`);
+        await page.unroute("**/api/admin/catalog/state");
         expect(csp).toEqual([]);
       }
     }
   }
 });
 
-test("the catalog page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
+test("the history page is accessible, an entry open, in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInAsAdmin(page);
+  await importCatalog(page.request, CATALOG);
+  const joined = await page.request.put(`/api/admin/groups/adm-reviewers/members/${MARGARET.id}`, { data: {} });
+  expect(joined.ok(), await joined.text()).toBe(true);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `history (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/admin/history", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+        const member = page.getByRole("button", { name: "Details: Member added, Reviewers" }).first();
+        await expect(member).toBeVisible();
+        await expectClean(page, label);
+        await member.click();
+        await expect(member).toHaveAttribute("aria-expanded", "true");
+        const imported = page.getByRole("button", { name: "Details: Import, Catalog" }).first();
+        await imported.click();
+        await expect(imported).toHaveAttribute("aria-expanded", "true");
+        await expectClean(page, `${label}, entries open`);
+
+        await open(page, "/admin/groups/adm-reviewers", theme, mode, width);
+        await expect(page.getByRole("region", { name: "Latest changes" })).toBeVisible();
+        await expectClean(page, `${label}, latest changes of a group`);
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+});
+
+test("the YAML file page is accessible in each of its states, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
   for (const theme of THEMES) {
@@ -143,7 +266,7 @@ test("the catalog page is accessible in each of its states, in every theme, mode
         const label = `catalog (${theme}, ${mode}, ${width}px)`;
         const csp = watchCsp(page);
         await importCatalog(page.request, CATALOG);
-        await open(page, "/admin/catalog", theme, mode, width);
+        await open(page, "/admin/links/file", theme, mode, width);
         await expect(page.getByText("2 categories, 3 links, 3 groups in use.")).toBeVisible();
         await expectClean(page, label);
 
@@ -189,23 +312,26 @@ test("the administration pages fit a 320 px screen in French", async ({ page }) 
   await open(page, "/admin/users", "default", "light", 320);
   await page.evaluate(() => localStorage.setItem("yasad.language", "fr"));
   for (const [path, title] of [
-    ["/admin/users", "Utilisateurs"],
-    ["/admin/groups", "Groupes"],
-    ["/admin/catalog", "Catalogue"],
+    ["/admin", "Tableau de bord"],
+    ["/admin/users", "Personnes"],
+    ["/admin/users/new", "Ajouter"],
+    [`/admin/users/${GRACE.id}`, GRACE.name],
+    ["/admin/groups/adm-staff", "Staff"],
+    ["/admin/links", "Liens"],
+    ["/admin/links/new", "Ajouter"],
+    ["/admin/links/mail", "Mail"],
+    ["/admin/links/file", "Fichier YAML"],
+    ["/admin/history", "Historique"],
   ] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     await expectNoHorizontalScroll(page, `${path} in French`);
   }
-  await page.goto("/admin/users");
-  await page.getByRole("button", { name: "Nouvel utilisateur" }).click();
-  await page.getByRole("button", { name: "Créer le compte" }).click();
+  await page.goto("/admin/users/new");
+  await page.getByRole("button", { name: "Suivant" }).click();
+  await page.getByRole("button", { name: "Suivant" }).click();
   await expect(page.getByRole("group", { name: "Vérifiez les champs signalés." })).toBeFocused();
-  await expectNoHorizontalScroll(page, "new user form with errors in French");
-  await page.goto("/admin/groups");
-  await page.getByRole("button", { name: "Membres (3) de Staff" }).click();
-  await expect(page.getByLabel("Ajouter des personnes")).toBeFocused();
-  await expectNoHorizontalScroll(page, "members of Staff in French");
+  await expectNoHorizontalScroll(page, "add wizard with errors in French");
 });
 
 test.describe("keyboard and focus", () => {
@@ -214,25 +340,28 @@ test.describe("keyboard and focus", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
   });
 
-  test("edits a user in the row and comes back to Edit, with the status line and an announcement", async ({ page }) => {
+  test("opens a person from the table and comes back to the same row, the filter kept", async ({ page }) => {
     await page.goto("/admin/users");
-    const edit = page.getByRole("button", { name: `Edit ${MARGARET.name}` });
-    await edit.click();
-    await expect(edit).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(edit).toBeFocused();
+    await page.getByLabel("Filter by name or e-mail").fill("marg");
+    await page.getByRole("link", { name: MARGARET.name }).click();
+    await expect(page.getByRole("heading", { level: 1, name: MARGARET.name })).toBeFocused();
+    await page.getByRole("link", { name: "Back to People" }).click();
+    await expect(page).toHaveURL(/\/admin\/users\?q=marg$/);
+    await expect(page.getByRole("link", { name: MARGARET.name })).toBeFocused();
+  });
 
-    await edit.click();
+  test("edits a person on their page and announces it, the focus staying on Save", async ({ page }) => {
+    await page.goto(`/admin/users/${MARGARET.id}`);
     await page.getByLabel("Name", { exact: true }).fill("Margaret H. Hamilton");
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: "Edit Margaret H. Hamilton" })).toBeFocused();
-    await expect(page.locator('[data-slot="toolbar-status"]')).toHaveText("Margaret H. Hamilton updated.");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Margaret H. Hamilton" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeFocused();
     await expect(announcer(page)).toHaveText("Margaret H. Hamilton updated.");
   });
 
-  test("deletes a user, leaving a focused message from which Tab goes on to the next row", async ({ page }) => {
+  test("deletes a person, back on the table with a focused message from which Tab goes on to the next row", async ({ page }) => {
     await page.goto("/admin/users");
+    await page.getByRole("link", { name: TEMP.name }).click();
     const remove = page.getByRole("button", { name: `Delete ${TEMP.name}` });
     await remove.click();
     await page.keyboard.press("Escape");
@@ -241,30 +370,46 @@ test.describe("keyboard and focus", () => {
     await page.getByRole("button", { name: "Delete for good" }).click();
     const tombstone = page.getByRole("group", { name: `${TEMP.name} deleted.` });
     await expect(tombstone).toBeFocused();
+    await expect(page).toHaveURL(/\/admin\/users$/);
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Edit Ada Lovelace" })).toBeFocused();
+    await expect(page.getByRole("link", { name: "Ada Lovelace" })).toBeFocused();
   });
 
-  test("removes a member in one click and adds one back, the focus staying in the members panel", async ({ page }) => {
-    await page.goto("/admin/groups");
-    await page.getByRole("button", { name: "Members (3) of Staff" }).click();
-    const picker = page.getByLabel("Add people");
-    await expect(picker).toBeFocused();
-    await page.getByRole("button", { name: `Remove ${KEN.name} from Staff` }).click();
-    await expect(page.getByRole("button", { name: `Remove ${LINUS.name} from Staff` })).toBeFocused();
+  test("removes and adds a member with the check boxes of the group page, each change announced", async ({ page }) => {
+    await page.goto("/admin/groups/adm-staff");
+    const ken = page.getByRole("checkbox", { name: KEN.name });
+    await expect(ken).toBeChecked();
+    await ken.uncheck();
     await expect(announcer(page)).toHaveText(`${KEN.name} removed from Staff.`);
-
-    await picker.fill("ken");
-    await page.getByRole("button", { name: `Add ${KEN.name} to Staff` }).click();
-    await expect(picker).toBeFocused();
-    await expect(picker).toHaveValue("ken");
-    await expect(page.getByRole("list", { name: "Members of Staff" })).toContainText(KEN.name);
+    await expect(ken).toBeFocused();
+    await ken.check();
     await expect(announcer(page)).toHaveText(`${KEN.name} added to Staff.`);
+    await expect(ken).toBeChecked();
+  });
+
+  test("adds a person with the wizard and shows the temporary password once", async ({ page }) => {
+    await page.goto("/admin/users");
+    await page.getByRole("link", { name: "Add", exact: true }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "Identity" })).toBeFocused();
+    await page.getByLabel("Name", { exact: true }).fill("Radia Perlman");
+    await page.getByLabel("E-mail", { exact: true }).fill("radia@example.invalid");
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("checkbox", { name: "Reviewers" }).check();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "Summary" })).toBeFocused();
+    await page.getByRole("button", { name: "Create the account" }).click();
+    const secret = page.getByRole("region", { name: "Temporary password for Radia Perlman" });
+    await expect(secret).toBeFocused();
+    await secret.getByRole("button", { name: "I have noted it" }).click();
+    await expect(page.getByRole("link", { name: "Radia Perlman" })).toBeFocused();
+    await expect(page.getByRole("link", { name: "Radia Perlman" }).locator("xpath=ancestor::tr")).toContainText("Reviewers");
   });
 
   test("exports the catalog as a YAML file", async ({ page }) => {
     await importCatalog(page.request, CATALOG);
-    await page.goto("/admin/catalog");
+    await page.goto("/admin/links/file");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export the catalog (YAML)" }).click();
     const file = await download;
@@ -276,7 +421,7 @@ test.describe("keyboard and focus", () => {
 
   test("previews again when the catalog changes between the preview and the import", async ({ page }) => {
     await importCatalog(page.request, CATALOG);
-    await page.goto("/admin/catalog");
+    await page.goto("/admin/links/file");
     await page.getByLabel("Choose a file").setInputFiles("e2e/fixtures/catalog-next.yaml");
     await expect(page.getByRole("heading", { level: 2, name: "Import preview" })).toBeFocused();
     await importCatalog(page.request, CATALOG.replace("title: Mail", "title: Webmail"));
@@ -287,17 +432,85 @@ test.describe("keyboard and focus", () => {
     await expect(page.getByRole("region", { name: "Import preview" })).toContainText("Mail mail");
   });
 
-  test("lists eight people at most in the member picker, with 300 accounts", async ({ page }) => {
+  test("the former catalog address opens the YAML file page", async ({ page }) => {
+    await page.goto("/admin/catalog");
+    await expect(page.getByRole("heading", { level: 1, name: "YAML file" })).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/links\/file$/);
+  });
+
+  test("creates a category and a link, moves and deactivates the link with the keyboard, and the home page follows", async ({ page }) => {
+    await importCatalog(page.request, CATALOG);
+    await page.goto("/admin/links/categories/new");
+    await expect(page.getByRole("heading", { level: 1, name: "Add" })).toBeVisible();
+    const next = page.getByRole("button", { name: "Next" });
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("textbox", { name: "Title" }).fill("Keyboard shelf");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("checkbox", { name: "@authenticated" }).focus();
+    await page.keyboard.press("Space");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Create" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("link", { name: "Keyboard shelf" })).toBeFocused();
+
+    for (const [title, url] of [["First door", "https://first.example.org"], ["Second door", "https://second.example.org"]] as const) {
+      await page.goto("/admin/links/new");
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("textbox", { name: "Address" }).fill(url);
+      await page.getByRole("textbox", { name: "Title" }).fill(title);
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("combobox", { name: "Category" }).selectOption({ label: "Keyboard shelf" });
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("checkbox", { name: "@authenticated" }).focus();
+      await page.keyboard.press("Space");
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("button", { name: "Skip" }).focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("button", { name: "Create" }).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("link", { name: title })).toBeFocused();
+    }
+
+    await page.getByRole("button", { name: "Reorder" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Links", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    const up = page.getByRole("button", { name: "Move up the link Second door" });
+    await up.focus();
+    await page.keyboard.press("Enter");
+    await expect(announcer(page)).toHaveText("Second door: position 1 of 2 in Keyboard shelf");
+    await expect(up).toBeFocused();
+    await expect(up).toHaveAttribute("aria-disabled", "true");
+    await page.getByRole("button", { name: "Done" }).focus();
+    await page.keyboard.press("Enter");
+
+    await page.goto("/");
+    const shelf = page.getByRole("region", { name: "Keyboard shelf" });
+    await expect(shelf.getByRole("link")).toHaveText([/Second door/, /First door/]);
+
+    await page.goto("/admin/links/first-door");
+    await page.getByRole("checkbox", { name: "Active" }).focus();
+    await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Save" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(announcer(page)).toHaveText("Saved: First door.");
+    await page.goto("/");
+    await expect(shelf.getByRole("link")).toHaveText([/Second door/]);
+  });
+
+  test("lists every account as a check box on a group page, narrowed by its filter, with 300 accounts", async ({ page }) => {
     addUsers(300, "Person");
-    await page.goto("/admin/groups");
-    await page.getByRole("button", { name: "Members (0) of Reviewers" }).click();
-    // Every account but its members is offered, the 300 and the others: eight are listed.
-    await expect(page.getByRole("button", { name: /^Add .+ to Reviewers$/ })).toHaveCount(8);
-    await expect(page.getByText(/^\d+ people match, 8 shown\. Narrow the search\.$/)).toBeVisible();
-    await page.getByLabel("Add people").fill("person 29");
-    await expect(page.getByText("13 people match, 8 shown. Narrow the search.")).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Add Person \d+ to Reviewers$/ })).toHaveCount(8);
-    await page.getByLabel("Add people").fill("person 299");
-    await expect(page.getByRole("button", { name: /^Add .+ to Reviewers$/ })).toHaveCount(1);
+    await page.goto("/admin/groups/adm-reviewers");
+    await expect(page.getByRole("checkbox", { name: /^Person \d+$/ })).toHaveCount(300);
+    await page.getByLabel("Filter", { exact: true }).fill("person 299");
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.getByRole("checkbox", { name: "Person 299" })).not.toBeChecked();
   });
 });

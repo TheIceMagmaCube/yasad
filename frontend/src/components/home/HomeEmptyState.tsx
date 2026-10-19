@@ -7,7 +7,9 @@ import { EmptyState } from "../EmptyState";
 import { Link } from "../Link";
 import { buttonVariants } from "../ui/button";
 
-const stepLink = "font-semibold text-foreground underline underline-offset-4 hover:no-underline";
+// The underline of the link button, so inline links read the same everywhere.
+const stepLink =
+  "rounded-sm font-semibold text-foreground underline decoration-link-decoration decoration-2 underline-offset-4 hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 /**
  * Explain why the home page shows no link, from the code the API sends. An admin with an empty catalog gets the
@@ -23,7 +25,7 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
           <p>{m.catalog.body}</p>
           <ol className="mt-4 list-inside list-decimal space-y-2 text-left text-foreground sm:text-center">
             <li>
-              <Link href="/admin/catalog" className={stepLink}>
+              <Link href="/admin/links/file" className={stepLink}>
                 {m.catalog.import}
               </Link>
             </li>
@@ -58,7 +60,7 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
               <Link href="/admin/groups" className={buttonVariants()}>
                 {m.adminNoAccess.manageGroups}
               </Link>
-              <Link href="/admin/catalog" className={buttonVariants({ variant: "outline" })}>
+              <Link href="/admin/links" className={buttonVariants({ variant: "outline" })}>
                 {m.adminNoAccess.manageCatalog}
               </Link>
             </>

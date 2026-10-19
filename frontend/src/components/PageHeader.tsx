@@ -23,8 +23,13 @@ export function PageHeader({ title, description, eyebrow, actions, className }: 
     <>
       <header className={cn("mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", className)}>
       <div className="min-w-0">
-        {eyebrow && <p className="text-caption mb-1 text-muted-foreground">{eyebrow}</p>}
-        <h1 tabIndex={-1} className="text-title outline-none">
+        {eyebrow && (
+          <p className="text-pixel mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <span aria-hidden="true" className="size-2 shrink-0 bg-primary shadow-[0_2px_0_var(--primary-shade)]" />
+            {eyebrow}
+          </p>
+        )}
+        <h1 tabIndex={-1} className="text-display wrap-anywhere outline-none">
           {title}
         </h1>
         {description && <p className="mt-2 max-w-prose text-muted-foreground">{description}</p>}

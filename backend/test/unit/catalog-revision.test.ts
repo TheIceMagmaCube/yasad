@@ -7,6 +7,9 @@ import { importCatalog } from "../../src/catalog/sync";
 import type { DB } from "../../src/db";
 import * as schema from "../../src/schema";
 
+/** Import options as an admin applying the file. */
+const as = (db: DB, options: { dryRun: boolean; baseVersion?: string }) => ({ ...options, auditor: { db, actorId: "ada", retentionDays: 365 } });
+
 async function database(): Promise<DB> {
   const db = drizzle(createClient({ url: ":memory:" }), { schema });
   await migrate(db, { migrationsFolder: "drizzle" });
@@ -28,7 +31,7 @@ function racedBy(db: DB, file: string): DB {
       if (key === "batch" && !raced) {
         return async (queries: readonly [unknown, ...unknown[]]) => {
           raced = true;
-          await importCatalog(target, file, { dryRun: false });
+          await importCatalog(target, file, as(target, { dryRun: false }));
           return target.batch(queries);
         };
       }
@@ -41,17 +44,19 @@ function racedBy(db: DB, file: string): DB {
 describe("catalog revision", () => {
   it("increases with each write, and not for an import that changes nothing", async () => {
     const db = await database();
-    expect(await importCatalog(db, fileTitled("Dev"), { dryRun: true })).toMatchObject({ baseVersion: "0" });
-    await importCatalog(db, fileTitled("Dev"), { dryRun: false });
-    await importCatalog(db, fileTitled("Dev"), { dryRun: false });
-    expect(await importCatalog(db, fileTitled("Dev"), { dryRun: true })).toMatchObject({ baseVersion: "1" });
+    expect(await importCatalog(db, fileTitled("Dev"), as(db, { dryRun: true }))).toMatchObject({ baseVersion: "0" });
+    await importCatalog(db, fileTitled("Dev"), as(db, { dryRun: false }));
+    await importCatalog(db, fileTitled("Dev"), as(db, { dryRun: false }));
+    expect(await importCatalog(db, fileTitled("Dev"), as(db, { dryRun: true }))).toMatchObject({ baseVersion: "1" });
   });
 
   it("rolls back a write when another one lands between the check and the batch", async () => {
     const db = await database();
-    await importCatalog(db, fileTitled("Dev"), { dryRun: false });
-    const result = await importCatalog(racedBy(db, fileTitled("Other")), fileTitled("Mine"), { dryRun: false, baseVersion: "1" });
+    await importCatalog(db, fileTitled("Dev"), as(db, { dryRun: false }));
+    const result = await importCatalog(racedBy(db, fileTitled("Other")), fileTitled("Mine"), as(db, { dryRun: false, baseVersion: "1" }));
     expect(result).toEqual({ status: "changed" });
     expect(await db.select({ title: schema.category.title }).from(schema.category)).toEqual([{ title: "Other" }]);
+    // One entry for each import applied before, none for the refused one.
+    expect(await db.select({ actor: schema.auditLog.actorId }).from(schema.auditLog)).toEqual([{ actor: "ada" }, { actor: "ada" }]);
   });
 });

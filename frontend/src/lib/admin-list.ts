@@ -1,71 +1,6 @@
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useAnnounce } from "./announcer";
-import { focusById } from "./focus";
-
-export type RowPanel = {
-  /** Return whether `key` (`edit:<id>`, `new`...) is the open panel. */
-  isOpen: (key: string) => boolean;
-  /** Return whether the open panel belongs to the row `id` (its key ends with `:<id>`). */
-  holds: (id: string) => boolean;
-  /** Open the panel, closing the other one without saving, or close it when it is the one open (its trigger clicked again). */
-  toggle: (key: string) => void;
-  close: () => void;
-  /** Close the open panel and give the focus back to its trigger: Cancel, or Escape. */
-  cancel: () => void;
-  /**
-   * Take hold of this opening of panel `key` when its request starts; the function returned says, when the
-   * request ends, whether that same opening is still there. A panel closed then opened again is another opening:
-   * its form is a new one, which never saw the request.
-   */
-  claim: (key: string) => () => boolean;
-  /** Close the open panel on an Escape that nothing inside handled; put it on the page. */
-  onKeyDown: (event: KeyboardEvent) => void;
-};
-
-/**
- * Hold the one panel open on an administration page; `triggerOf` gives the id of the button that opens a panel.
- * `onRowClosed` receives the row id of a row panel (`<kind>:<id>`) when it closes, so the page can keep that row
- * shown: a filter typed meanwhile may match it no longer, and its trigger must stay to take the focus back.
- */
-export function useRowPanel(triggerOf: (key: string) => string, onRowClosed: (id: string) => void): RowPanel {
-  const [open, setOpen] = useState<string | null>(null);
-  // Read when a request ends, after renders that the closure of its start did not see. `opening` counts every
-  // change, so two openings of the same panel differ.
-  const current = useRef<{ key: string | null; opening: number }>({ key: null, opening: 0 });
-
-  return useMemo<RowPanel>(() => {
-    const set = (key: string | null) => {
-      const closed = current.current.key;
-      current.current = { key, opening: current.current.opening + 1 };
-      setOpen(key);
-      if (closed !== null && closed !== key && closed.includes(":")) onRowClosed(closed.slice(closed.indexOf(":") + 1));
-    };
-    const cancel = () => {
-      const { key } = current.current;
-      set(null);
-      if (key) void focusById(triggerOf(key));
-    };
-    return {
-      isOpen: (key) => open === key,
-      // From the ref: a request that ends calls it from the closure of its start.
-      holds: (id) => current.current.key?.endsWith(`:${id}`) ?? false,
-      toggle: (key) => set(current.current.key === key ? null : key),
-      close: () => set(null),
-      cancel,
-      claim: (key) => {
-        const held = current.current;
-        if (held.key !== key) return () => false;
-        return () => current.current === held;
-      },
-      onKeyDown: (event) => {
-        if (event.key !== "Escape" || event.defaultPrevented || current.current.key === null) return;
-        event.preventDefault();
-        cancel();
-      },
-    };
-  }, [open, triggerOf, onRowClosed]);
-}
 
 /**
  * A row replaced by a message after a deletion, or after an action found it gone; it takes the focus. `index` is
@@ -166,30 +101,4 @@ export function withTombstones<T extends { id: string }>(items: readonly T[], to
     entries.splice(Math.min(tombstone.index, entries.length), 0, { kind: "tombstone", tombstone });
   }
   return entries;
-}
-
-/** Return whether the focus is inside the row titled by `titleId`: removing that row would drop it to the body. */
-export function rowHasFocus(titleId: string): boolean {
-  const row = document.getElementById(titleId)?.closest("li");
-  return !!row && row.contains(document.activeElement);
-}
-
-/** Return whether nothing holds the focus (it fell to the body when its element was removed). */
-export function focusIsLost(): boolean {
-  return document.activeElement === null || document.activeElement === document.body;
-}
-
-/** Return whether the focus is inside the element `id` (an open panel), or lost: an outcome may take it there. */
-export function focusIsWithin(id: string): boolean {
-  return !!document.getElementById(id)?.contains(document.activeElement) || focusIsLost();
-}
-
-/**
- * After the coming render, focus `id` only if that render dropped the focus (its element was removed): for an
- * outcome that leaves the focus where the person put it, unless it is gone.
- */
-export function focusIfLost(id: string): void {
-  setTimeout(() => {
-    if (focusIsLost()) void focusById(id);
-  }, 0);
 }

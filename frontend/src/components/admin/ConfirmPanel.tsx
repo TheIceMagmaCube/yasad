@@ -1,4 +1,7 @@
+import { TriangleAlert } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 import { useStrings } from "../../i18n/LocaleProvider";
 import { claimFocus } from "../../lib/focus";
@@ -55,7 +58,11 @@ export function ConfirmPanel({ question, children, confirmLabel, pendingLabel, v
       aria-describedby={children ? `${id}-details` : undefined}
       tabIndex={-1}
       data-slot="confirm-panel"
-      className="flex flex-col gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className={cn(
+        "flex max-w-xl flex-col gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden",
+        // A deletion is marked by an edge and an icon, so its colour is never the only cue.
+        variant === "destructive" && "border-l-4 border-destructive pl-4",
+      )}
       onKeyDown={(e) => {
         if (e.key !== "Escape") return;
         e.preventDefault();
@@ -63,11 +70,12 @@ export function ConfirmPanel({ question, children, confirmLabel, pendingLabel, v
         onCancel();
       }}
     >
-      <p id={`${id}-question`} className="font-semibold wrap-anywhere">
+      <p id={`${id}-question`} className="flex items-start gap-2 font-heading text-base font-bold wrap-anywhere">
+        {variant === "destructive" && <TriangleAlert aria-hidden="true" className="mt-1 size-4 shrink-0 text-destructive" />}
         {question}
       </p>
       {children && (
-        <div id={`${id}-details`} className="flex flex-col gap-2 text-sm">
+        <div id={`${id}-details`} className="flex flex-col gap-2 text-sm text-muted-foreground">
           {children}
         </div>
       )}
@@ -76,7 +84,7 @@ export function ConfirmPanel({ question, children, confirmLabel, pendingLabel, v
           {error.text}
         </Alert>
       )}
-      <div className="flex flex-wrap gap-3">
+      <div className="mt-1 flex flex-wrap gap-3">
         <PendingButton variant={variant} pending={pending} pendingLabel={pendingLabel} onClick={() => void confirm()}>
           {confirmLabel}
         </PendingButton>

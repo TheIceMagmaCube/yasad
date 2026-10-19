@@ -57,7 +57,7 @@ On Cloudflare Workers, the client IP always comes from the `CF-Connecting-IP` he
 
 | Variable | Default | Example | Description |
 |---|---|---|---|
-| `CATALOG_FILE` | unset | `/config/catalog.yaml` | Docker only. Path, inside the container, of a catalog file applied at every start. The catalog then matches the file, and the Catalog page no longer imports files. An invalid file stops the start. Do not set it on Workers: no file is loaded there, but catalog imports, and renaming or deleting the groups the catalog uses, are still refused. |
+| `CATALOG_FILE` | unset | `/config/catalog.yaml` | Docker only. Path, inside the container, of a catalog file applied at every start. The catalog then matches the file, and the Catalog page no longer imports files; categories and links cannot be changed in the app either. An invalid file stops the start. Do not set it on Workers: no file is loaded there, but catalog imports and edits, and renaming or deleting the groups the catalog uses, are still refused. |
 
 The file has the format of [catalog.example.yaml](catalog.example.yaml). To use it with the example compose files, put it at `config/catalog.yaml` next to `compose.yaml`, add `CATALOG_FILE=/config/catalog.yaml` to `.env`, and mount the folder in the `yasad` service:
 
@@ -68,6 +68,12 @@ The file has the format of [catalog.example.yaml](catalog.example.yaml). To use 
 ```
 
 Mount the folder, not the file alone: many editors save by replacing the file, and a container that mounts only the file keeps seeing the old one. Run `docker compose up -d` to apply the mount and the variable. Afterwards, edit the file and run `docker compose restart yasad` to apply it.
+
+## Change history
+
+| Variable | Default | Example | Description |
+|---|---|---|---|
+| `AUDIT_RETENTION_DAYS` | `365` | `730` | How many days the history of administrator actions keeps an entry, from 30 to 3650. Older entries are hidden at once and deleted, 100 at a time, by the next administrator actions. |
 
 ## Sign-in with OIDC
 
@@ -85,6 +91,10 @@ All optional. OIDC is on when `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID` and `OIDC_C
 | `OIDC_SCOPES` | `openid email profile` | `openid email profile groups` | Scopes requested, separated by spaces or commas. Some providers need `groups`. |
 
 Provider setup and behaviour: [oidc.md](oidc.md).
+
+## Themes
+
+The theme is not an environment variable. YASAD ships `default` and `dusk`, each in light and dark; each person picks light, dark or the system setting. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.
 
 ## Set by the Docker image
 

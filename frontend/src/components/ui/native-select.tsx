@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
-  default: "h-10 pr-9 pl-3 text-base md:text-sm",
+  default: "h-11 pr-9 pl-3 text-base md:text-sm",
   sm: "h-9 pr-8 pl-2 text-sm",
 } as const;
 
@@ -19,7 +19,7 @@ function NativeSelect({ className, controlSize = "default", ...props }: NativeSe
     <div data-slot="native-select" className="relative min-w-0">
       <select
         className={cn(
-          "w-full min-w-0 appearance-none rounded-md border border-input bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive forced-colors:appearance-auto",
+          "sunken w-full min-w-0 appearance-none rounded-md border-[1.5px] border-input bg-card text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive forced-colors:appearance-auto",
           SIZES[controlSize],
           className,
         )}

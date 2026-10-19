@@ -7,6 +7,8 @@ export type TestApp = {
   exec(sql: string): Promise<void>;
   /** Run one SQL query directly on the database and return its rows. */
   query(sql: string): Promise<Record<string, unknown>[]>;
+  /** Run SQL statements directly on the database in one batch, as the app's db.batch does. */
+  batch(sqls: string[]): Promise<void>;
   /** Return another client on the same database, with no cookies: a second browser. */
   another(): TestApp;
 };
@@ -23,6 +25,7 @@ export function client(
   fetch: (req: Request) => Promise<Response>,
   exec: (sql: string) => Promise<void>,
   query: (sql: string) => Promise<Record<string, unknown>[]>,
+  batch: (sqls: string[]) => Promise<void>,
 ): TestApp {
   const jar = new Map<string, string>();
   return {
@@ -45,6 +48,7 @@ export function client(
     },
     exec,
     query,
-    another: () => client(fetch, exec, query),
+    batch,
+    another: () => client(fetch, exec, query, batch),
   };
 }

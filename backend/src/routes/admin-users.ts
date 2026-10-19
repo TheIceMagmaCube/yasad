@@ -1,13 +1,15 @@
-import { and, asc, eq, exists, ne, type SQL } from "drizzle-orm";
-import { type Context, Hono } from "hono";
+import { and, asc, eq, exists, ne, notExists, sql } from "drizzle-orm";
+import { Hono } from "hono";
 
+import { auditStatements, failWhen, readSnapshot, retrying, snapshot, unchangedSince } from "../audit";
 import { authFor, sessionFor } from "../auth";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { apiError } from "../errors";
 import { account, group, session, user, userGroup } from "../schema";
 import { temporaryPassword } from "../temporary-password";
-import { requireAdmin } from "./require-admin";
+import { readJson } from "./body";
+import { auditorOf, requireAdmin } from "./require-admin";
 import { EMAIL } from "./setup";
 
 type Role = "admin" | "user";
@@ -28,11 +30,6 @@ export type AdminUser = {
 };
 
 const isRole = (v: unknown): v is Role => v === "admin" || v === "user";
-
-async function readJson(c: Context): Promise<Record<string, unknown>> {
-  const body: unknown = await c.req.json().catch(() => null);
-  return body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-}
 
 /** Return the users with their origin and groups, sorted by name, or only the one with `id`. */
 async function listUsers(db: DB, id?: string): Promise<AdminUser[]> {
@@ -121,6 +118,7 @@ adminUsers.post("/", async (c) => {
     await db.batch([
       db.insert(user).values({ id, name, email, role: role as Role, mustChangePassword: true, createdAt: now, updatedAt: now }),
       db.insert(account).values({ id: crypto.randomUUID(), accountId: id, providerId: "credential", userId: id, password: hash, createdAt: now, updatedAt: now }),
+      ...auditStatements(await auditorOf(c), { action: "create", type: "user", id, before: null, after: snapshot.user(id) }),
     ]);
   } catch (err) {
     if (await emailTaken(db, email)) return taken();
@@ -140,62 +138,68 @@ adminUsers.post("/", async (c) => {
 adminUsers.patch("/:id", async (c) => {
   const { db } = c.var;
   const id = c.req.param("id");
-  const [target] = await listUsers(db, id);
-  if (!target) return apiError(c, 404, "not_found", "No such user.");
   const body = await readJson(c);
-
-  const fields: Record<string, string> = {};
-  const name = body.name === undefined ? undefined : typeof body.name === "string" ? body.name.trim() : "";
-  if (name !== undefined && (name.length === 0 || name.length > 100)) fields.name = "invalid_name";
-  if (body.role !== undefined && (!isRole(body.role) || target.origin !== "local")) fields.role = "invalid_role";
-  if (body.roleOverride !== undefined && ((body.roleOverride !== null && !isRole(body.roleOverride)) || target.origin !== "oidc")) {
-    fields.roleOverride = "invalid_role";
-  }
-  if (body.disabled !== undefined && typeof body.disabled !== "boolean") fields.disabled = "invalid_value";
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : body.email === undefined ? undefined : "";
-  if (email !== undefined && email !== target.email) {
-    if (target.origin !== "local") fields.email = "email_from_provider";
-    else if (!EMAIL.test(email)) fields.email = "invalid_email";
-    else if (await emailTaken(db, email, id)) fields.email = "email_taken";
-  }
-  if (Object.keys(fields).length > 0) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields });
-
-  const role = (body.role as Role | undefined) ?? (body.roleOverride === undefined ? undefined : ((body.roleOverride as Role | null) ?? undefined));
-  const disabled = body.disabled as boolean | undefined;
+  const auditor = await auditorOf(c);
   const current = await sessionFor(c);
-  if (current?.user.id === id && ((role !== undefined && role !== target.role) || body.roleOverride !== undefined || disabled === true)) {
-    return apiError(c, 409, "cannot_change_self", "You cannot change your own role or disable yourself.");
-  }
+  return retrying(async (last) => {
+    const [target] = await listUsers(db, id);
+    if (!target) return apiError(c, 404, "not_found", "No such user.");
 
-  const demotes = isActiveLocalAdmin(target) && (role === "user" || disabled === true);
-
-  // Checked inside the write, so two admins demoting each other cannot both succeed.
-  const guard: SQL | undefined = demotes ? exists(otherActiveLocalAdmins(db, id)) : undefined;
-  const now = new Date();
-  try {
-    await db.batch([
-      db
-        .update(user)
-        .set({
-          updatedAt: now,
-          ...(name !== undefined && { name }),
-          ...(email !== undefined && { email }),
-          ...(role !== undefined && { role }),
-          ...(body.roleOverride !== undefined && { roleOverride: body.roleOverride as Role | null }),
-          ...(disabled !== undefined && { disabled }),
-        })
-        .where(and(eq(user.id, id), guard)),
-      db.delete(session).where(and(eq(session.userId, id), exists(db.select({ id: user.id }).from(user).where(and(eq(user.id, id), eq(user.disabled, true)))))),
-    ]);
-  } catch (err) {
-    if (email !== undefined && (await emailTaken(db, email, id))) {
-      return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { email: "email_taken" } });
+    const fields: Record<string, string> = {};
+    const name = body.name === undefined ? undefined : typeof body.name === "string" ? body.name.trim() : "";
+    if (name !== undefined && (name.length === 0 || name.length > 100)) fields.name = "invalid_name";
+    if (body.role !== undefined && (!isRole(body.role) || target.origin !== "local")) fields.role = "invalid_role";
+    if (body.roleOverride !== undefined && ((body.roleOverride !== null && !isRole(body.roleOverride)) || target.origin !== "oidc")) {
+      fields.roleOverride = "invalid_role";
     }
-    throw err;
-  }
-  const [updated] = await listUsers(db, id);
-  if (demotes && isActiveLocalAdmin(updated!)) return apiError(c, 409, "last_local_admin", "Keep at least one enabled local administrator.");
-  return c.json({ user: updated });
+    if (body.disabled !== undefined && typeof body.disabled !== "boolean") fields.disabled = "invalid_value";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : body.email === undefined ? undefined : "";
+    if (email !== undefined && email !== target.email) {
+      if (target.origin !== "local") fields.email = "email_from_provider";
+      else if (!EMAIL.test(email)) fields.email = "invalid_email";
+      else if (await emailTaken(db, email, id)) fields.email = "email_taken";
+    }
+    if (Object.keys(fields).length > 0) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields });
+
+    const role = (body.role as Role | undefined) ?? (body.roleOverride === undefined ? undefined : ((body.roleOverride as Role | null) ?? undefined));
+    const disabled = body.disabled as boolean | undefined;
+    if (current?.user.id === id && ((role !== undefined && role !== target.role) || body.roleOverride !== undefined || disabled === true)) {
+      return apiError(c, 409, "cannot_change_self", "You cannot change your own role or disable yourself.");
+    }
+
+    const demotes = isActiveLocalAdmin(target) && (role === "user" || disabled === true);
+    const state = snapshot.user(id);
+    const before = await readSnapshot(db, state);
+    const now = new Date();
+    try {
+      await db.batch([
+        unchangedSince(db, state, before),
+        // Checked inside the write, so two admins demoting each other cannot both succeed.
+        ...(demotes ? [failWhen(db, notExists(otherActiveLocalAdmins(db, id)))] : []),
+        db
+          .update(user)
+          .set({
+            updatedAt: now,
+            ...(name !== undefined && { name }),
+            ...(email !== undefined && { email }),
+            ...(role !== undefined && { role }),
+            ...(body.roleOverride !== undefined && { roleOverride: body.roleOverride as Role | null }),
+            ...(disabled !== undefined && { disabled }),
+          })
+          .where(eq(user.id, id)),
+        db.delete(session).where(and(eq(session.userId, id), exists(db.select({ id: user.id }).from(user).where(and(eq(user.id, id), eq(user.disabled, true)))))),
+        ...auditStatements(auditor, { action: "update", type: "user", id, before, after: state }),
+      ]);
+    } catch (err) {
+      if (email !== undefined && (await emailTaken(db, email, id))) {
+        return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { email: "email_taken" } });
+      }
+      if (!last && (await readSnapshot(db, state)) !== before) return "retry";
+      if (demotes && !(await otherActiveLocalAdmins(db, id).get())) return apiError(c, 409, "last_local_admin", "Keep at least one enabled local administrator.");
+      throw err;
+    }
+    return c.json({ user: (await listUsers(db, id))[0] });
+  });
 });
 
 /** Give a local account a new temporary password, returned once, and close its sessions. Not one's own: it would sign the admin out. */
@@ -210,31 +214,68 @@ adminUsers.post("/:id/password", async (c) => {
 
   const password = temporaryPassword();
   const hash = await (await authFor(c).$context).password.hash(password);
-  const now = new Date();
-  await db.batch([
-    db
-      .update(account)
-      .set({ password: hash, updatedAt: now })
-      .where(and(eq(account.userId, id), eq(account.providerId, "credential"))),
-    db.update(user).set({ mustChangePassword: true, updatedAt: now }).where(eq(user.id, id)),
-    db.delete(session).where(eq(session.userId, id)),
-  ]);
-  return c.json({ temporaryPassword: password });
+  const auditor = await auditorOf(c);
+  // The entry records only the flag: the password and its hash never reach the log.
+  const state = snapshot.password(id);
+  return retrying(async (last) => {
+    const before = await readSnapshot(db, state);
+    const now = new Date();
+    try {
+      await db.batch([
+        unchangedSince(db, state, before),
+        db
+          .update(account)
+          .set({ password: hash, updatedAt: now })
+          .where(and(eq(account.userId, id), eq(account.providerId, "credential"))),
+        db.update(user).set({ mustChangePassword: true, updatedAt: now }).where(eq(user.id, id)),
+        db.delete(session).where(eq(session.userId, id)),
+        ...auditStatements(auditor, {
+          action: "password_reset",
+          type: "user",
+          id,
+          label: sql`(select name from "user" where id = ${id})`,
+          before,
+          after: state,
+          // Logged even when the flag was already set: the password changed all the same.
+          when: sql`s.after is not null`,
+        }),
+      ]);
+    } catch (err) {
+      if (!last && (await readSnapshot(db, state)) !== before) return "retry";
+      throw err;
+    }
+    return c.json({ temporaryPassword: password });
+  });
 });
 
 /** Delete a user with their sessions, accounts and memberships. Not oneself, nor the last enabled local admin. */
 adminUsers.delete("/:id", async (c) => {
   const { db } = c.var;
   const id = c.req.param("id");
-  const [target] = await listUsers(db, id);
-  if (!target) return apiError(c, 404, "not_found", "No such user.");
+  if (!(await listUsers(db, id))[0]) return apiError(c, 404, "not_found", "No such user.");
   const current = await sessionFor(c);
   if (current?.user.id === id) return apiError(c, 409, "cannot_change_self", "You cannot delete yourself.");
 
-  const demotes = isActiveLocalAdmin(target);
-
-  // Checked inside the write, like the role change; sessions, accounts and memberships cascade.
-  await db.delete(user).where(and(eq(user.id, id), demotes ? exists(otherActiveLocalAdmins(db, id)) : undefined));
-  if ((await listUsers(db, id)).length > 0) return apiError(c, 409, "last_local_admin", "Keep at least one enabled local administrator.");
-  return c.body(null, 204);
+  const auditor = await auditorOf(c);
+  const state = snapshot.user(id);
+  return retrying(async (last) => {
+    const [target] = await listUsers(db, id);
+    const before = await readSnapshot(db, state);
+    if (!target || before === null) return apiError(c, 404, "not_found", "No such user.");
+    const demotes = isActiveLocalAdmin(target);
+    try {
+      // Checked inside the write, like the role change; sessions, accounts and memberships cascade.
+      await db.batch([
+        unchangedSince(db, state, before),
+        ...(demotes ? [failWhen(db, notExists(otherActiveLocalAdmins(db, id)))] : []),
+        db.delete(user).where(eq(user.id, id)),
+        ...auditStatements(auditor, { action: "delete", type: "user", id, before, after: null }),
+      ]);
+    } catch (err) {
+      if (!last && (await readSnapshot(db, state)) !== before) return "retry";
+      if (demotes && !(await otherActiveLocalAdmins(db, id).get())) return apiError(c, 409, "last_local_admin", "Keep at least one enabled local administrator.");
+      throw err;
+    }
+    return c.body(null, 204);
+  });
 });

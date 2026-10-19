@@ -10,6 +10,8 @@ import { apiError } from "./errors";
 import { accountRoutes } from "./routes/account";
 import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { adminGroups } from "./routes/admin-groups";
+import { adminHistory } from "./routes/admin-history";
+import { adminCategories, adminLinks } from "./routes/admin-links";
 import { adminUsers } from "./routes/admin-users";
 import { authRoutes } from "./routes/auth";
 import { home } from "./routes/home";
@@ -93,8 +95,11 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
   app.route("/setup", setup);
   app.route("/account", accountRoutes);
   app.route("/admin/catalog", adminCatalog);
+  app.route("/admin/categories", adminCategories);
+  app.route("/admin/links", adminLinks);
   app.route("/admin/users", adminUsers);
   app.route("/admin/groups", adminGroups);
+  app.route("/admin/history", adminHistory);
   app.route("/auth", authRoutes);
 
   return app;

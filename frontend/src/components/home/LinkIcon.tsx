@@ -101,11 +101,12 @@ export function LinkIcon({ icon, title, className }: { icon: HomeIcon | null; ti
   const current = icon && loaded?.key === key ? loaded : null;
   const loading = icon !== null && current === null;
   return (
-    <span aria-hidden="true" data-slot="link-icon" className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", className)}>
+    <span aria-hidden="true" data-slot="link-icon" className={cn("pixel-corners flex size-11 shrink-0 items-center justify-center", className)}>
       {current?.nodes ? (
         <Icon iconNode={current.nodes} className="size-6" />
       ) : loading ? null : (
-        <span className="text-2xl leading-none font-semibold">{initialOf(title, language)}</span>
+        // Generated content, not text: an option or a link naming itself by the title must not show an extra letter.
+        <span data-initial={initialOf(title, language)} className="text-pixel text-2xl leading-none before:content-[attr(data-initial)]" />
       )}
     </span>
   );

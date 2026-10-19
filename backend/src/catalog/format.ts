@@ -1,15 +1,16 @@
 import { type Document, isAlias, isMap, isNode, isPair, isScalar, isSeq, type Node, type Pair, parseDocument, stringify, visit } from "yaml";
 import { z } from "zod";
 
-const ID = z.string().regex(/^[a-z0-9][a-z0-9-]*$/).max(64);
+export const ID = z.string().regex(/^[a-z0-9][a-z0-9-]*$/).max(64);
 const GROUP_REF = z.string().regex(/^(@everyone|@authenticated|(oidc|local):\S(.*\S)?)$/);
-const ICON = z.string().max(100).regex(/^(si:[a-z0-9_-]+|lucide:[a-z0-9-]+)$/);
+export const ICON = z.string().max(100).regex(/^(si:[a-z0-9_-]+|lucide:[a-z0-9-]+)$/);
 const URL_HTTP = z
   .string()
   .max(2048)
   .refine((v) => URL.canParse(v) && ["http:", "https:"].includes(new URL(v).protocol));
 
-const linkSchema = z.strictObject({
+/** A link as the catalog file writes it; the app validates its edits with the same rules. */
+export const linkSchema = z.strictObject({
   id: ID,
   title: z.string().trim().min(1).max(100),
   url: URL_HTTP,
@@ -20,13 +21,18 @@ const linkSchema = z.strictObject({
   active: z.boolean().optional(),
 });
 
+/** The fields of a category other than its links. */
+export const categoryFields = { id: ID, title: z.string().trim().min(1).max(100), groups: z.array(GROUP_REF).max(50) };
+
+/** Most categories and links per category a file may hold, so an exported catalog can be imported again. */
+export const MAX_CATEGORIES = 200;
+export const MAX_LINKS_PER_CATEGORY = 1000;
+
 const categorySchema = z.strictObject({
-  id: ID,
-  title: z.string().trim().min(1).max(100),
-  groups: z.array(GROUP_REF).max(50),
+  ...categoryFields,
   links: z
     .array(linkSchema)
-    .max(1000)
+    .max(MAX_LINKS_PER_CATEGORY)
     .nullish()
     .transform((v) => v ?? []),
 });
@@ -35,7 +41,7 @@ const catalogSchema = z.strictObject({
   version: z.literal(1),
   categories: z
     .array(categorySchema)
-    .max(200)
+    .max(MAX_CATEGORIES)
     .nullish()
     .transform((v) => v ?? []),
 });
@@ -65,12 +71,12 @@ function pathOfNodes(ancestors: readonly (Document | Node | Pair)[], node: Node)
 }
 
 /** Return the error for one zod issue, named after the field it concerns. */
-function errorOf(issue: z.core.$ZodIssue): CatalogError {
+export function errorOf(issue: z.core.$ZodIssue): CatalogError {
   const path = pathOf(issue.path);
   if (issue.code === "unrecognized_keys") return { path, code: "unknown_field", params: { fields: issue.keys } };
   if (issue.code === "too_big") return { path, code: "too_long", params: { max: Number(issue.maximum) } };
   if (issue.code === "too_small" || (issue.code === "invalid_type" && issue.input === undefined)) return { path, code: "required", params: {} };
-  const [parent, field] = issue.path.slice(-2);
+  const [parent, field] = [issue.path.at(-2), issue.path.at(-1)];
   const code =
     field === "id" ? "invalid_id" : parent === "groups" ? "invalid_group_ref" : field === "icon" ? "invalid_icon" : field === "url" ? "invalid_url" : "invalid";
   return { path, code, params: {} };

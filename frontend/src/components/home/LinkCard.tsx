@@ -1,40 +1,42 @@
 import { useId } from "react";
 
 import type { HomeLink } from "@/api";
+import type { CategoryTone } from "@/lib/category-tone";
 import { cn } from "@/lib/utils";
 
 import { LinkIcon } from "./LinkIcon";
 
 /**
- * Card of one link: the whole card is a plain anchor opening the service in the same tab (Ctrl+click and middle
- * click still open a new one). Its accessible name is the title, its description the link's description.
- * `tile` holds the category colour classes of the icon tile.
+ * Card of one link. Only the title is the anchor, so its name is the text it shows (WCAG 2.5.3); its ::after spreads
+ * over the whole card, which stays one click target opening the service in the same tab (Ctrl+click and middle click
+ * still open a new one). The description describes the anchor. `tone` colours the icon tile and the relief base.
  */
-export function LinkCard({ link, tile, className }: { link: HomeLink; tile: string; className?: string }) {
+export function LinkCard({ link, tone, className }: { link: HomeLink; tone: CategoryTone; className?: string }) {
   const id = useId();
-  const titleId = `${id}-title`;
   const descriptionId = link.description ? `${id}-description` : undefined;
   return (
-    <a
-      href={link.url}
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+    <div
       className={cn(
-        "group flex h-full items-start gap-3 rounded-xl border bg-card p-4 text-card-foreground shadow-card transition-[box-shadow,border-color,translate] hover:border-input hover:shadow-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0",
+        "relief relative flex h-full items-start gap-3 rounded-(--radius-card) bg-card p-4 text-card-foreground [--relief-ring:var(--border)] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-ring",
+        tone.card,
         className,
       )}
     >
-      <LinkIcon icon={link.icon} title={link.title} className={tile} />
+      <LinkIcon icon={link.icon} title={link.title} className={tone.tile} />
       <span className="min-w-0 flex-1">
-        <span id={titleId} className="block font-semibold wrap-anywhere group-hover:underline">
+        <a
+          href={link.url}
+          aria-describedby={descriptionId}
+          className="block font-heading font-bold wrap-anywhere outline-none after:absolute after:inset-0 after:rounded-(--radius-card) after:content-['']"
+        >
           {link.title}
-        </span>
+        </a>
         {link.description && (
           <span id={descriptionId} className="mt-1 block text-sm wrap-anywhere text-muted-foreground">
             {link.description}
           </span>
         )}
       </span>
-    </a>
+    </div>
   );
 }

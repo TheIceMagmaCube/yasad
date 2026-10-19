@@ -222,17 +222,17 @@ test.describe("session", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await signInAsAdmin(page);
     await page.goto("/admin/users");
-    await expect(page.getByRole("heading", { level: 1, name: "Users", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "People", exact: true })).toBeVisible();
     await context.clearCookies();
-    await page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Groups" }).click();
+    await page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Links" }).click();
     const notice = page.getByRole("group", { name: "Your session has ended. Sign in again to continue." });
     await expect(notice).toBeFocused();
-    await expect(page).toHaveURL(/\/admin\/groups$/);
+    await expect(page).toHaveURL(/\/admin\/links$/);
     await expectAccessible(page, "sign-in after the session ended");
 
     await submitSignIn(page, ADMIN.email, ADMIN.password);
-    await expect(page.getByRole("heading", { level: 1, name: "Groups", exact: true })).toBeFocused();
-    await expect(page).toHaveURL(/\/admin\/groups$/);
-    expect(await focused(page)).toBe('h1 "Groups"');
+    await expect(page.getByRole("heading", { level: 1, name: "Links", exact: true })).toBeFocused();
+    await expect(page).toHaveURL(/\/admin\/links$/);
+    expect(await focused(page)).toBe('h1 "Links"');
   });
 });

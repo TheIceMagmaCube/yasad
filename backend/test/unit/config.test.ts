@@ -25,6 +25,7 @@ describe("loadConfig", () => {
       setupCode: null,
       trustProxy: 0,
       sessionMaxAge: 86400,
+      auditRetentionDays: 365,
       defaultLanguage: "en",
       passwordSignIn: true,
       catalogFile: null,
@@ -68,6 +69,14 @@ describe("loadConfig", () => {
   it("rejects a SESSION_MAX_AGE that is not a positive whole number", () => {
     for (const value of ["7d", "-1", "0", "1.5"]) {
       expect(problemsOf({ ...valid, SESSION_MAX_AGE: value })).toEqual([expect.stringContaining("SESSION_MAX_AGE")]);
+    }
+  });
+
+  it("reads AUDIT_RETENTION_DAYS from 30 to 3650 days", () => {
+    expect(loadConfig({ ...valid, AUDIT_RETENTION_DAYS: " 30 " }).auditRetentionDays).toBe(30);
+    expect(loadConfig({ ...valid, AUDIT_RETENTION_DAYS: "3650" }).auditRetentionDays).toBe(3650);
+    for (const value of ["29", "3651", "0", "-30", "90d", "1.5"]) {
+      expect(problemsOf({ ...valid, AUDIT_RETENTION_DAYS: value })).toEqual([expect.stringContaining("AUDIT_RETENTION_DAYS")]);
     }
   });
 

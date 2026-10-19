@@ -17,7 +17,6 @@ import { useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
 import { claimFocus, focusById } from "../../lib/focus";
 import { invalidateHome } from "../../lib/home-store";
-import { AdminPageHeader } from "./AdminLayout";
 import { adminErrorText } from "./shared";
 
 const FILE_ID = "catalog-file";
@@ -117,9 +116,9 @@ export function AdminCatalog() {
   const catalog = state.data;
   return (
     <Page width="reading">
-      <AdminPageHeader tab="catalog" description={catalog ? s.summary(catalog.categories, catalog.links, catalog.groups) : undefined} />
+      {catalog && <p className="mb-6 text-muted-foreground">{s.summary(catalog.categories, catalog.links, catalog.groups)}</p>}
       {state.status === "error" && <LoadError attempt={state.attempt} message={s.loadError} pending={state.retrying} onRetry={state.retry} />}
-      {state.status === "loading" && <div aria-hidden="true" className="appear-delayed h-24 rounded-xl bg-muted motion-safe:animate-pulse" />}
+      {state.status === "loading" && <div aria-hidden="true" data-slot="catalog-skeleton" className="appear-delayed h-24 rounded-[var(--radius-card)] bg-muted motion-safe:animate-pulse" />}
       {catalog && (
         <div className="flex flex-col gap-10">
           <section aria-labelledby="catalog-import" className="flex flex-col gap-4">
@@ -226,7 +225,7 @@ function Preview({ result, changed, applying, error, onApply, onCancel }: Previe
   const removed = sizeOf(diff, "removed");
   const created = diff.groupsCreated.map(parseRef);
   return (
-    <section aria-labelledby="catalog-preview" data-slot="catalog-preview" className="flex flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-6">
+    <section aria-labelledby="catalog-preview" data-slot="catalog-preview" className="panel flex flex-col gap-4 p-4 sm:p-6">
       <FocusedHeading id="catalog-preview" focus={!changed}>
         {s.previewTitle}
       </FocusedHeading>
@@ -250,7 +249,7 @@ function Preview({ result, changed, applying, error, onApply, onCancel }: Previe
           {KINDS.map((kind) => sizeOf(diff, kind) > 0 && <ChangeBlock key={kind} kind={kind} diff={diff} />)}
           {created.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h3 className="font-semibold">{s.groupsToCreate}</h3>
+              <h3 className="font-heading font-bold">{s.groupsToCreate}</h3>
               <ul className="flex flex-wrap gap-2">
                 {created.map((g) => (
                   <li key={`${g.source}:${g.name}`}>
@@ -270,7 +269,7 @@ function Preview({ result, changed, applying, error, onApply, onCancel }: Previe
           )}
           {diff.warnings.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h3 className="font-semibold">{s.warnings}</h3>
+              <h3 className="font-heading font-bold">{s.warnings}</h3>
               <ul className="list-disc space-y-2 pl-5 text-sm">
                 {diff.warnings.map((w, i) => (
                   <li key={i}>
@@ -319,8 +318,8 @@ function ChangeBlock({ kind, diff }: { kind: Kind; diff: CatalogDiff }) {
   }
   const suffix = kind === "removed" ? <span className="sr-only">, {s.removedSuffix}</span> : null;
   return (
-    <div className={kind === "removed" ? "flex flex-col gap-2 rounded-lg border border-destructive bg-destructive-surface p-4" : "flex flex-col gap-2 rounded-lg border p-4"}>
-      <h3 className="flex items-center gap-2 font-semibold">
+    <div className={kind === "removed" ? "flex flex-col gap-2 rounded-lg border-[1.5px] border-destructive bg-destructive-surface p-4" : "flex flex-col gap-2 rounded-lg border-[1.5px] p-4"}>
+      <h3 className="flex items-center gap-2 font-heading font-bold">
         <Icon aria-hidden="true" className="size-4 shrink-0" />
         {s[kind]}
       </h3>
@@ -406,7 +405,7 @@ function Result({ diff, onAnother }: { diff: CatalogDiff; onAnother: () => void 
   const s = m.catalog;
   const local = diff.groupsCreated.map(parseRef).filter((g) => g.source === "local");
   return (
-    <section aria-labelledby="catalog-result" data-slot="catalog-result" className="flex flex-col items-start gap-3 rounded-xl border bg-card p-4 text-card-foreground sm:p-6">
+    <section aria-labelledby="catalog-result" data-slot="catalog-result" className="panel flex flex-col items-start gap-3 p-4 sm:p-6">
       <FocusedHeading id="catalog-result">{s.resultTitle}</FocusedHeading>
       <p>{s.resultSummary(sizeOf(diff, "added"), sizeOf(diff, "updated"), sizeOf(diff, "removed"))}</p>
       {local.length > 0 && (
@@ -414,7 +413,7 @@ function Result({ diff, onAnother }: { diff: CatalogDiff; onAnother: () => void 
           <p>
             {s.localGroupsCreated} {local.map((g) => g.name).join(", ")}
           </p>
-          <Link href="/admin/groups" className="font-semibold underline underline-offset-4 hover:no-underline">
+          <Link href="/admin/groups" className="font-semibold underline decoration-link-decoration decoration-2 underline-offset-4 hover:decoration-foreground">
             {s.goToGroups}
           </Link>
         </div>

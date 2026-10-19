@@ -17,7 +17,12 @@ describe("Button", () => {
     const classes = buttonVariants({ variant: "outline", className: "h-auto whitespace-normal" }).split(" ");
     expect(classes).toContain("whitespace-normal");
     expect(classes).not.toContain("whitespace-nowrap");
-    expect(classes).not.toContain("h-10");
+    expect(classes).not.toContain("h-11");
+  });
+
+  it("gives the default and icon sizes a 44 px target", () => {
+    expect(buttonVariants().split(" ")).toContain("h-11");
+    expect(buttonVariants({ size: "icon" }).split(" ")).toContain("size-11");
   });
 
   it("renders the destructive variants with their tokens", () => {
@@ -29,6 +34,19 @@ describe("Button", () => {
     );
     expect(screen.getByRole("button", { name: "Delete" })).toHaveClass("bg-destructive", "text-destructive-foreground");
     expect(screen.getByRole("button", { name: "Remove" })).toHaveClass("text-destructive", "hover:bg-destructive-surface");
+  });
+
+  it("keeps a pending button at full opacity, its label being the progress text, but dims any other aria-disabled one", () => {
+    render(
+      <>
+        <Button pending pendingLabel="Signing in">Sign in</Button>
+        <Button aria-disabled>Rename</Button>
+      </>,
+    );
+    const pending = screen.getByRole("button", { name: "Signing in" });
+    expect(pending).toHaveClass("aria-disabled:opacity-100");
+    expect(pending).not.toHaveClass("aria-disabled:opacity-60");
+    expect(screen.getByRole("button", { name: "Rename" })).toHaveClass("aria-disabled:opacity-60");
   });
 
   it("keeps focus and ignores clicks and submission while pending", async () => {
@@ -103,5 +121,29 @@ describe("Button", () => {
   it("keeps the children while pending without a label", () => {
     render(<Button pending>Save</Button>);
     expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+describe("Button look", () => {
+  const VARIANTS = ["default", "secondary", "outline", "ghost", "destructive", "destructive-ghost"] as const;
+
+  it.each(VARIANTS)("gives the %s variant a transparent border, which forced colors mode draws as its boundary", (variant) => {
+    const classes = buttonVariants({ variant }).split(" ");
+    expect(classes).toContain("border-[1.5px]");
+    expect(classes).toContain("border-transparent");
+  });
+
+  it("keeps a focus outline in forced colors mode, where the ring is dropped", () => {
+    expect(buttonVariants().split(" ")).toContain("focus-visible:outline-hidden");
+  });
+
+  it.each([
+    ["default", "[--relief-ring:var(--control-primary-ring)]"],
+    ["secondary", "[--relief-ring:var(--control-ring)]"],
+    ["outline", "[--relief-ring:var(--control-ring)]"],
+  ] as const)("raises the %s variant on a hard base, edged by a 3:1 ring token", (variant, ring) => {
+    const classes = buttonVariants({ variant }).split(" ");
+    expect(classes).toContain("relief");
+    expect(classes).toContain(ring);
   });
 });

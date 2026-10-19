@@ -6,6 +6,8 @@ export type ApiErrorBody = {
   errors?: CatalogError[];
   attemptsLeft?: number;
   fields?: Record<string, string>;
+  /** The item as stored now, with `item_changed`. */
+  current?: unknown;
 };
 
 export class ApiError extends Error {
@@ -62,7 +64,91 @@ export type AdminUser = {
   lastSignInAt: string | null;
 };
 export type UserChanges = { name?: string; email?: string; role?: Role; roleOverride?: Role | null; disabled?: boolean };
-export type AdminGroup = { id: string; name: string; source: GroupSource; memberIds: string[]; categories: number; links: number };
+export type AdminGroup = {
+  id: string;
+  name: string;
+  source: GroupSource;
+  memberIds: string[];
+  categories: number;
+  links: number;
+  /** When a provider group last came in a sign-in token; null for one only typed (catalog, import) and never received. */
+  seenAt: string | null;
+};
+/** A link as the catalog stores it: inactive links and links without a group included. */
+export type AdminLink = {
+  id: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  url: string;
+  icon: string | null;
+  iconKnown: boolean;
+  keywords: string[];
+  active: boolean;
+  /** Group references: `@everyone`, `@authenticated`, `local:<name>`, `oidc:<name>`. */
+  groups: string[];
+  revision: number;
+};
+export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
+/** A point to know after a write that went through. */
+export type EditWarning = "no_group" | "unknown_icon" | "groups_differ_by_case" | "new_oidc_group";
+export type LinkInput = {
+  id?: string;
+  categoryId: string;
+  title: string;
+  url: string;
+  description?: string;
+  /** `null` removes the icon. */
+  icon?: string | null;
+  keywords?: string[];
+  groups: string[];
+  active?: boolean;
+};
+export type CategoryInput = { id?: string; title: string; groups: string[] };
+type Direction = "up" | "down";
+
+/** Kinds of objects the change log names; `catalog` stands for a whole import. */
+export type HistoryObjectType = "user" | "group" | "category" | "link" | "catalog";
+export type HistoryAction = "create" | "update" | "delete" | "move" | "password_reset" | "member_add" | "member_remove" | "import";
+/** An object an entry names, as it was then; `exists` says whether it is still there, to link to its page. */
+export type HistoryObject = { type: HistoryObjectType; id: string | null; label: string | null; exists: boolean };
+/** Who wrote an entry, name and e-mail as they were then; null in an entry for what YASAD did by itself. */
+export type HistoryAuthor = { id: string; name: string | null; email: string | null; exists: boolean };
+/** A snapshot of the fields an entry keeps (no secret ever), or an import's summary. */
+export type HistorySnapshot = Record<string, unknown>;
+export type HistoryEntry = {
+  id: number;
+  at: string;
+  actor: HistoryAuthor | null;
+  action: HistoryAction;
+  object: HistoryObject;
+  /** The person added to or removed from a group. */
+  related: HistoryObject | null;
+  before: HistorySnapshot | null;
+  after: HistorySnapshot | null;
+  /** An import's summary, or where a write without author came from (`source`: `setup`, `catalog_file`). */
+  details: HistorySnapshot | null;
+};
+/** One page of the change log, newest first; `next` is the cursor of the following page. */
+export type HistoryPage = { entries: HistoryEntry[]; next: number | null };
+/**
+ * Filters of the change log: `actor` is a person id or `none` for YASAD itself, `object` matches the object or the
+ * related one, `from` (included) and `to` (excluded) are ISO instants, `before` is the cursor `next`.
+ */
+export type HistoryQuery = { actor?: string; type?: HistoryObjectType; object?: string; from?: string; to?: string; before?: number; limit?: number };
+/** Someone who wrote entries still kept, deleted people included. */
+export type HistoryActor = { id: string; name: string; email: string; exists: boolean };
+
+/** Return the query string of a change log request, its keys in a fixed order and empty ones left out. */
+export function historyQueryString(query: HistoryQuery): string {
+  const params = new URLSearchParams();
+  for (const key of ["actor", "type", "object", "from", "to", "before", "limit"] as const) {
+    const value = query[key];
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -158,4 +244,22 @@ export const api = {
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("PUT")),
   removeMember: (groupId: string, userId: string) =>
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("DELETE")),
+  /** Return the whole catalog as stored, to say what each group opens. */
+  categories: async () => (await call<{ categories: AdminCategory[] }>("/api/admin/categories")).categories,
+  createCategory: (input: CategoryInput) => call<{ category: AdminCategory; warnings: EditWarning[] }>("/api/admin/categories", post(input)),
+  updateCategory: (id: string, revision: number, changes: Partial<CategoryInput>) =>
+    call<{ category: AdminCategory; warnings: EditWarning[] }>(`/api/admin/categories/${encodeURIComponent(id)}`, send("PATCH", { revision, ...changes })),
+  /** Move a category one step; `order` is the list of category ids after the move. */
+  moveCategory: (id: string, direction: Direction) => call<{ order: string[] }>(`/api/admin/categories/${encodeURIComponent(id)}/move`, post({ direction })),
+  /** Delete a category and its links; refused when it no longer holds `linkCount` links. */
+  deleteCategory: (id: string, revision: number, linkCount: number) =>
+    call<void>(`/api/admin/categories/${encodeURIComponent(id)}`, send("DELETE", { revision, linkCount })),
+  createLink: (input: LinkInput) => call<{ link: AdminLink; warnings: EditWarning[] }>("/api/admin/links", post(input)),
+  updateLink: (id: string, revision: number, changes: Partial<LinkInput>) =>
+    call<{ link: AdminLink; warnings: EditWarning[] }>(`/api/admin/links/${encodeURIComponent(id)}`, send("PATCH", { revision, ...changes })),
+  /** Move a link one step in its category; `order` is the list of that category's link ids after the move. */
+  moveLink: (id: string, direction: Direction) => call<{ order: string[] }>(`/api/admin/links/${encodeURIComponent(id)}/move`, post({ direction })),
+  deleteLink: (id: string, revision: number) => call<void>(`/api/admin/links/${encodeURIComponent(id)}`, send("DELETE", { revision })),
+  history: (query: HistoryQuery = {}) => call<HistoryPage>(`/api/admin/history${historyQueryString(query)}`),
+  historyActors: async () => (await call<{ actors: HistoryActor[] }>("/api/admin/history/actors")).actors,
 };

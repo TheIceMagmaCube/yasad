@@ -43,19 +43,26 @@ function Steps({ step }: { step: "code" | "admin" }) {
   ] as const;
   const current = step === "code" ? 0 : 1;
   return (
-    <ol aria-label={s.progress} className="mt-3 flex gap-2 text-sm">
+    <ol aria-label={s.progress} className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
       {items.map((item, i) => (
         <li
           key={item.key}
           aria-current={i === current ? "step" : undefined}
-          className={cn(
-            "flex flex-1 items-center gap-1.5 border-t-4 pt-1.5",
-            i < current && "border-primary/40 text-muted-foreground",
-            i === current && "border-primary font-semibold",
-            i > current && "border-border text-muted-foreground",
-          )}
+          className={cn("flex items-center gap-2", i === current ? "font-semibold text-foreground" : "text-muted-foreground")}
         >
-          {i < current && <Check aria-hidden="true" className="size-4 shrink-0" />}
+          {/* Its number or check repeats the hidden "Step n of m", so the marker stays out of the name. The inset
+              ring is the current marker's boundary where the yellow is too light against the page. */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "text-pixel pixel-corners flex size-7 shrink-0 items-center justify-center text-sm",
+              i < current && "bg-success-surface text-success",
+              i === current && "bg-primary text-primary-foreground shadow-[inset_0_0_0_2px_var(--control-primary-ring)]",
+              i > current && "bg-muted text-muted-foreground",
+            )}
+          >
+            {i < current ? <Check className="size-4" /> : i + 1}
+          </span>
           <span>
             <span className="sr-only">{s.stepLabel(i + 1, items.length)}: </span>
             {item.label}
@@ -241,7 +248,7 @@ export function Setup({ onDone, onClosed, providerError = null }: SetupProps) {
           <Alert variant="warning" role="note" title={s.doneNoticeTitle}>
             {s.doneNotice}
           </Alert>
-          <Button type="button" onClick={onDone} className="mt-2 w-full">
+          <Button type="button" onClick={onDone} className="mt-2 min-h-11 w-full">
             {s.goToApp}
           </Button>
         </div>
@@ -250,7 +257,7 @@ export function Setup({ onDone, onClosed, providerError = null }: SetupProps) {
       {step === "closed" && (
         <div className="mt-4 flex flex-col gap-6">
           <p>{s.closedBody}</p>
-          <Button type="button" onClick={onClosed} className="w-full">
+          <Button type="button" onClick={onClosed} className="min-h-11 w-full">
             {s.goToSignIn}
           </Button>
         </div>

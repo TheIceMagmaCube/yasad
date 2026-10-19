@@ -122,6 +122,22 @@ describe("SearchBox, ARIA", () => {
     expect(input).toHaveAttribute("aria-activedescendant", second!.id);
   });
 
+  // Forced colors mode drops box shadows, rings included, and the fill: only an outline still shows which option
+  // Enter would open, and where the focus is.
+  it("marks the selected option and the focused controls with an outline, which forced colors mode keeps", async () => {
+    const user = userEvent.setup();
+    const { input } = setup();
+    await user.type(input, "mail");
+    await vi.waitFor(() => expect(options()).toHaveLength(2));
+    expect(options()[0]).toHaveClass("aria-selected:outline-2", "aria-selected:outline-solid");
+    expect(options()[0]!.className).not.toMatch(/aria-selected:ring/);
+    const controls = [input, screen.getByRole("button", { name: "Clear search" }), screen.getByRole("button", { name: "Search" })];
+    for (const control of controls) {
+      expect(control).toHaveClass("focus-visible:outline-2", "focus-visible:outline-solid");
+      expect(control.className).not.toMatch(/focus-visible:ring/);
+    }
+  });
+
   it("opens a closed list with ArrowDown, and with Alt+ArrowDown without moving", async () => {
     const user = userEvent.setup();
     const { input } = setup();
@@ -555,6 +571,8 @@ describe("SearchBox, results", () => {
     await vi.waitFor(() => expect(options()).toHaveLength(1));
     const [option] = options();
     expect(option).toHaveAccessibleName("Mail, Everyday, Keyword: courrier");
+    // Its text has the name's words with spaces between the parts, as axe compares them (WCAG 2.5.3).
+    expect(option!.textContent).toBe("Mail Everyday Keyword: courrier");
     expect(within(option!).getByText("Everyday")).toBeInTheDocument();
     expect([...option!.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual(["Mail", "cour"]);
     expect(option!.querySelector("a, button, input")).toBeNull();

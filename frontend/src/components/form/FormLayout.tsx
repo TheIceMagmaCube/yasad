@@ -8,9 +8,9 @@ export function FormStack({ className, children }: { className?: string; childre
 }
 
 /**
- * Lay out the form buttons: the main action first, then Cancel. `stretch` gives each button the full width, as on
- * the sign-in screens.
+ * Lay out the form buttons: the main action first, then Cancel. `stretch` gives each button the full width and a
+ * 44 px target, as on the sign-in screens.
  */
 export function FormActions({ stretch = false, className, children }: { stretch?: boolean; className?: string; children: ReactNode }) {
-  return <div className={cn(stretch ? "flex flex-col gap-3 *:w-full" : "flex flex-wrap items-center gap-3", className)}>{children}</div>;
+  return <div className={cn(stretch ? "flex flex-col gap-3 *:min-h-11 *:w-full" : "flex flex-wrap items-center gap-3", className)}>{children}</div>;
 }

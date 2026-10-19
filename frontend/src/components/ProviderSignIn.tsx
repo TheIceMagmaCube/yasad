@@ -123,7 +123,7 @@ export function ProviderSignIn({ provider, error: initialError = null, autoRedir
       ) : (
         <PendingButton
           type="button"
-          className="h-auto min-h-10 w-full whitespace-normal"
+          className="h-auto min-h-11 w-full whitespace-normal"
           pending={pending}
           pendingLabel={s.redirecting(provider.name)}
           onClick={() => void start(false)}
@@ -135,14 +135,17 @@ export function ProviderSignIn({ provider, error: initialError = null, autoRedir
   );
 }
 
+/** Dotted rule in square two-pixel dots, the pixel version of a hairline. */
+const RULE = "h-0.5 flex-1 bg-[repeating-linear-gradient(90deg,var(--input)_0_2px,transparent_2px_6px)]";
+
 /** Render the "or" between the provider button and the password form. */
 export function OrDivider() {
   const s = useStrings().signIn;
   return (
-    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-      <span aria-hidden="true" className="h-px flex-1 bg-border" />
+    <div className="text-caption flex items-center gap-3 text-muted-foreground uppercase">
+      <span aria-hidden="true" className={RULE} />
       <span>{s.or}</span>
-      <span aria-hidden="true" className="h-px flex-1 bg-border" />
+      <span aria-hidden="true" className={RULE} />
     </div>
   );
 }
