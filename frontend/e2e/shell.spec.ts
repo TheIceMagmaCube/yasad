@@ -102,7 +102,7 @@ for (const theme of THEMES) {
         const card = (name: string) => everyday.locator(".relief").filter({ has: page.getByRole("link", { name, exact: true }) });
         await expect(card("Mail").locator("svg")).toBeVisible();
         await expect(card("Code").locator("svg")).toBeVisible();
-        await expect(card("Chat").locator('[data-slot="link-icon"]')).toHaveText("C");
+        await expect(card("Chat").locator('[data-slot="link-icon"] [data-initial]')).toHaveAttribute("data-initial", "C");
         await expect(card("Chat").locator("svg")).toHaveCount(0);
 
         await expectAccessible(page, "home with links");

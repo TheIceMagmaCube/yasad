@@ -571,6 +571,8 @@ describe("SearchBox, results", () => {
     await vi.waitFor(() => expect(options()).toHaveLength(1));
     const [option] = options();
     expect(option).toHaveAccessibleName("Mail, Everyday, Keyword: courrier");
+    // Its text has the name's words with spaces between the parts, as axe compares them (WCAG 2.5.3).
+    expect(option!.textContent).toBe("Mail Everyday Keyword: courrier");
     expect(within(option!).getByText("Everyday")).toBeInTheDocument();
     expect([...option!.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual(["Mail", "cour"]);
     expect(option!.querySelector("a, button, input")).toBeNull();

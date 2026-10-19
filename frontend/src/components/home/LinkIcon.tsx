@@ -105,7 +105,8 @@ export function LinkIcon({ icon, title, className }: { icon: HomeIcon | null; ti
       {current?.nodes ? (
         <Icon iconNode={current.nodes} className="size-6" />
       ) : loading ? null : (
-        <span className="text-pixel text-2xl leading-none">{initialOf(title, language)}</span>
+        // Generated content, not text: an option or a link naming itself by the title must not show an extra letter.
+        <span data-initial={initialOf(title, language)} className="text-pixel text-2xl leading-none before:content-[attr(data-initial)]" />
       )}
     </span>
   );
