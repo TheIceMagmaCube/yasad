@@ -1,4 +1,4 @@
-# YASAD catalog file. Import it from the "Catalog" page (admins), or load it at startup on Docker
+# YASAD catalog file. Import it from Links, "YAML file" (admins), or load it at startup on Docker
 # with CATALOG_FILE=/path/to/catalog.yaml. The import makes the catalog match this file exactly:
 # categories and links missing from it are deleted (groups never are).
 version: 1

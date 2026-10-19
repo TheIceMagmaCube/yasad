@@ -6,6 +6,8 @@ export type ApiErrorBody = {
   errors?: CatalogError[];
   attemptsLeft?: number;
   fields?: Record<string, string>;
+  /** The item as stored now, with `item_changed`. */
+  current?: unknown;
 };
 
 export class ApiError extends Error {
@@ -88,6 +90,22 @@ export type AdminLink = {
   revision: number;
 };
 export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
+/** A point to know after a write that went through. */
+export type EditWarning = "no_group" | "unknown_icon" | "groups_differ_by_case" | "new_oidc_group";
+export type LinkInput = {
+  id?: string;
+  categoryId: string;
+  title: string;
+  url: string;
+  description?: string;
+  /** `null` removes the icon. */
+  icon?: string | null;
+  keywords?: string[];
+  groups: string[];
+  active?: boolean;
+};
+export type CategoryInput = { id?: string; title: string; groups: string[] };
+type Direction = "up" | "down";
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -185,4 +203,18 @@ export const api = {
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("DELETE")),
   /** Return the whole catalog as stored, to say what each group opens. */
   categories: async () => (await call<{ categories: AdminCategory[] }>("/api/admin/categories")).categories,
+  createCategory: (input: CategoryInput) => call<{ category: AdminCategory; warnings: EditWarning[] }>("/api/admin/categories", post(input)),
+  updateCategory: (id: string, revision: number, changes: Partial<CategoryInput>) =>
+    call<{ category: AdminCategory; warnings: EditWarning[] }>(`/api/admin/categories/${encodeURIComponent(id)}`, send("PATCH", { revision, ...changes })),
+  /** Move a category one step; `order` is the list of category ids after the move. */
+  moveCategory: (id: string, direction: Direction) => call<{ order: string[] }>(`/api/admin/categories/${encodeURIComponent(id)}/move`, post({ direction })),
+  /** Delete a category and its links; refused when it no longer holds `linkCount` links. */
+  deleteCategory: (id: string, revision: number, linkCount: number) =>
+    call<void>(`/api/admin/categories/${encodeURIComponent(id)}`, send("DELETE", { revision, linkCount })),
+  createLink: (input: LinkInput) => call<{ link: AdminLink; warnings: EditWarning[] }>("/api/admin/links", post(input)),
+  updateLink: (id: string, revision: number, changes: Partial<LinkInput>) =>
+    call<{ link: AdminLink; warnings: EditWarning[] }>(`/api/admin/links/${encodeURIComponent(id)}`, send("PATCH", { revision, ...changes })),
+  /** Move a link one step in its category; `order` is the list of that category's link ids after the move. */
+  moveLink: (id: string, direction: Direction) => call<{ order: string[] }>(`/api/admin/links/${encodeURIComponent(id)}/move`, post({ direction })),
+  deleteLink: (id: string, revision: number) => call<void>(`/api/admin/links/${encodeURIComponent(id)}`, send("DELETE", { revision })),
 };
