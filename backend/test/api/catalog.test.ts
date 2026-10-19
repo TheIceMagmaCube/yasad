@@ -80,6 +80,11 @@ describe("catalog import and export", () => {
     const applied = await send(app, CATALOG, false, preview.body.baseVersion);
     expect(applied.body.applied).toBe(true);
     expect(await app.query("select id from link order by id")).toEqual([{ id: "grafana" }, { id: "jira" }, { id: "mail" }]);
+    // Only a sign-in tells that the provider sends a group.
+    expect(await app.query(`select name, seen_at from "group" where source <> 'system' order by name`)).toEqual([
+      { name: "Contractors", seen_at: null },
+      { name: "Developers", seen_at: null },
+    ]);
   });
 
   it("exports the same catalog, and re-importing it changes nothing", async () => {

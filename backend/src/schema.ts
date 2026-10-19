@@ -100,6 +100,8 @@ export const group = sqliteTable(
     name: text("name").notNull(),
     source: text("source", { enum: ["oidc", "local", "system"] }).notNull(),
     createdAt: createdAt(),
+    /** Last sign-in whose token named this `oidc` group; null for a group the provider never sent, and for other sources. */
+    seenAt: integer("seen_at", { mode: "timestamp_ms" }),
   },
   (t) => [uniqueIndex("group_source_name_idx").on(t.source, t.name)],
 );

@@ -319,7 +319,7 @@ describe("catalog edits: links", () => {
     const { link, warnings } = await linkOf(res);
     expect(link.groups).toEqual(["@everyone", "oidc:Ops"]);
     expect(warnings).toEqual(["new_oidc_group"]);
-    expect(await admin.query(`select name from "group" where source = 'oidc'`)).toEqual([{ name: "Ops" }]);
+    expect(await admin.query(`select name, seen_at from "group" where source = 'oidc'`)).toEqual([{ name: "Ops", seen_at: null }]);
     // Seen now: no warning the second time.
     const again = await linkOf(await send(admin, "PATCH", `/api/admin/links/${link.id}`, { revision: 1, groups: ["oidc:Ops"] }));
     expect(again.warnings).toEqual([]);
