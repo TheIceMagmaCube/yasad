@@ -24,13 +24,18 @@ describe("UserMenu", () => {
   it("shows a filled avatar with the initials and a chevron, the name hidden from the accessible name", () => {
     renderWithProviders(<UserMenu user={ADA} path="/" onSignOut={vi.fn()} />);
     const trigger = screen.getByRole("button", { name: "Account menu for Ada Lovelace" });
-    expect(within(trigger).getByText("AL")).toHaveClass("pixel-corners", "bg-primary", "text-primary-foreground");
+    const avatar = trigger.querySelector("[data-initials]");
+    expect(avatar).toHaveAttribute("data-initials", "AL");
+    expect(avatar).toHaveClass("pixel-corners", "bg-primary", "text-primary-foreground");
+    // The initials must not be DOM text, or they are visible text missing from the label.
+    expect(trigger).not.toHaveTextContent("AL");
     expect(trigger.querySelectorAll("svg[aria-hidden=true]")).toHaveLength(1);
   });
 
   it("takes the initials of the first and last word, as the account page does", () => {
     renderWithProviders(<UserMenu user={{ ...ADA, name: "Augusta Ada King" }} path="/" onSignOut={vi.fn()} />);
-    expect(within(screen.getByRole("button", { name: "Account menu for Augusta Ada King" })).getByText("AK")).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Account menu for Augusta Ada King" });
+    expect(trigger.querySelector("[data-initials]")).toHaveAttribute("data-initials", "AK");
   });
 
   it("lists who is signed in, the pages and sign-out, each entry with an icon", async () => {

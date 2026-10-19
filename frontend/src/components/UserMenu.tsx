@@ -49,9 +49,12 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" aria-label={m.userMenu.open(user.name)} className={`max-w-48 gap-1.5 px-1.5 sm:px-2 ${HEADER_BUTTON}`}>
-          <span aria-hidden="true" className="pixel-corners flex size-7 shrink-0 items-center justify-center bg-primary font-mono text-xs font-bold text-primary-foreground">
-            {initials}
-          </span>
+          {/* Drawn as generated content: initials as DOM text would be visible text missing from the label (WCAG 2.5.3). */}
+          <span
+            aria-hidden="true"
+            data-initials={initials}
+            className="pixel-corners flex size-7 shrink-0 items-center justify-center bg-primary font-mono text-xs font-bold text-primary-foreground before:content-[attr(data-initials)]"
+          />
           <span aria-hidden="true" className="hidden truncate sm:inline">
             {user.name}
           </span>
