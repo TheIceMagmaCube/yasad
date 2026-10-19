@@ -369,7 +369,8 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await page.keyboard.press("Tab");
   const card = page.getByRole("link", { name: "Status page" });
   await expect(card).toBeFocused();
-  expect(await card.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+  // The focus outline is drawn on the whole card, around the title link.
+  expect(await card.evaluate((el) => getComputedStyle(el.closest(".relief")!).outlineStyle)).not.toBe("none");
 });
 
 // 320 by 256 CSS pixels is a 1280 by 1024 window at 400 % zoom.
