@@ -90,7 +90,7 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
         <DropdownMenuSeparator />
         {page("/", m.userMenu.home, House, path === "/")}
         {page("/account", m.userMenu.account, UserRound, path === "/account")}
-        {user.role === "admin" && page("/admin/users", m.userMenu.admin, Settings, inAdmin(path))}
+        {user.role === "admin" && page("/admin", m.userMenu.admin, Settings, inAdmin(path))}
         <DropdownMenuSeparator />
         <DropdownMenuItem className={ENTRY} onSelect={onSignOut}>
           <LogOut aria-hidden="true" />

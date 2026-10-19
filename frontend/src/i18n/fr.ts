@@ -234,10 +234,10 @@ export const fr = {
   },
   admin: {
     title: "Administration",
-    tabs: { users: "Personnes", links: "Liens", history: "Historique" },
+    tabs: { dashboard: "Tableau de bord", users: "Personnes", links: "Liens", history: "Historique" },
+    add: "Ajouter",
     filtered: "Filtre :",
     attentionClear: "Tout afficher",
-    add: "Ajouter",
     wizard: {
       progress: "Étapes",
       stepOf: (n, total) => `Étape ${n} sur ${total}`,
@@ -293,6 +293,8 @@ export const fr = {
     adminWord: "Admin",
     more: (n) => `+${n}`,
     states: { disabled: "Désactivé", temporary: "Mot de passe temporaire" },
+    attentionTemporary: (n) => (n === 1 ? "1 mot de passe temporaire pas encore utilisé" : `${n} mots de passe temporaires pas encore utilisés`),
+    attentionDisabled: (n) => `${n} compte${n === 1 ? "" : "s"} désactivé${n === 1 ? "" : "s"}`,
     disabledSentence: "Compte désactivé.",
     temporarySentence: "Mot de passe temporaire pas encore utilisé.",
     profile: "Profil",
@@ -348,6 +350,7 @@ export const fr = {
   groups: {
     opens: (categories, links) =>
       [categories > 0 && `${categories} catégorie${categories === 1 ? "" : "s"}`, links > 0 && `${links} lien${links === 1 ? "" : "s"}`].filter(Boolean).join(", "),
+    attentionEmpty: (n) => (n === 1 ? "1 groupe local sans membre" : `${n} groupes locaux sans membre`),
     membersTitle: "Membres",
     opensTitle: "Ce que ce groupe ouvre",
     opensCategories: "Catégories",
@@ -545,6 +548,24 @@ export const fr = {
     all: "Tout l'historique",
     noRecent: "Aucune modification.",
     recentError: "Les dernières modifications n'ont pas pu être chargées.",
+  },
+  dashboard: {
+    counters: { people: "Personnes", groups: "Groupes", categories: "Catégories", links: "Liens" },
+    todo: "À traiter",
+    nothing: "Rien à traiter.",
+    noGroup: (n) => `${n} élément${n === 1 ? "" : "s"} sans groupe`,
+    unknownIcon: (n) => `${n} icône${n === 1 ? "" : "s"} inconnue${n === 1 ? "" : "s"}`,
+    unseenGroups: (n) =>
+      n === 1
+        ? "1 groupe saisi jamais reçu du fournisseur d'identité : vérifier son nom"
+        : `${n} groupes saisis jamais reçus du fournisseur d'identité : vérifier leur nom`,
+    heroLines: (links) => [
+      `${links} liens, zéro favori cassé. Pour l'instant.`,
+      "Chaque lien à sa place, chaque place a son lien.",
+      "Étagères rangées, collègues contents.",
+      `${links} portes. Vous avez toutes les clés.`,
+      "Fini les « c'était quoi déjà, l'adresse ? ».",
+    ],
   },
   changePassword: {
     title: "Choisissez votre mot de passe",

@@ -50,7 +50,7 @@ describe("UserMenu", () => {
     expect(within(menu).getByRole("menuitem", { name: "My links" })).toHaveAttribute("href", "/");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("href", "/account");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).not.toHaveAttribute("aria-current");
-    expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("href", "/admin/users");
+    expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("href", "/admin");
   });
 
   it("leaves language and appearance to the account page", async () => {

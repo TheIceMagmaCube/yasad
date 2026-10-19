@@ -75,6 +75,37 @@ describe("PeoplePage", () => {
     expect(screen.getByText("4 people")).toBeInTheDocument();
   });
 
+  it("narrows the table to a state given in the address, with a line that shows everyone again", async () => {
+    const { user } = renderAdmin("/admin/users?state=temporary", routes());
+    await screen.findByRole("table");
+    expect(screen.getAllByRole("link", { name: /^(Ada|Bob|Hélène|Dan)$/ }).map((a) => a.textContent)).toEqual(["Dan"]);
+    expect(screen.getByText("1 of 4 people")).toBeInTheDocument();
+    expect(screen.getByText("Filter: Temporary password")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show all" }));
+    expect(location.search).toBe("");
+    expect(screen.getByText("4 people")).toBeInTheDocument();
+    expect(screen.queryByText(/^Filter:/)).toBeNull();
+    await waitFor(() => expect(screen.getByLabelText("Filter by name or e-mail")).toHaveFocus());
+  });
+
+  it("narrows to disabled accounts, ignores an unknown state, and says when nobody is left in one", async () => {
+    renderAdmin("/admin/users?state=disabled", routes());
+    await screen.findByRole("table");
+    expect(screen.getAllByRole("link", { name: /^(Ada|Bob|Hélène|Dan)$/ }).map((a) => a.textContent)).toEqual(["Hélène"]);
+    expect(screen.getByText("Filter: Disabled")).toBeInTheDocument();
+    cleanup();
+
+    renderAdmin("/admin/users?state=toString", routes());
+    await screen.findByRole("table");
+    expect(screen.getByText("4 people")).toBeInTheDocument();
+    expect(screen.queryByText(/^Filter:/)).toBeNull();
+    cleanup();
+
+    renderAdmin("/admin/users?state=temporary", { ...routes(), "GET /api/admin/users": usersAnswer(ADA, BOB) });
+    expect(await screen.findByText("Nothing to do.")).toBeInTheDocument();
+  });
+
   it("opens a person's page from the row, then gives the focus back to that row by the back link, filter kept", async () => {
     const { user } = renderAdmin("/admin/users?q=bo", routes());
     await screen.findByRole("table");
