@@ -5,7 +5,7 @@ updates:
     directory: /
     target-branch: beta
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       # better-auth and @better-auth/core must stay on the same version.
       better-auth:
