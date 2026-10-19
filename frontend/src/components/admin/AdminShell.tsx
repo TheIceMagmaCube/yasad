@@ -12,19 +12,17 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 
 /**
- * Administration sections, in navigation order; the first one opens on /admin. A section joins the list once it
- * exists: no empty entry. `bar` holds literal classes, so Tailwind finds them: the mark of the current one.
+ * Administration sections, in navigation order. A section joins the list once it exists: no empty entry. `bar`
+ * holds literal classes, so Tailwind finds them: the mark of the current one.
  */
 export const ADMIN_SECTIONS = [
+  { id: "dashboard", href: "/admin", bar: "before:bg-category-1-fill" },
   { id: "users", href: "/admin/users", bar: "before:bg-category-3-fill" },
   { id: "links", href: "/admin/links", bar: "before:bg-category-2-fill" },
   { id: "history", href: "/admin/history", bar: "before:bg-category-4-fill" },
 ] as const;
 
 export type AdminSection = (typeof ADMIN_SECTIONS)[number]["id"];
-
-/** Address the bare /admin path stands for. */
-export const ADMIN_HOME = ADMIN_SECTIONS[0].href;
 
 // The current entry has a bar under it in its section colour and a bold label, so it stands out without colour
 // alone; in forced colors mode the bar takes the text colour.

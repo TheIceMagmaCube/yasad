@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { adminRoute, canonicalAdminPath } from "./AdminRoutes";
 
 describe("canonicalAdminPath", () => {
-  it("opens /admin on people, the former groups list on the people table, the former catalog page on the YAML file", () => {
-    expect(canonicalAdminPath("/admin")).toBe("/admin/users");
+  it("keeps /admin for the dashboard, opens the former groups list on the people table, the former catalog page on the YAML file", () => {
+    expect(canonicalAdminPath("/admin")).toBe("/admin");
     expect(canonicalAdminPath("/admin/groups")).toBe("/admin/users");
     expect(canonicalAdminPath("/admin/groups/g1")).toBe("/admin/groups/g1");
     expect(canonicalAdminPath("/admin/catalog")).toBe("/admin/links/file");
@@ -13,7 +13,8 @@ describe("canonicalAdminPath", () => {
 });
 
 describe("adminRoute", () => {
-  it("routes the people table, a person, a group and the wizard adding either", () => {
+  it("routes the dashboard, the people table, a person, a group and the wizard adding either", () => {
+    expect(adminRoute("/admin")).toEqual({ section: "dashboard" });
     expect(adminRoute("/admin/users")).toEqual({ section: "users", open: null });
     expect(adminRoute("/admin/users/new")).toEqual({ section: "users", open: { kind: "new", type: "person" } });
     expect(adminRoute("/admin/users/u%201")).toEqual({ section: "users", open: { kind: "person", id: "u 1" } });

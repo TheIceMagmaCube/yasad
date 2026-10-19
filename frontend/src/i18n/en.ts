@@ -229,10 +229,10 @@ export const en = {
   },
   admin: {
     title: "Administration",
-    tabs: { users: "People", links: "Links", history: "History" },
+    tabs: { dashboard: "Dashboard", users: "People", links: "Links", history: "History" },
+    add: "Add",
     filtered: "Filter:",
     attentionClear: "Show all",
-    add: "Add",
     wizard: {
       progress: "Steps",
       stepOf: (n: number, total: number) => `Step ${n} of ${total}`,
@@ -286,6 +286,8 @@ export const en = {
     adminWord: "Admin",
     more: (n: number) => `+${n}`,
     states: { disabled: "Disabled", temporary: "Temporary password" },
+    attentionTemporary: (n: number) => `${n} temporary password${n === 1 ? "" : "s"} not used yet`,
+    attentionDisabled: (n: number) => `${n} disabled account${n === 1 ? "" : "s"}`,
     disabledSentence: "Account disabled.",
     temporarySentence: "Temporary password not used yet.",
     profile: "Profile",
@@ -340,6 +342,7 @@ export const en = {
   groups: {
     opens: (categories: number, links: number) =>
       [categories > 0 && `${categories} categor${categories === 1 ? "y" : "ies"}`, links > 0 && `${links} link${links === 1 ? "" : "s"}`].filter(Boolean).join(", "),
+    attentionEmpty: (n: number) => `${n} local group${n === 1 ? "" : "s"} without members`,
     membersTitle: "Members",
     opensTitle: "What this group opens",
     opensCategories: "Categories",
@@ -536,6 +539,21 @@ export const en = {
     all: "All the history",
     noRecent: "No changes.",
     recentError: "The latest changes could not be loaded.",
+  },
+  dashboard: {
+    counters: { people: "People", groups: "Groups", categories: "Categories", links: "Links" },
+    todo: "To do",
+    nothing: "Nothing to do.",
+    noGroup: (n: number) => `${n} item${n === 1 ? "" : "s"} without a group`,
+    unknownIcon: (n: number) => `${n} unknown icon${n === 1 ? "" : "s"}`,
+    unseenGroups: (n: number) => `${n} typed group${n === 1 ? "" : "s"} never received from the identity provider: check the name`,
+    heroLines: (links: number) => [
+      `${links} links, zero broken bookmark. So far.`,
+      "Every link in its place, every place with its link.",
+      "Tidy shelves, happy colleagues.",
+      `${links} doors. You hold all the keys.`,
+      "No more \"where is that link again?\".",
+    ],
   },
   changePassword: {
     title: "Choose your password",

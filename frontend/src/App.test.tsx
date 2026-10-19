@@ -328,10 +328,10 @@ describe("App", () => {
       await waitFor(() => expect(document.title).toBe("My links - YASAD"));
 
       await user.click(within(await openAccountMenu(user, ADA.name)).getByRole("menuitem", { name: "Administration" }));
-      const heading = await screen.findByRole("heading", { name: "People", level: 1 });
-      expect(location.pathname).toBe("/admin/users");
+      const heading = await screen.findByRole("heading", { name: "Dashboard", level: 1 });
+      expect(location.pathname).toBe("/admin");
       expect(heading).toHaveFocus();
-      await waitFor(() => expect(document.title).toBe("People - Administration - YASAD"));
+      await waitFor(() => expect(document.title).toBe("Dashboard - Administration - YASAD"));
       const menu = await openAccountMenu(user, ADA.name);
       expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("aria-current", "page");
       expect(within(menu).getByRole("menuitem", { name: "My links" })).not.toHaveAttribute("aria-current");
@@ -345,18 +345,18 @@ describe("App", () => {
       act(() => {
         history.back();
       });
-      await vi.waitFor(() => expect(location.pathname).toBe("/admin/users"));
-      await waitFor(() => expect(document.title).toBe("People - Administration - YASAD"));
+      await vi.waitFor(() => expect(location.pathname).toBe("/admin"));
+      await waitFor(() => expect(document.title).toBe("Dashboard - Administration - YASAD"));
 
       expect(fetchMock.mock.calls.filter(([path]) => path === "/api/auth/get-session")).toHaveLength(1);
     });
 
-    it("normalizes a trailing slash, the bare /admin path and the former groups list without adding a history entry", async () => {
+    it("normalizes a trailing slash and the former groups list without adding a history entry", async () => {
       mockApi(signedIn(ADA));
       const length = history.length;
       renderAt("/admin/");
-      expect(await screen.findByRole("link", { name: "People", current: "page" })).toBeInTheDocument();
-      expect(location.pathname).toBe("/admin/users");
+      expect(await screen.findByRole("link", { name: "Dashboard", current: "page" })).toBeInTheDocument();
+      expect(location.pathname).toBe("/admin");
       expect(history.length).toBe(length);
       expect(document.activeElement).toBe(document.body);
       cleanup();

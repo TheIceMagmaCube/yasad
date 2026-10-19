@@ -26,6 +26,8 @@ const MARGARET = { id: "adm-margaret", name: "Margaret Hamilton", email: "margar
 // Sorts before the administrator, Ada Lovelace, so the row after it is known whatever other specs added.
 const TEMP = { id: "adm-temp", name: "Abel Temp", email: "temp@example.invalid", password: "a temporary account" };
 const KEN = { id: "adm-ken", name: "Ken Thompson", email: "ken@example.invalid" };
+// Holds a temporary password, so the dashboard has something to do and the people table a state to filter on.
+const BARBARA = { id: "adm-barbara", name: "Barbara Liskov", email: "barbara@example.invalid", password: "barbara's temporary one", mustChangePassword: true };
 
 const CATALOG = readFileSync("../docs/catalog.example.yaml", "utf8");
 
@@ -49,10 +51,41 @@ test.beforeAll(async () => {
   await addLocalUser(LINUS);
   await addLocalUser(MARGARET);
   await addLocalUser(TEMP);
+  await addLocalUser(BARBARA);
   addOidcUser(KEN);
   addGroup({ id: "adm-staff", name: "Staff", memberIds: [GRACE.id, KEN.id, LINUS.id] });
   addGroup({ id: "adm-reviewers", name: "Reviewers" });
   addGroup({ id: "adm-engineering", name: "Engineering", source: "oidc", memberIds: [KEN.id] });
+});
+
+test("the dashboard is accessible, and its items open the list filtered on them, in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInAsAdmin(page);
+  await importCatalog(page.request, CATALOG);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `dashboard (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/admin", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+        const temporary = page.getByRole("link", { name: /temporary passwords? not used yet/ });
+        await expect(temporary).toBeVisible();
+        await expectClean(page, label);
+
+        await temporary.click();
+        await expect(page).toHaveURL(/\/admin\/users\?state=temporary$/);
+        await expect(page.getByText("Filter: Temporary password")).toBeVisible();
+        await expect(page.getByRole("link", { name: BARBARA.name, exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: GRACE.name, exact: true })).toBeHidden();
+        await expectClean(page, `${label}, people narrowed to a state`);
+        await page.getByRole("button", { name: "Show all" }).click();
+        await expect(page.getByLabel("Filter by name or e-mail")).toBeFocused();
+        await expect(page).toHaveURL(/\/admin\/users$/);
+        expect(csp).toEqual([]);
+      }
+    }
+  }
 });
 
 test("the people pages are accessible in each of their states, in every theme, mode and width", async ({ page }) => {
@@ -279,6 +312,7 @@ test("the administration pages fit a 320 px screen in French", async ({ page }) 
   await open(page, "/admin/users", "default", "light", 320);
   await page.evaluate(() => localStorage.setItem("yasad.language", "fr"));
   for (const [path, title] of [
+    ["/admin", "Tableau de bord"],
     ["/admin/users", "Personnes"],
     ["/admin/users/new", "Ajouter"],
     [`/admin/users/${GRACE.id}`, GRACE.name],

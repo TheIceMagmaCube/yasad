@@ -32,6 +32,14 @@ export const personHref = (id: string) => `${LIST}/${encodeURIComponent(id)}`;
 export const groupHref = (id: string) => `/admin/groups/${encodeURIComponent(id)}`;
 const linkIdOf = (id: string) => `user-${id}-link`;
 
+/** States the dashboard links to, as `?state=`. */
+const STATES = {
+  temporary: (u: AdminUser) => u.mustChangePassword,
+  disabled: (u: AdminUser) => u.disabled,
+} as const;
+type StateFilter = keyof typeof STATES;
+const isState = (value: string): value is StateFilter => Object.hasOwn(STATES, value);
+
 /** Return the first two group names of a person, and how many more there are. */
 function groupsCell(user: AdminUser, m: Messages) {
   if (user.groups.length === 0) return <span className="text-muted-foreground">-</span>;
@@ -69,6 +77,7 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
   const feedback = useListFeedback();
   const [query, setQuery] = useQueryState("q");
   const [groupId, setGroupId] = useQueryState("group");
+  const [stateFilter, setStateFilter] = useQueryState("state");
   // Temporary passwords not noted yet, by person: shown on their page, and recalled above the table meanwhile.
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [now] = useState(() => Date.now());
@@ -84,8 +93,9 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
   const shown = useMemo(() => {
     let rows = filter(query);
     if (selected) rows = rows.filter((u) => selected.memberIds.includes(u.id));
+    if (isState(stateFilter)) rows = rows.filter(STATES[stateFilter]);
     return rows;
-  }, [filter, query, selected]);
+  }, [filter, query, selected, stateFilter]);
   const shownRef = useRef(shown);
   useEffect(() => {
     shownRef.current = shown;
@@ -272,7 +282,7 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
   ];
 
   const pending = Object.keys(secrets);
-  const filtering = query.trim() !== "" || selected !== null;
+  const filtering = query.trim() !== "" || isState(stateFilter) || selected !== null;
   const count = !list ? "" : filtering ? s.countFiltered(shown.length, list.length) : s.count(list.length);
 
   return (
@@ -318,6 +328,24 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
               </Link>
             }
           />
+          {isState(stateFilter) && (
+            <p data-slot="state-line" className="mb-4 flex flex-wrap items-center gap-x-3 text-sm">
+              <span>
+                {m.admin.filtered} {s.states[stateFilter]}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStateFilter("");
+                  feedback.clearForFilter();
+                  void focusById(FILTER_ID);
+                }}
+                className="inline-flex min-h-11 items-center underline decoration-link-decoration decoration-2 underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+              >
+                {m.admin.attentionClear}
+              </button>
+            </p>
+          )}
           {selected && (
             <div data-slot="group-line" className="mb-4 flex flex-wrap items-center gap-x-4 border-l-4 border-selected py-1 pl-4">
               <p className="mr-auto">
@@ -355,17 +383,19 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
           {!list ? (
             <div aria-hidden="true" className="appear-delayed h-64 rounded-(--radius-card) bg-muted motion-safe:animate-pulse" />
           ) : shown.length === 0 && feedback.tombstones.length === 0 ? (
-            selected && !query.trim() ? (
+            selected && !query.trim() && !isState(stateFilter) ? (
               <p className="py-4 text-muted-foreground">{s.noMembersInGroup}</p>
             ) : (
               <EmptyState
-                title={m.admin.noMatch(query.trim())}
+                // Narrowed by state only, nobody left in it means nothing to look at, not a typing miss.
+                title={query.trim() ? m.admin.noMatch(query.trim()) : m.dashboard.nothing}
                 actions={
                   <Button
                     variant="outline"
                     onClick={() => {
                       changeQuery("");
                       setGroupId("");
+                      setStateFilter("");
                       void focusById(FILTER_ID);
                     }}
                   >
