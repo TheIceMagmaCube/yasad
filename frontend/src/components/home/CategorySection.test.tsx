@@ -24,7 +24,7 @@ describe("CategorySection", () => {
     const region = screen.getByRole("region", { name: "Developer tools" });
     expect(within(region).getByRole("heading", { level: 2, name: "Developer tools" })).toBeInTheDocument();
     const items = within(within(region).getByRole("list")).getAllByRole("listitem");
-    expect(items.map((li) => li.textContent)).toEqual(["JJira", "WWiki", "CCI"]);
+    expect(items.map((li) => li.textContent)).toEqual(["Jira", "Wiki", "CI"]);
     expect(within(region).getByRole("list")).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
   });
 

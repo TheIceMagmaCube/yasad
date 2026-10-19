@@ -34,7 +34,7 @@ describe("LinkCard", () => {
     const tile = container.querySelector('[data-slot="link-icon"]');
     expect(tile).toHaveAttribute("aria-hidden", "true");
     expect(tile).toHaveClass(...TONE.tile.split(" "));
-    expect(tile).toHaveTextContent("J");
+    expect(tile?.querySelector("[data-initial]")).toHaveAttribute("data-initial", "J");
   });
 
   it("is a raised card on a base of the category colour, with a boundary kept in forced colors", () => {
