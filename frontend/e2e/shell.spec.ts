@@ -208,7 +208,7 @@ test.describe("search", () => {
     for (const marker of [...HIDDEN_LINKS, HIDDEN_KEYWORD]) expect(body).not.toContain(marker);
     expect(body).toContain("courrier");
 
-    for (const path of ["/", "/admin/groups"]) {
+    for (const path of ["/", "/admin/users"]) {
       await page.goto(path);
       await expect(page.getByRole("button", { name: `Account menu for ${ADMIN.name}` })).toBeVisible();
       await page.keyboard.press("/");
@@ -251,8 +251,8 @@ test.describe("search", () => {
   });
 
   test("leaves '/' and Ctrl+K alone in other fields", async ({ page }) => {
-    await page.goto("/admin/users");
-    await page.getByRole("button", { name: "New user" }).click();
+    await page.goto("/admin/users/new");
+    await page.getByRole("button", { name: "Next" }).click();
     const name = page.getByLabel("Name", { exact: true });
     await name.focus();
     await page.keyboard.type("a/b");
@@ -385,7 +385,7 @@ test("the sections and sign-out stay reachable at 400 % zoom, without horizontal
   setInstanceTheme("default");
   await signIn(page);
   await page.setViewportSize({ width: 320, height: 256 });
-  for (const [path, current] of [["/", "My links"], ["/admin/groups", "Administration"]] as const) {
+  for (const [path, current] of [["/", "My links"], ["/admin/users", "Administration"]] as const) {
     await page.goto(path);
     const trigger = page.getByRole("button", { name: `Account menu for ${ADMIN.name}` });
     await expect(trigger).toBeInViewport();

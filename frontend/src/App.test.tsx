@@ -337,34 +337,34 @@ describe("App", () => {
       await waitFor(() => expect(document.title).toBe("My links - YASAD"));
 
       await user.click(within(await openAccountMenu(user, ADA.name)).getByRole("menuitem", { name: "Administration" }));
-      const heading = await screen.findByRole("heading", { name: "Users", level: 1 });
+      const heading = await screen.findByRole("heading", { name: "People", level: 1 });
       expect(location.pathname).toBe("/admin/users");
       expect(heading).toHaveFocus();
-      await waitFor(() => expect(document.title).toBe("Users - Administration - YASAD"));
+      await waitFor(() => expect(document.title).toBe("People - Administration - YASAD"));
       const menu = await openAccountMenu(user, ADA.name);
       expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("aria-current", "page");
       expect(within(menu).getByRole("menuitem", { name: "My links" })).not.toHaveAttribute("aria-current");
       await user.keyboard("{Escape}");
 
-      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
-      expect(location.pathname).toBe("/admin/groups");
-      await waitFor(() => expect(document.title).toBe("Groups - Administration - YASAD"));
-      expect(screen.getByRole("heading", { name: "Groups", level: 1 })).toHaveFocus();
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+      expect(location.pathname).toBe("/admin/catalog");
+      await waitFor(() => expect(document.title).toBe("Catalog - Administration - YASAD"));
+      expect(screen.getByRole("heading", { name: "Catalog", level: 1 })).toHaveFocus();
 
       act(() => {
         history.back();
       });
       await vi.waitFor(() => expect(location.pathname).toBe("/admin/users"));
-      await waitFor(() => expect(document.title).toBe("Users - Administration - YASAD"));
+      await waitFor(() => expect(document.title).toBe("People - Administration - YASAD"));
 
       expect(fetchMock.mock.calls.filter(([path]) => path === "/api/auth/get-session")).toHaveLength(1);
     });
 
-    it("normalizes a trailing slash and the bare /admin path without adding a history entry", async () => {
+    it("normalizes a trailing slash, the bare /admin path and the former groups list without adding a history entry", async () => {
       mockApi(signedIn(ADA));
       const length = history.length;
       renderAt("/admin/");
-      expect(await screen.findByRole("link", { name: "Users", current: "page" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "People", current: "page" })).toBeInTheDocument();
       expect(location.pathname).toBe("/admin/users");
       expect(history.length).toBe(length);
       expect(document.activeElement).toBe(document.body);
@@ -372,8 +372,9 @@ describe("App", () => {
 
       mockApi(signedIn(ADA));
       renderAt("/admin/groups/");
-      expect(await screen.findByRole("link", { name: "Groups", current: "page" })).toBeInTheDocument();
-      expect(location.pathname).toBe("/admin/groups");
+      expect(await screen.findByRole("link", { name: "People", current: "page" })).toBeInTheDocument();
+      expect(location.pathname).toBe("/admin/users");
+      expect(history.length).toBe(length);
     });
 
     it("shows a translated not-found page with a link home", async () => {
@@ -451,7 +452,7 @@ describe("App", () => {
       const user = userEvent.setup();
       mockApi(signedIn(ADA));
       renderAt("/admin/users");
-      await screen.findByRole("heading", { name: "Users" });
+      await screen.findByRole("heading", { name: "People" });
       const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
       mockApi({
         "GET /api/setup": { status: 200, body: { open: false } },
@@ -461,7 +462,7 @@ describe("App", () => {
         "GET /api/admin/groups": unauthenticated,
         "GET /api/admin/catalog/state": unauthenticated,
       });
-      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     });
 
@@ -469,10 +470,10 @@ describe("App", () => {
       const user = userEvent.setup();
       mockApi(signedIn(ADA));
       renderAt("/admin/users");
-      await screen.findByRole("heading", { name: "Users" });
+      await screen.findByRole("heading", { name: "People" });
       const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
-      mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden });
-      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+      mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden, "GET /api/admin/catalog/state": forbidden });
+      await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
       expect(await screen.findByRole("heading", { name: "Admins only" })).toHaveFocus();
       expect(within(await openAccountMenu(user, ADA.name)).queryByRole("menuitem", { name: "Administration" })).toBeNull();
     });
@@ -715,7 +716,7 @@ describe("App, views and focus", () => {
     const user = userEvent.setup();
     mockApi(signedIn({ ...ADA, id: "ada" }));
     renderAt("/admin/users");
-    await screen.findByRole("heading", { name: "Users" });
+    await screen.findByRole("heading", { name: "People" });
     const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
     mockApi({
       ...signedOut,
@@ -728,16 +729,16 @@ describe("App, views and focus", () => {
       "GET /api/admin/catalog/state": [unauthenticated, { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } }],
       "POST /api/auth/sign-in/email": { status: 200, body: {} },
     });
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
     const notice = await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." });
     expect(notice).toHaveFocus();
-    expect(location.pathname).toBe("/admin/groups");
+    expect(location.pathname).toBe("/admin/catalog");
 
     await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
     await user.type(screen.getByLabelText("Password"), "a long enough password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Groups" })).toHaveFocus();
-    expect(location.pathname).toBe("/admin/groups");
+    expect(await screen.findByRole("heading", { level: 1, name: "Catalog" })).toHaveFocus();
+    expect(location.pathname).toBe("/admin/catalog");
     expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
   });
 
@@ -833,13 +834,13 @@ describe("App, views and focus", () => {
     const user = userEvent.setup();
     mockApi(signedIn(ADA));
     renderAt("/admin/users");
-    await screen.findByRole("heading", { name: "Users" });
+    await screen.findByRole("heading", { name: "People" });
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise<Response>(() => {})),
     );
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
-    expect(screen.getByRole("heading", { level: 1, name: "Groups" })).toHaveFocus();
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Catalog" })).toHaveFocus();
   });
 });
 
@@ -865,12 +866,12 @@ describe("App, temporary password and account", () => {
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
     await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
     await user.click(screen.getByRole("button", { name: "Save password" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Users" })).toHaveFocus();
+    expect(await screen.findByRole("heading", { level: 1, name: "People" })).toHaveFocus();
     expect(location.pathname).toBe("/admin/users");
     expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
     await waitFor(() => expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Password saved."));
 
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
     expect(screen.queryByRole("note")).toBeNull();
   });
 
@@ -956,12 +957,12 @@ describe("App, OIDC sign-in", () => {
 
   it("goes to the provider at once on a deep link when password sign-in is off, coming back to it", async () => {
     const fetchMock = mockApi(anonymous());
-    renderAt("/admin/groups");
+    renderAt("/admin/catalog");
     expect(await screen.findByText("Redirecting to Okta…")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Administrator? Sign in with a password" })).toBeInTheDocument();
     await waitFor(() => expect(replace).toHaveBeenCalledWith(AUTHORIZE));
     const call = starts(fetchMock)[0]!;
-    expect(JSON.parse(String(call[1]!.body))).toEqual({ returnTo: "/admin/groups" });
+    expect(JSON.parse(String(call[1]!.body))).toEqual({ returnTo: "/admin/catalog" });
     expect(starts(fetchMock)).toHaveLength(1);
   });
 
@@ -1037,7 +1038,7 @@ describe("App, OIDC sign-in", () => {
     const user = userEvent.setup();
     mockApi({ ...signedIn({ ...ADA, id: "ada" }), ...instance(false) });
     renderAt("/admin/users");
-    await screen.findByRole("heading", { name: "Users" });
+    await screen.findByRole("heading", { name: "People" });
     const unauthenticated = { status: 401, body: { error: { code: "unauthenticated", message: "" } } };
     const fetchMock = mockApi({
       ...anonymous(),
@@ -1045,7 +1046,7 @@ describe("App, OIDC sign-in", () => {
       "GET /api/admin/groups": unauthenticated,
       "GET /api/admin/catalog/state": unauthenticated,
     });
-    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Groups" }));
+    await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Catalog" }));
     expect(await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." })).toHaveFocus();
     expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
     expect(starts(fetchMock)).toHaveLength(0);

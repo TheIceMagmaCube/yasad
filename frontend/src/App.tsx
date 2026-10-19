@@ -13,8 +13,7 @@ import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
 import { navigate, normalizePath, useNavigations, usePath } from "./lib/router";
 import { clearSignInError, leavePage, LOCAL_SIGN_IN, readSignInError, SIGN_IN, SIGNED_OUT } from "./lib/sign-in";
 import { Account } from "./pages/Account";
-import { ADMIN_HOME } from "./pages/admin/AdminLayout";
-import { AdminRoutes } from "./pages/admin/AdminRoutes";
+import { AdminRoutes, canonicalAdminPath } from "./pages/admin/AdminRoutes";
 import { NotFound } from "./pages/ErrorViews";
 import { Home } from "./pages/Home";
 import { Setup } from "./pages/Setup";
@@ -240,10 +239,10 @@ async function signOutThen(refresh: () => Promise<View>, oidc: boolean): Promise
   if (oidc && next.name !== "home") navigate(SIGNED_OUT);
 }
 
-/** Return the canonical form of a path: no trailing slash, and the administration section opened on its first tab. */
+/** Return the canonical form of a path: no trailing slash, and the administration addresses that stand for another. */
 function canonicalPath(path: string): string {
   const normalized = normalizePath(path);
-  return normalized === "/admin" ? ADMIN_HOME : normalized;
+  return normalized === "/admin" || normalized.startsWith("/admin/") ? canonicalAdminPath(normalized) : normalized;
 }
 
 /** Return the page of a signed-in user for a canonical path; `onProfileChanged` reloads the session. */

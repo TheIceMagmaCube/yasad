@@ -17,7 +17,6 @@ import { useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
 import { claimFocus, focusById } from "../../lib/focus";
 import { invalidateHome } from "../../lib/home-store";
-import { AdminPageHeader } from "./AdminLayout";
 import { adminErrorText } from "./shared";
 
 const FILE_ID = "catalog-file";
@@ -117,7 +116,7 @@ export function AdminCatalog() {
   const catalog = state.data;
   return (
     <Page width="reading">
-      <AdminPageHeader tab="catalog" description={catalog ? s.summary(catalog.categories, catalog.links, catalog.groups) : undefined} />
+      {catalog && <p className="mb-6 text-muted-foreground">{s.summary(catalog.categories, catalog.links, catalog.groups)}</p>}
       {state.status === "error" && <LoadError attempt={state.attempt} message={s.loadError} pending={state.retrying} onRetry={state.retry} />}
       {state.status === "loading" && <div aria-hidden="true" data-slot="catalog-skeleton" className="appear-delayed h-24 rounded-[var(--radius-card)] bg-muted motion-safe:animate-pulse" />}
       {catalog && (
