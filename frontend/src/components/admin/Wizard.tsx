@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useId, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,8 @@ export function WizardSteps({ labels, current }: { labels: string[]; current: nu
 export function StepTitle({ step, children }: { step: number; children: ReactNode }) {
   const ref = useRef<HTMLHeadingElement>(null);
   const previous = useRef(step);
-  useEffect(() => {
+  // Before paint, so a key pressed right after the step appears cannot land on a control and then lose the focus.
+  useLayoutEffect(() => {
     if (previous.current === step) return;
     previous.current = step;
     ref.current?.focus();
