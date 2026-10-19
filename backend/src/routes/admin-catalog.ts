@@ -7,7 +7,7 @@ import type { AppEnv } from "../context";
 import { apiError } from "../errors";
 import { category, categoryGroup, link, linkGroup } from "../schema";
 import { readJson } from "./body";
-import { requireAdmin } from "./require-admin";
+import { auditorOf, requireAdmin } from "./require-admin";
 
 export const MAX_CATALOG_BODY = 1024 * 1024;
 
@@ -55,7 +55,11 @@ adminCatalog.post("/", async (c) => {
     return apiError(c, 422, "invalid_input", "Send the `baseVersion` returned by the preview.");
   }
 
-  const result = await importCatalog(c.var.db, fields.yaml, { dryRun, baseVersion: dryRun ? undefined : (fields.baseVersion as string) });
+  const result = await importCatalog(c.var.db, fields.yaml, {
+    dryRun,
+    baseVersion: dryRun ? undefined : (fields.baseVersion as string),
+    auditor: await auditorOf(c),
+  });
   if (result.status === "invalid") return apiError(c, 422, "invalid_catalog", "The catalog file is not valid.", { errors: result.errors });
   if (result.status === "changed") return apiError(c, 409, "catalog_changed", "The catalog changed since the preview. Preview again.");
   return c.json({ applied: result.status === "applied", diff: result.diff, baseVersion: result.baseVersion });

@@ -6,6 +6,8 @@ export type Config = {
   setupCode: string | null;
   trustProxy: number;
   sessionMaxAge: number;
+  /** Days an audit log entry is kept, 30 to 3650. */
+  auditRetentionDays: number;
   defaultLanguage: Language;
   passwordSignIn: boolean;
   /** Path of the catalog file applied at startup (Docker only), or null. */
@@ -42,6 +44,10 @@ export class ConfigError extends Error {
 export const MIN_AUTH_SECRET = 32;
 export const MIN_SETUP_CODE = 24;
 const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24;
+const DEFAULT_AUDIT_RETENTION_DAYS = 365;
+// The floor matches the audit log's delete trigger, which keeps any entry younger than 30 days.
+export const MIN_AUDIT_RETENTION_DAYS = 30;
+export const MAX_AUDIT_RETENTION_DAYS = 3650;
 /** Prefix of the values in .env.example and .dev.vars.example. */
 const EXAMPLE_PREFIX = "dev-only-";
 const OIDC_REQUIRED = ["OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"] as const;
@@ -108,6 +114,14 @@ export function loadConfig(raw: RawConfig): Config {
     else problems.push("SESSION_MAX_AGE must be a whole number of seconds.");
   }
 
+  let auditRetentionDays = DEFAULT_AUDIT_RETENTION_DAYS;
+  const rawRetention = raw.AUDIT_RETENTION_DAYS?.trim();
+  if (rawRetention) {
+    const days = Number(rawRetention);
+    if (/^\d+$/.test(rawRetention) && days >= MIN_AUDIT_RETENTION_DAYS && days <= MAX_AUDIT_RETENTION_DAYS) auditRetentionDays = days;
+    else problems.push(`AUDIT_RETENTION_DAYS must be a whole number of days from ${MIN_AUDIT_RETENTION_DAYS} to ${MAX_AUDIT_RETENTION_DAYS}.`);
+  }
+
   let trustProxy = 0;
   const rawTrustProxy = raw.TRUST_PROXY?.trim().toLowerCase();
   if (rawTrustProxy === "true") trustProxy = 1;
@@ -138,6 +152,7 @@ export function loadConfig(raw: RawConfig): Config {
     setupCode,
     trustProxy,
     sessionMaxAge,
+    auditRetentionDays,
     defaultLanguage: defaultLanguage!,
     passwordSignIn,
     catalogFile: raw.CATALOG_FILE?.trim() || null,

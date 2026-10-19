@@ -185,3 +185,37 @@ export const linkGroup = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.linkId, t.groupId] })],
 );
+
+/**
+ * Admin actions, one row per gesture, append-only: triggers refuse any update, and any delete of a row
+ * younger than 30 days. `actor_id` has no foreign key, so deleting a person leaves their entries intact.
+ */
+export const auditLog = sqliteTable(
+  "audit_log",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    at: integer("at").notNull().default(sql`(unixepoch() * 1000)`),
+    /** Null for what YASAD does by itself: the setup and the CATALOG_FILE import at startup. */
+    actorId: text("actor_id"),
+    actorName: text("actor_name"),
+    actorEmail: text("actor_email"),
+    action: text("action").notNull(),
+    objectType: text("object_type").notNull(),
+    objectId: text("object_id"),
+    objectLabel: text("object_label"),
+    relatedType: text("related_type"),
+    relatedId: text("related_id"),
+    relatedLabel: text("related_label"),
+    /** JSON snapshots of the object, limited to the fields listed in audit.ts. */
+    before: text("before"),
+    after: text("after"),
+    details: text("details"),
+  },
+  (t) => [
+    index("audit_log_actor_idx").on(t.actorId, t.id),
+    index("audit_log_object_type_idx").on(t.objectType, t.id),
+    index("audit_log_object_id_idx").on(t.objectId, t.id),
+    index("audit_log_related_id_idx").on(t.relatedId, t.id),
+    index("audit_log_at_idx").on(t.at),
+  ],
+);

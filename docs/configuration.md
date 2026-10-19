@@ -69,6 +69,12 @@ The file has the format of [catalog.example.yaml](catalog.example.yaml). To use 
 
 Mount the folder, not the file alone: many editors save by replacing the file, and a container that mounts only the file keeps seeing the old one. Run `docker compose up -d` to apply the mount and the variable. Afterwards, edit the file and run `docker compose restart yasad` to apply it.
 
+## Change history
+
+| Variable | Default | Example | Description |
+|---|---|---|---|
+| `AUDIT_RETENTION_DAYS` | `365` | `730` | How many days the history of administrator actions keeps an entry, from 30 to 3650. Older entries are hidden at once and deleted, 100 at a time, by the next administrator actions. |
+
 ## Sign-in with OIDC
 
 All optional. OIDC is on when `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` are set. Setting only one or two of them stops the start.

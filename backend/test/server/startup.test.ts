@@ -181,7 +181,8 @@ describe("server startup", () => {
     const dir = await mkdtemp(join(tmpdir(), "yasad-catalog-"));
     tmpDirs.push(dir);
     const file = join(dir, "catalog.yaml");
-    const db = `file:${await tmpDb()}`;
+    const dbFile = await tmpDb();
+    const db = `file:${dbFile}`;
     await writeFile(file, "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n      - id: mail\n        title: Mail\n        url: https://mail.example.org\n        groups: ['@everyone', '@everyone']\n");
     const first = await start({ ...BASE_ENV, DATABASE_URL: db, CATALOG_FILE: file });
     await waitForHealth(first);
@@ -192,6 +193,17 @@ describe("server startup", () => {
     await waitForHealth(second);
     expect(second.output()).toContain("0 added, 0 updated, 0 removed");
     await stop(second);
+
+    // One entry, with no actor, for the start that changed the catalog; none for the one that did not.
+    const log = new DatabaseSync(dbFile);
+    try {
+      const rows = log.prepare("select actor_id, action, object_type, details from audit_log").all();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ actor_id: null, action: "import", object_type: "catalog" });
+      expect(JSON.parse(rows[0]!.details as string)).toMatchObject({ source: "catalog_file", added: { categories: ["tools"], links: ["mail"] } });
+    } finally {
+      log.close();
+    }
 
     await writeFile(file, "version: 1\ncategories:\n  - id: Tools\n");
     const third = await start({ ...BASE_ENV, DATABASE_URL: db, CATALOG_FILE: file });

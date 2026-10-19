@@ -28,6 +28,9 @@ export async function testApp(env: TestEnv = {}): Promise<TestApp> {
       await libsql.execute(sql);
     },
     async (sql) => (await libsql.execute(sql)).rows.map((row) => ({ ...row })),
+    async (sqls) => {
+      await libsql.batch(sqls, "write");
+    },
   );
 }
 

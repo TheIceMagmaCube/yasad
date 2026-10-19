@@ -49,7 +49,11 @@ if (config.setupCode !== null && (await hasLocalAdmin(db as unknown as DB))) con
 if (config.catalogFile) {
   let result: Awaited<ReturnType<typeof importCatalog>>;
   try {
-    result = await importCatalog(db as unknown as DB, await readFile(config.catalogFile, "utf8"), { dryRun: false });
+    result = await importCatalog(db as unknown as DB, await readFile(config.catalogFile, "utf8"), {
+      dryRun: false,
+      auditor: { db: db as unknown as DB, actorId: null, retentionDays: config.auditRetentionDays },
+      source: "catalog_file",
+    });
   } catch (err) {
     console.error(`Could not apply the catalog file ${config.catalogFile}: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
