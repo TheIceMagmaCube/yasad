@@ -52,7 +52,8 @@ describe("Home", () => {
     mockApi(home(DATA));
     renderWithProviders(<Home user={ADA} />);
     expect(screen.getByRole("heading", { level: 1, name: "My links" })).toBeInTheDocument();
-    const headings = await screen.findAllByRole("heading", { level: 2 });
+    await screen.findByRole("region", { name: "Second in the catalog" });
+    const headings = within(document.getElementById("home-links")!).getAllByRole("heading", { level: 2 });
     expect(headings.map((h) => h.textContent)).toEqual(["Second in the catalog", "First letter, later"]);
     const first = screen.getByRole("region", { name: "Second in the catalog" });
     expect(within(first).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["https://zeta.example.invalid", "https://alpha.example.invalid"]);
@@ -197,6 +198,94 @@ describe("Home", () => {
     renderWithProviders(<Home user={ADA} />);
     expect(screen.queryByRole("region", { name: "Second in the catalog" })).toBeNull();
     invalidateHome();
+  });
+
+  describe("favourites panel", () => {
+    const PINNED: HomeData = {
+      signedIn: true,
+      categories: [
+        { id: "first", title: "First", links: [link("l1"), link("l2")] },
+        { id: "second", title: "Second", links: [link("l3")] },
+      ],
+      empty: null,
+      pins: [],
+    };
+
+    it("shows no panel to an anonymous visitor nor on an empty home", async () => {
+      primeHome("anonymous", { ...PINNED, signedIn: false });
+      renderWithProviders(<Home user={null} />);
+      expect(screen.getByRole("region", { name: "First" })).toBeInTheDocument();
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Manage favourites" })).toBeNull();
+      cleanup();
+
+      mockApi(empty("nothing_visible"));
+      renderWithProviders(<Home user={ADA} />);
+      expect(await screen.findByRole("heading", { level: 2, name: "Nothing to show yet" })).toBeInTheDocument();
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Manage favourites" })).toBeNull();
+    });
+
+    it("invites to pin when there is no favourite, with one Manage button", async () => {
+      mockApi(home(PINNED));
+      renderWithProviders(<Home user={ADA} />);
+      const panel = await screen.findByRole("complementary", { name: "Favourites" });
+      expect(within(panel).getByText("Pin the links you open often with Manage.")).toBeInTheDocument();
+      expect(within(panel).queryByRole("list")).toBeNull();
+      expect(screen.getAllByRole("button", { name: "Manage favourites" })).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Manage favourites" })).toHaveTextContent(/^Manage/);
+    });
+
+    it("lists the favourites in pins order and ignores unknown ids", async () => {
+      mockApi(home({ ...PINNED, pins: ["l3", "gone", "l1"] }));
+      renderWithProviders(<Home user={ADA} />);
+      const panel = await screen.findByRole("complementary", { name: "Favourites" });
+      const links = within(within(panel).getByRole("list")).getAllByRole("link");
+      expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+        ["L3", "https://l3.example.invalid"],
+        ["L1", "https://l1.example.invalid"],
+      ]);
+      expect(within(panel).queryByText("Pin the links you open often with Manage.")).toBeNull();
+      // A pinned link stays in its category too.
+      expect(within(screen.getByRole("region", { name: "Second" })).getByRole("link", { name: "L3" })).toBeInTheDocument();
+    });
+
+    it("puts the panel first, and its skip link leads to the categories", async () => {
+      mockApi(home({ ...PINNED, pins: ["l1"] }));
+      renderWithProviders(<Home user={ADA} />);
+      const panel = await screen.findByRole("complementary", { name: "Favourites" });
+      const target = document.getElementById("home-links")!;
+      expect(panel.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(target).toHaveAttribute("tabindex", "-1");
+      expect(within(target).getByRole("region", { name: "First" })).toBeInTheDocument();
+      const skip = within(panel).getByRole("link", { name: "Go to the links" });
+      expect(within(panel).getAllByRole("link")[0]).toBe(skip);
+      expect(skip).toHaveAttribute("href", "#home-links");
+    });
+
+    it("names the aside and the section", async () => {
+      mockApi(home({ ...PINNED, pins: ["l1"] }));
+      renderWithProviders(<Home user={ADA} />);
+      const panel = await screen.findByRole("complementary", { name: "Favourites" });
+      expect(within(panel).getByRole("heading", { level: 2, name: "Favourites" })).toBeInTheDocument();
+    });
+
+    it("gives the cards two columns up to xl beside the panel", async () => {
+      mockApi(home(PINNED));
+      renderWithProviders(<Home user={ADA} />);
+      const region = await screen.findByRole("region", { name: "First" });
+      expect(within(region).getByRole("list")).toHaveClass("sm:grid-cols-2", "xl:grid-cols-3");
+      expect(within(region).getByRole("list")).not.toHaveClass("lg:grid-cols-3");
+    });
+
+    it("names the panel in French", async () => {
+      localStorage.setItem("yasad.language", "fr");
+      mockApi(home(PINNED));
+      renderWithProviders(<Home user={ADA} />);
+      const panel = await screen.findByRole("complementary", { name: "Favoris" });
+      expect(within(panel).getByRole("heading", { level: 2, name: "Favoris" })).toBeInTheDocument();
+      expect(within(panel).getByRole("button", { name: "Gérer les favoris" })).toBeInTheDocument();
+    });
   });
 
   it("translates its texts", async () => {

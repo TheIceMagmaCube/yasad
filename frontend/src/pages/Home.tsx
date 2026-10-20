@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { User } from "../api";
-import { CategorySection } from "../components/home/CategorySection";
+import { CategorySection, LINK_GRID, PANEL_LINK_GRID } from "../components/home/CategorySection";
 import { HomeEmptyState } from "../components/home/HomeEmptyState";
+import { type PinGestures, PinsPanel } from "../components/home/PinsPanel";
 import { LoadError } from "../components/LoadError";
 import { Page } from "../components/Page";
 import { PageHeader } from "../components/PageHeader";
@@ -15,12 +16,18 @@ import { useDocumentTitle } from "../lib/page";
 
 const LOADING: HomeState = { status: "loading" };
 
+/** Gestures of the panel until the manage mode sends them. */
+const NO_GESTURES: PinGestures = { move: () => {}, remove: () => {}, isPending: () => false };
+
 /**
  * Home page: the categories and links the person may see, in catalog order.
  *
  * The data comes from the shared home store. A signed-in person gets a fresh request on every visit, with the
  * skeleton meanwhile; an anonymous visitor gets the public links the app already stored (fetched only when
  * missing). An answer for another viewer never reaches it: the store drops it and the app reloads the session.
+ *
+ * A signed-in person who sees at least one link also gets the favourites panel, first in the DOM; the categories
+ * follow in `#home-links`, the target of the panel's skip link.
  */
 export function Home({ user }: { user: User | null }) {
   const strings = useStrings();
@@ -32,6 +39,8 @@ export function Home({ user }: { user: User | null }) {
   const state = entry?.state ?? LOADING;
   const retrying = state.status === "error" && entry?.pending === true;
   const loading = state.status === "loading";
+  const [managing, setManaging] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (user) loadHome(key, { reset: true });
@@ -53,10 +62,23 @@ export function Home({ user }: { user: User | null }) {
       ) : state.data.categories.length === 0 ? (
         <HomeEmptyState empty={state.data.empty} />
       ) : (
-        <div className="space-y-10">
-          {state.data.categories.map((category, index) => (
-            <CategorySection key={category.id} category={category} index={index} />
-          ))}
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          {user && (
+            <PinsPanel
+              categories={state.data.categories}
+              pins={state.data.pins}
+              managing={managing}
+              onToggle={() => setManaging((open) => !open)}
+              toggleRef={toggleRef}
+              gestures={NO_GESTURES}
+              error={null}
+            />
+          )}
+          <div id="home-links" tabIndex={-1} className="min-w-0 space-y-10 outline-none">
+            {state.data.categories.map((category, index) => (
+              <CategorySection key={category.id} category={category} index={index} grid={user ? PANEL_LINK_GRID : LINK_GRID} />
+            ))}
+          </div>
         </div>
       )}
     </Page>
