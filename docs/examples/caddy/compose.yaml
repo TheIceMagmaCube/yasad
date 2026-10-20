@@ -2,7 +2,7 @@
 # (see docs/deployment.md) and replace portal.example.org in the Caddyfile.
 services:
   yasad:
-    image: ghcr.io/theicemagmacube/yasad:beta
+    image: ghcr.io/theicemagmacube/yasad:latest
     # Every variable in .env reaches YASAD (see docs/configuration.md).
     env_file: .env
     # Stop with a clear message when a required value is missing.

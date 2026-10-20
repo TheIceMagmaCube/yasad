@@ -29,28 +29,22 @@ YASAD aims to combine the three: a polished default look, a visual editor for da
 
 * No password management for SSO users: your identity provider stays the source of truth for their authentication.
 * No public sign-up page. Local accounts are created by an admin.
-* Not a monitoring dashboard. Service status is a simple up or down indicator.
+* Not a monitoring tool. Link status stays simple (up or down, a short history, basic alerts); dedicated tools such as Uptime Kuma, Gatus or Healthchecks can feed it instead.
 
-## Planned scope
+## Roadmap
 
-**Milestone 1, core**
+**Released**
 
-* Setup screen that creates the first admin account (a local account, also the emergency access if the OIDC provider is down)
-* Local accounts created by an admin with a temporary password, changed by the user at first sign-in
-* Optional OIDC sign-in, sign-out for both account types, current user and groups shown in the header
-* Link catalog with categories, loaded from a YAML file (import and export) until the admin screens of milestone 2
-* Server-side filtering by group
-* Instant search
+* **v0.1 core:** first-run setup, local accounts with a temporary password, optional OIDC sign-in, link catalog with categories (YAML import and export), server-side filtering by group, instant search.
+* **v0.2 admin:** a new look, administration screens for people, groups, links and categories, change log (who, what, when), admin dashboard.
 
-**Milestone 2, administration**
+**Next**
 
-* Admin screens for links, categories, users and groups
-* Change log (who, what, when)
-
-**Later**
-
-* Password reset by email, two-factor authentication for local accounts
-* Several dashboards with a visual layout editor, favorites, service status, theming, widgets
+* **v0.3 personal:** favorites, link status, seeing your own groups, an about screen, instance title, logo and theme, custom link icons, seeing the portal as a given user.
+* **v0.4 dashboards:** several dashboards, each with its own groups, links and layout, built with a visual editor.
+* **v0.5 pro:** optional modules, announcements to chosen groups, usage statistics without tracking people, API tokens, MCP access for AI assistants.
+* **v0.6 homelab:** local and public address for the same link, status history and alerts, status from external monitoring tools, search engine shortcuts, installable app, data widgets.
+* **Later:** password reset by email, two-factor authentication for local accounts.
 
 ## Tech stack
 
@@ -62,14 +56,14 @@ YASAD aims to combine the three: a polished default look, a visual editor for da
 
 ## Quick start
 
-YASAD has no stable release yet: the examples use the `beta` image, built from the latest work merged for the next version.
+The examples use the `latest` image, the last stable release. Pin a version such as `0.2.0` for production. The `beta` image holds the work merged for the next version.
 
 You need Docker with Compose. Create a folder with this `compose.yaml` (also in [docs/examples/compose.yaml](docs/examples/compose.yaml)):
 
 ```yaml
 services:
   yasad:
-    image: ghcr.io/theicemagmacube/yasad:beta
+    image: ghcr.io/theicemagmacube/yasad:latest
     # Every variable in .env reaches YASAD (see docs/configuration.md).
     env_file: .env
     # Stop with a clear message when a required value is missing.
@@ -106,7 +100,7 @@ Then install:
 3. Enter the setup code from `.env`.
 4. Create the first administrator: name, e-mail, and a password of 12 to 128 characters. This local account is also your emergency access if an identity provider is down. If you plan to sign in with an OIDC provider, give it an address that no account at the provider uses: YASAD refuses a provider sign-in whose e-mail belongs to a local account.
 5. YASAD signs you in as that administrator. The **YASAD is ready** screen appears: select **Go to YASAD**. Its reminder about `SETUP_CODE` is step 8. Later, sign in from the **Sign in** screen with that e-mail and password.
-6. Import a catalog: open **Admin**, then **Links**, then **YAML file**, and choose a YAML file. To try it, save [catalog.example.yaml](https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/catalog.example.yaml) on the computer you browse from. Check the preview, then select **Import**.
+6. Import a catalog: open the account menu (your name in the header), choose **Administration**, then **Links**, then **YAML file**, and choose a YAML file. To try it, save [catalog.example.yaml](https://raw.githubusercontent.com/TheIceMagmaCube/yasad/main/docs/catalog.example.yaml) on the computer you browse from. Check the preview, then select **Import**.
 7. Go back to **My links**: the home page shows the links your groups allow. With the example file, an administrator sees the "Mail" link of "Everyday".
 8. Remove the `SETUP_CODE` line from `.env` and run `docker compose up -d` again. Setup only opens while the code is set and no enabled local administrator exists.
 
@@ -114,7 +108,7 @@ Then install:
 
 ### Catalog
 
-Admins edit categories and links in the **Links** section of the administration (**Admin** in the header), or as a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. They import and export that file from **Links**, **YAML file**; importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
+Admins edit categories and links in the **Links** section of the administration (**Administration** in the account menu), or as a YAML file: see [`docs/catalog.example.yaml`](docs/catalog.example.yaml) for the format. They import and export that file from **Links**, **YAML file**; importing shows what is added, changed and deleted before writing anything, and makes the catalog match the file exactly. On Docker, `CATALOG_FILE` applies a file at every start instead.
 
 A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
 

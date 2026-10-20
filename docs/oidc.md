@@ -46,9 +46,10 @@ Apply it: on Docker, run `docker compose up -d` again (`docker compose restart` 
 * Accounts are created at the first sign-in and keyed on the provider's issuer and subject, never on the e-mail. Name and e-mail are copied from the ID token at each sign-in: the provider is the source of truth.
 * Every group in the claim becomes an `oidc:<name>` group, created if missing. The person's provider memberships are replaced at each sign-in, so removing someone from a group at the provider takes effect at their next sign-in. An `oidc` group never matches a `local` group of the same name.
 * A sign-in whose ID token marks the e-mail as unverified is refused.
-* A provider account never takes over a local account with the same e-mail: the sign-in is refused. Give the emergency local administrator an address of its own. If a local account already uses a person's provider address, change its e-mail in the Users screen (**Edit**) before that person signs in with the provider.
+* An account disabled on its page under **People** is refused at sign-in, even when the provider accepts the person. Disabling it also closes its open sessions at once.
+* A provider account never takes over a local account with the same e-mail: the sign-in is refused. Give the emergency local administrator an address of its own. If a local account already uses a person's provider address, change its e-mail on that person's page under **Administration**, **People** (**Profile**) before that person signs in with the provider.
 * With `PASSWORD_SIGN_IN=false`, the sign-in screen sends people straight to the provider (not when `/` shows public links, after an error, or on `/signed-out`). Local administrators keep `/sign-in/local`, also linked from the error and signed-out screens.
 * While setup is open, its first step (the setup code) also offers the provider's sign-in.
 * Signing out of YASAD also ends the session at the provider when the provider offers that. Other applications of the same provider then ask to sign in again.
-* Changing provider: delete the old OIDC accounts in the Users screen first. They are created again at the next sign-in.
+* Changing provider: delete the old OIDC accounts from their pages under **Administration**, **People** first. They are created again at the next sign-in.
 * Starting a sign-in and receiving the provider's answer are each limited to 300 per IP per 15 minutes, enough for an office behind one address.
