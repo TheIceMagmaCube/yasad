@@ -1,7 +1,8 @@
-import { type SQL, sql } from "drizzle-orm";
+import { and, eq, type SQL, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
+import { z } from "zod";
 
-import { type UserViewer, visibleLink, visiblePinCount, visiblePins } from "../access";
+import { linkVisibleWhere, type UserViewer, visibleLink, visiblePinCount, visiblePins } from "../access";
 import { failWhen, retrying } from "../audit";
 import { ID } from "../catalog/format";
 import type { AppEnv } from "../context";
@@ -35,6 +36,17 @@ async function userOf(c: Context<AppEnv>): Promise<UserViewer> {
 
 const notFound = (c: Context<AppEnv>) => apiError(c, 404, "not_found", "No such link.");
 
+/** Body of a move: one step towards the start or the end of the person's visible pins. */
+const DIRECTION = z.strictObject({ direction: z.enum(["up", "down"]) });
+
+/** Return the link id of the path, or null when it is not a well-formed id. */
+function pathId(c: Context<AppEnv>): string | null {
+  const parsed = ID.safeParse(c.req.param("linkId"));
+  return parsed.success ? parsed.data : null;
+}
+
+const invalidId = (c: Context<AppEnv>) => apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { linkId: "invalid" } });
+
 /** Return whether `condition`, an expression needing no FROM, holds now. */
 async function holds(c: Context<AppEnv>, condition: SQL): Promise<boolean> {
   const row = await c.var.db.get<{ v: number }>(sql`select ${condition} as v`);
@@ -52,7 +64,7 @@ pins.post("/", async (c) => {
   const viewer = await userOf(c);
   const { userId } = viewer;
   const parsed = ID.safeParse((await readJson(c)).linkId);
-  if (!parsed.success) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { linkId: "invalid" } });
+  if (!parsed.success) return invalidId(c);
   const linkId = parsed.data;
 
   return retrying(async (last) => {
@@ -74,6 +86,65 @@ pins.post("/", async (c) => {
       if (await holds(c, sql`${visiblePinCount(db, viewer)} >= ${MAX_PINS}`)) {
         return apiError(c, 409, "pins_full", "You already have the most favourites allowed.", { max: MAX_PINS });
       }
+      if (last) throw err;
+      return "retry";
+    }
+    return c.json({ pins: await visiblePins(db, viewer) } satisfies PinsResponse);
+  });
+});
+
+/**
+ * Remove one of the person's pins, visible or hidden. Any well-formed id answers 200 with the order,
+ * so the answer says nothing about the link.
+ */
+pins.delete("/:linkId", async (c) => {
+  const db = c.var.db;
+  const viewer = await userOf(c);
+  const linkId = pathId(c);
+  if (linkId === null) return invalidId(c);
+  await db.delete(userLinkPin).where(and(eq(userLinkPin.userId, viewer.userId), eq(userLinkPin.linkId, linkId)));
+  return c.json({ pins: await visiblePins(db, viewer) } satisfies PinsResponse);
+});
+
+/**
+ * Swap a pin with its visible neighbour, the previous one for `up` and the next one for `down`, in
+ * `(position, link_id)` order. Hidden pins keep their position, so positions stay unique. At either end
+ * nothing changes. A pin that is absent or no longer visible answers 404.
+ */
+pins.post("/:linkId/move", async (c) => {
+  const db = c.var.db;
+  const viewer = await userOf(c);
+  const { userId } = viewer;
+  const linkId = pathId(c);
+  if (linkId === null) return invalidId(c);
+  const parsed = DIRECTION.safeParse(await readJson(c));
+  if (!parsed.success) return apiError(c, 422, "invalid_input", "Some fields are not valid.", { fields: { direction: "invalid" } });
+  const step = parsed.data.direction === "up" ? -1 : 1;
+  const movable = sql`(${visibleLink(db, viewer, linkId)} and exists (select 1 from user_link_pin where user_id = ${userId} and link_id = ${linkId}))`;
+
+  return retrying(async (last) => {
+    try {
+      // `update ... from` reads the rows as they were before the statement, so both swapped values hold.
+      await db.batch([
+        failWhen(db, sql`not ${movable}`),
+        db
+          .update(userLinkPin)
+          .set({ position: sql`s.next` })
+          .from(
+            sql`(
+              with v as (
+                select p.link_id, p.position, row_number() over (order by p.position, p.link_id) as r
+                from user_link_pin p join link on link.id = p.link_id join category on category.id = link.category_id
+                where p.user_id = ${userId} and ${linkVisibleWhere(db, viewer)}),
+              me as (select * from v where link_id = ${linkId}),
+              other as (select v.* from v, me where v.r = me.r + ${step})
+              select me.link_id as link_id, other.position as next from me, other
+              union all select other.link_id, me.position from me, other) as s`,
+          )
+          .where(sql`${userLinkPin.userId} = ${userId} and ${userLinkPin.linkId} = s.link_id`),
+      ]);
+    } catch (err) {
+      if (!(await holds(c, movable))) return notFound(c);
       if (last) throw err;
       return "retry";
     }

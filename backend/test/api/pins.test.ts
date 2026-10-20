@@ -312,3 +312,207 @@ describe("POST /api/pins", () => {
     expect((await post(b, "/api/pins", { linkId: "secret" })).status).toBe(404);
   });
 });
+
+/** Remove the pin `linkId`, sending the JSON body the API requires. */
+const unpin = (app: TestApp, linkId: string) => send(app, "DELETE", `/api/pins/${linkId}`, {});
+
+/** Move the pin `linkId` one step. */
+const movePin = (app: TestApp, linkId: string, direction: unknown) => post(app, `/api/pins/${linkId}/move`, { direction });
+
+/** Return the person's rows, hidden ones included, in position order. */
+const rowsOf = (app: TestApp, userId: string) =>
+  app.query(`select link_id, position from user_link_pin where user_id = '${userId}' order by position, link_id`);
+
+describe("DELETE /api/pins/:linkId", () => {
+  it("removes a pin, and answers 200 for an absent or hidden one", async () => {
+    const { admin, b } = await pinSetup();
+    await pinAll(b, ["p1", "p2", "p3"]);
+    const res = await unpin(b, "p1");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pins: ["p2", "p3"] });
+    const again = await unpin(b, "p1");
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual({ pins: ["p2", "p3"] });
+    for (const linkId of ["secret", "off", "nope"]) {
+      const absent = await unpin(b, linkId);
+      expect(absent.status).toBe(200);
+      expect(await absent.json()).toEqual({ pins: ["p2", "p3"] });
+    }
+
+    await admin.exec(`update link set active = 0 where id = 'p3'`);
+    const hidden = await unpin(b, "p3");
+    expect(hidden.status).toBe(200);
+    expect(await hidden.json()).toEqual({ pins: ["p2"] });
+    expect(await rowsOf(b, "b")).toEqual([{ link_id: "p2", position: 1 }]);
+  });
+});
+
+describe("POST /api/pins/:linkId/move", () => {
+  it("swaps with the visible neighbour, skipping a hidden pin", async () => {
+    const { admin, b } = await pinSetup();
+    await pinAll(b, ["p1", "p2", "p3"]);
+    await admin.exec(`update link set active = 0 where id = 'p2'`);
+    const res = await movePin(b, "p3", "up");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ pins: ["p3", "p1"] });
+    expect(await rowsOf(b, "b")).toEqual([
+      { link_id: "p3", position: 0 },
+      { link_id: "p2", position: 1 },
+      { link_id: "p1", position: 2 },
+    ]);
+
+    const down = await movePin(b, "p3", "down");
+    expect(down.status).toBe(200);
+    expect(await down.json()).toEqual({ pins: ["p1", "p3"] });
+    expect(await rowsOf(b, "b")).toEqual([
+      { link_id: "p1", position: 0 },
+      { link_id: "p2", position: 1 },
+      { link_id: "p3", position: 2 },
+    ]);
+  });
+
+  it("leaves the order unchanged at the ends", async () => {
+    const { b } = await pinSetup();
+    await pinAll(b, ["p1", "p2", "p3"]);
+    const before = await rowsOf(b, "b");
+    for (const [linkId, direction] of [["p1", "up"], ["p3", "down"]] as const) {
+      const res = await movePin(b, linkId, direction);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ pins: ["p1", "p2", "p3"] });
+    }
+    expect(await rowsOf(b, "b")).toEqual(before);
+
+    await pinAll(b, ["p4"]);
+    await unpin(b, "p1");
+    await unpin(b, "p2");
+    await unpin(b, "p3");
+    for (const direction of ["up", "down"]) {
+      const alone = await movePin(b, "p4", direction);
+      expect(alone.status).toBe(200);
+      expect(await alone.json()).toEqual({ pins: ["p4"] });
+    }
+  });
+
+  it("answers 404 for a hidden pin and for a visible link that is not pinned", async () => {
+    const { admin, b } = await pinSetup();
+    await pinAll(b, ["p1", "p2"]);
+    await admin.exec(`update link set active = 0 where id = 'p2'`);
+    const bodies: string[] = [];
+    for (const linkId of ["p2", "p3", "secret", "off", "nope"]) {
+      const res = await movePin(b, linkId, "up");
+      expect(res.status).toBe(404);
+      bodies.push(await res.text());
+    }
+    expect(new Set(bodies).size).toBe(1);
+    expect((JSON.parse(bodies[0]!) as { error: { code: string } }).error.code).toBe("not_found");
+    expect(await rowsOf(b, "b")).toEqual([
+      { link_id: "p1", position: 0 },
+      { link_id: "p2", position: 1 },
+    ]);
+  });
+
+  it("positions stay unique through a sequence of gestures, around a hidden pin", async () => {
+    const { admin, b } = await pinSetup();
+    // The model is every row of the person in position order; a move swaps the slots of two visible pins.
+    const model = ["p1", "p2", "p3", "p4", "p5", "p6"];
+    await pinAll(b, model);
+    await admin.exec(`update link set active = 0 where id = 'p3'`);
+    const hidden = new Set(["p3"]);
+    const visible = () => model.filter((id) => !hidden.has(id));
+
+    type Gesture = ["move", string, "up" | "down"] | ["unpin", string] | ["pin", string];
+    const gestures: Gesture[] = [
+      ["move", "p4", "up"],
+      ["move", "p2", "down"],
+      ["unpin", "p1"],
+      ["pin", "p7"],
+      ["move", "p7", "up"],
+      ["move", "p7", "up"],
+      ["move", "p5", "down"],
+      ["unpin", "p6"],
+      ["pin", "p1"],
+      ["move", "p4", "up"],
+    ];
+    for (const gesture of gestures) {
+      let res: Response;
+      if (gesture[0] === "move") {
+        const [, linkId, direction] = gesture;
+        res = await movePin(b, linkId, direction);
+        const order = visible();
+        const at = order.indexOf(linkId);
+        const other = order[direction === "up" ? at - 1 : at + 1];
+        if (other !== undefined) {
+          const i = model.indexOf(linkId);
+          const j = model.indexOf(other);
+          [model[i], model[j]] = [model[j]!, model[i]!];
+        }
+      } else if (gesture[0] === "unpin") {
+        res = await unpin(b, gesture[1]);
+        model.splice(model.indexOf(gesture[1]), 1);
+      } else {
+        res = await post(b, "/api/pins", { linkId: gesture[1] });
+        model.push(gesture[1]);
+      }
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ pins: visible() });
+      expect(await b.query(`select count(distinct position) as d, count(*) as n from user_link_pin where user_id = 'b'`)).toEqual([
+        { d: model.length, n: model.length },
+      ]);
+      expect((await rowsOf(b, "b")).map((row) => row.link_id)).toEqual(model);
+    }
+    await admin.exec(`update link set active = 1 where id = 'p3'`);
+    expect(await pinsOf(b)).toEqual(model);
+  });
+
+  it("never touches another person's pins", async () => {
+    const { admin, b } = await pinSetup();
+    await pinAll(b, ["p1", "p2"]);
+    const removed = await unpin(admin, "p1");
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({ pins: [] });
+    expect((await movePin(admin, "p2", "up")).status).toBe(404);
+    expect(await pinsOf(b)).toEqual(["p1", "p2"]);
+    expect(await rowsOf(b, "b")).toEqual([
+      { link_id: "p1", position: 0 },
+      { link_id: "p2", position: 1 },
+    ]);
+  });
+
+  it("refuses a malformed id or direction with 422", async () => {
+    const { b } = await pinSetup();
+    await pinAll(b, ["p1", "p2"]);
+    for (const res of [await unpin(b, "Bad%20Id"), await unpin(b, "a".repeat(65)), await movePin(b, "Bad%20Id", "up")]) {
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ error: { code: "invalid_input", fields: { linkId: "invalid" } } });
+    }
+    for (const res of [await movePin(b, "p2", "left"), await post(b, "/api/pins/p2/move", {}), await post(b, "/api/pins/p2/move", { direction: "up", by: 2 })]) {
+      expect(res.status).toBe(422);
+      expect(await res.json()).toMatchObject({ error: { code: "invalid_input" } });
+    }
+    expect(await pinsOf(b)).toEqual(["p1", "p2"]);
+  });
+
+  it("needs a session, and is not cached", async () => {
+    const { admin, b } = await pinSetup();
+    await pinAll(b, ["p1"]);
+    const answers = [
+      await unpin(admin.another(), "p1"),
+      await movePin(admin.another(), "p1", "up"),
+      await movePin(b, "p1", "up"),
+      await unpin(b, "p1"),
+      await movePin(b, "p1", "up"),
+      await unpin(b, "Bad%20Id"),
+    ];
+    expect(answers.map((res) => res.status)).toEqual([401, 401, 200, 200, 404, 422]);
+    for (const res of answers) expect(res.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("works under CATALOG_FILE", async () => {
+    const admin = await adminApp({ CATALOG_FILE: "/config/catalog.yaml" });
+    await seedCatalogSql(admin, pinCatalog(2));
+    const b = await localUser(admin, "b");
+    await pinAll(b, ["p1", "p2"]);
+    expect(await (await movePin(b, "p2", "up")).json()).toEqual({ pins: ["p2", "p1"] });
+    expect(await (await unpin(b, "p2")).json()).toEqual({ pins: ["p1"] });
+  });
+});
