@@ -501,6 +501,35 @@ describe("Home", () => {
       await waitFor(() => expect(up).not.toHaveAttribute("aria-disabled"));
     });
 
+    it("keeps the focus off the body when a queued gesture clears a focused error", async () => {
+      const user = userEvent.setup();
+      const answers: Record<string, ((r: Response) => void)[]> = {};
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((path: string, init?: RequestInit) => {
+          const key = `${init?.method ?? "GET"} ${path}`;
+          if (key === "GET /api/home") return Promise.resolve(new Response(JSON.stringify(data(["l1", "l2", "l3"])), { status: 200 }));
+          return new Promise<Response>((resolve) => (answers[key] ??= []).push(resolve));
+        }),
+      );
+      renderWithProviders(
+        <main>
+          <Home user={ADA} />
+        </main>,
+      );
+      await screen.findByRole("complementary", { name: "Favourites" });
+      await openMode(user);
+      await user.click(screen.getByRole("button", { name: "Move L1 down" }));
+      await user.click(screen.getByRole("button", { name: "Move L3 up" }));
+      const panel = screen.getByRole("complementary", { name: "Favourites" });
+      await act(async () =>
+        answers["POST /api/pins/l1/move"]![0]!(new Response(JSON.stringify({ error: { code: "internal_error", message: "" } }), { status: 500 })),
+      );
+      await waitFor(() => expect(answers["POST /api/pins/l3/move"]).toHaveLength(1));
+      await waitFor(() => expect(panel.querySelector("[data-slot=alert]")).toBeNull());
+      await waitFor(() => expect(document.activeElement).toHaveAttribute("id", "pin-up-l3"));
+    });
+
     it("closes the mode on a session change", async () => {
       const user = userEvent.setup();
       await renderHome(["l1"]);

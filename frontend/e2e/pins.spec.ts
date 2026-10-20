@@ -188,7 +188,7 @@ test("a person without favourites sees the invitation", async ({ page }) => {
 });
 
 // 320 by 256 CSS pixels is a 1280 by 1024 window at 400 % zoom. The fixture has 15 links; a person sees 12 of them.
-test("no horizontal scroll at 320 px and 400 % zoom with 15 pins and the mode open", async ({ page }) => {
+test("no horizontal scroll at 320 px and 400 % zoom with every visible link pinned and the mode open", async ({ page }) => {
   await signInAsPia(page);
   await pinByApi(page.request, VISIBLE);
   for (const height of [800, 256]) {
