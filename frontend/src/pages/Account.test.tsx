@@ -35,6 +35,12 @@ describe("Account", () => {
     expect(screen.queryByRole("button", { name: "Edit: E-mail" })).toBeNull();
   });
 
+  it("keeps a reading width in the wide app column", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
+    expect(document.querySelector('[data-slot="page"]')).toHaveAttribute("data-width", "reading");
+  });
+
   it("offers each field and the password of a local account in its row", async () => {
     mockApi(LOCAL);
     renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);

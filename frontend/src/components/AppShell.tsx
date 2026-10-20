@@ -12,7 +12,7 @@ import { buttonVariants } from "./ui/button";
 import { HEADER_BUTTON, UserMenu } from "./UserMenu";
 
 /** Centred column shared by the header, the content and the footer, so their edges line up at every width. */
-const COLUMN = "mx-auto w-full max-w-5xl";
+const COLUMN = "mx-auto w-full max-w-7xl";
 
 /**
  * Frame of the app screens: skip link, header with the instance title, the link search and the account menu, main

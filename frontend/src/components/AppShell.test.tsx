@@ -76,8 +76,8 @@ describe("AppShell", () => {
         <p>content</p>
       </AppShell>,
     );
-    for (const role of ["banner", "main"] as const) expect(screen.getByRole(role)).toHaveClass("mx-auto", "max-w-5xl");
-    expect(screen.getByRole("contentinfo").querySelector(".max-w-5xl")).toHaveClass("mx-auto");
+    for (const role of ["banner", "main"] as const) expect(screen.getByRole(role)).toHaveClass("mx-auto", "max-w-7xl");
+    expect(screen.getByRole("contentinfo").querySelector(".max-w-7xl")).toHaveClass("mx-auto");
   });
 
   it("keeps the brand alone in minimal mode without a user (loading)", () => {

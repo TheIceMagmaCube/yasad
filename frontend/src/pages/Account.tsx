@@ -116,7 +116,7 @@ export function Account({ user, onProfileChanged }: { user: User; onProfileChang
   );
 
   return (
-    <Page width="list">
+    <Page width="reading">
       <header className="mb-8 flex items-center gap-4">
         <span aria-hidden="true" className="pixel-corners flex size-16 shrink-0 items-center justify-center bg-primary font-pixel text-2xl text-primary-foreground">
           {initialsOf(user.name, language)}
