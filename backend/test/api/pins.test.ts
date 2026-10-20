@@ -516,3 +516,73 @@ describe("POST /api/pins/:linkId/move", () => {
     expect(await (await unpin(b, "p2")).json()).toEqual({ pins: ["p1"] });
   });
 });
+
+describe("catalog changes and pins", () => {
+  it("loses the pins of a deleted link, category or account", async () => {
+    const admin = await adminApp();
+    await importFile(
+      admin,
+      catalog([
+        { id: "c", groups: ["@authenticated"], links: [{ id: "l1", groups: ["@authenticated"] }, { id: "l2", groups: ["@authenticated"] }] },
+        { id: "d", groups: ["@authenticated"], links: [{ id: "l3", groups: ["@authenticated"] }, { id: "l4", groups: ["@authenticated"] }] },
+      ]),
+    );
+    const b = await localUser(admin, "b");
+    const e = await localUser(admin, "e");
+    await pinAll(b, ["l1", "l2", "l3", "l4"]);
+    await pinAll(e, ["l1", "l2"]);
+
+    expect((await send(admin, "DELETE", "/api/admin/links/l1", { revision: await revisionOf(admin, "l1") })).status).toBe(204);
+    expect(await rowsOf(admin, "b")).toEqual([
+      { link_id: "l2", position: 1 },
+      { link_id: "l3", position: 2 },
+      { link_id: "l4", position: 3 },
+    ]);
+    expect(await rowsOf(admin, "e")).toEqual([{ link_id: "l2", position: 1 }]);
+
+    const d = (await adminCatalog(admin)).find((cat) => cat.id === "d")!;
+    expect((await send(admin, "DELETE", "/api/admin/categories/d", { revision: d.revision, linkCount: 2 })).status).toBe(204);
+    expect(await rowsOf(admin, "b")).toEqual([{ link_id: "l2", position: 1 }]);
+    expect(await pinsOf(b)).toEqual(["l2"]);
+
+    expect((await send(admin, "DELETE", "/api/admin/users/b")).status).toBe(204);
+    expect(await admin.query(`select user_id, link_id from user_link_pin order by user_id, link_id`)).toEqual([{ user_id: "e", link_id: "l2" }]);
+  });
+
+  it("keeps the pin of a link kept by the import, drops the one of a link removed", async () => {
+    const admin = await adminApp();
+    await importFile(
+      admin,
+      catalog([{ id: "c", groups: ["@authenticated"], links: [{ id: "l1", groups: ["@authenticated"] }, { id: "l2", groups: ["@authenticated"] }] }]),
+    );
+    const b = await localUser(admin, "b");
+    await pinAll(b, ["l2", "l1"]);
+
+    await importFile(
+      admin,
+      catalog([{ id: "c", groups: ["@authenticated"], links: [{ id: "l2", groups: ["@authenticated"] }, { id: "l5", groups: ["@authenticated"] }] }]),
+    );
+    expect(await rowsOf(admin, "b")).toEqual([{ link_id: "l2", position: 0 }]);
+    expect(await pinsOf(b)).toEqual(["l2"]);
+  });
+
+  it("keeps the pin when the link changes category", async () => {
+    const admin = await adminApp();
+    await importFile(
+      admin,
+      catalog([
+        { id: "c", groups: ["@authenticated"], links: [{ id: "l1", groups: ["@authenticated"] }, { id: "l2", groups: ["@authenticated"] }] },
+        { id: "d", groups: ["@authenticated"], links: [{ id: "l3", groups: ["@authenticated"] }] },
+      ]),
+    );
+    const b = await localUser(admin, "b");
+    await pinAll(b, ["l1", "l2"]);
+    const before = await rowsOf(admin, "b");
+
+    const res = await send(admin, "PATCH", "/api/admin/links/l1", { revision: await revisionOf(admin, "l1"), categoryId: "d" });
+    expect(res.status).toBe(200);
+    expect((await adminCatalog(admin)).find((cat) => cat.id === "d")!.links.map((lnk) => lnk.id)).toContain("l1");
+    expect(await rowsOf(admin, "b")).toEqual(before);
+    expect(await pinsOf(b)).toEqual(["l1", "l2"]);
+  });
+});
