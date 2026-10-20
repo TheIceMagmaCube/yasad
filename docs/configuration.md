@@ -32,7 +32,7 @@ The setup screen allows 5 wrong codes per IP per 15 minutes.
 | Variable | Default | Example | Description |
 |---|---|---|---|
 | `SESSION_MAX_AGE` | `86400` (24 hours) | `28800` | How long a session lasts, in seconds, counted from sign-in. Using the session does not extend it: people sign in again once it ends. |
-| `PASSWORD_SIGN_IN` | `true` | `false` | With `false`, only local administrators can sign in with a password, from `/sign-in/local`. Sessions already open are not closed and last until `SESSION_MAX_AGE` ends them: to close someone's sessions sooner, edit the account in the Users screen and check **Disabled**. See [oidc.md](oidc.md) for how the sign-in screen behaves then. |
+| `PASSWORD_SIGN_IN` | `true` | `false` | With `false`, only local administrators can sign in with a password, from `/sign-in/local`. Sessions already open are not closed and last until `SESSION_MAX_AGE` ends them: to close someone's sessions sooner, open the person's page under **Administration**, **People**, and check **Disabled**. See [oidc.md](oidc.md) for how the sign-in screen behaves then. |
 | `DEFAULT_LANGUAGE` | `en` | `fr` | Interface language when the browser asks for neither English nor French: `en` or `fr`. |
 
 Failed password sign-ins are limited in the database: 5 per e-mail and IP, and 30 per IP, per 15 minutes.
@@ -49,7 +49,7 @@ The client IP keys the limits on setup and sign-in. Count every hop:
 * One reverse proxy (Caddy, Nginx, Traefik): `TRUST_PROXY=1`.
 * Cloudflare in front of your reverse proxy (for example Nginx Proxy Manager): `TRUST_PROXY=2`.
 
-With a value too low, every visitor shares the IP of a proxy. Then 5 wrong setup codes from anyone block setup for everyone for 15 minutes, and failed sign-ins share one counter.
+With a value too low, every visitor shares the IP of a proxy. Then 5 wrong setup codes from anyone block setup for everyone for 15 minutes, failed sign-ins share one counter, and with OIDC everyone shares the limit of 300 sign-in starts and 300 provider answers per 15 minutes.
 
 On Cloudflare Workers, the client IP always comes from the `CF-Connecting-IP` header. Do not set `TRUST_PROXY` there: it changes nothing, and a value that is not `true`, `false` or a number still makes the configuration invalid.
 
@@ -57,7 +57,7 @@ On Cloudflare Workers, the client IP always comes from the `CF-Connecting-IP` he
 
 | Variable | Default | Example | Description |
 |---|---|---|---|
-| `CATALOG_FILE` | unset | `/config/catalog.yaml` | Docker only. Path, inside the container, of a catalog file applied at every start. The catalog then matches the file, and the Catalog page no longer imports files; categories and links cannot be changed in the app either. An invalid file stops the start. Do not set it on Workers: no file is loaded there, but catalog imports and edits, and renaming or deleting the groups the catalog uses, are still refused. |
+| `CATALOG_FILE` | unset | `/config/catalog.yaml` | Docker only. Path, inside the container, of a catalog file applied at every start. The catalog then matches the file, and the **YAML file** page under **Links** no longer imports files; categories and links cannot be changed in the app either. An invalid file stops the start. Do not set it on Workers: no file is loaded there, but catalog imports and edits, and renaming or deleting the groups the catalog uses, are still refused. |
 
 The file has the format of [catalog.example.yaml](catalog.example.yaml). To use it with the example compose files, put it at `config/catalog.yaml` next to `compose.yaml`, add `CATALOG_FILE=/config/catalog.yaml` to `.env`, and mount the folder in the `yasad` service:
 
@@ -87,7 +87,7 @@ All optional. OIDC is on when `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID` and `OIDC_C
 | `OIDC_PROVIDER_NAME` | `SSO` | `Okta` | Label of the sign-in button: "Sign in with Okta". |
 | `OIDC_GROUPS_CLAIM` | `groups` | `groups` | ID token claim holding the groups, a list or a single string. |
 | `OIDC_ALLOWED_GROUPS` | empty | `portal-staff,portal-admins` | Comma-separated, with the names as the provider sends them, without the `oidc:` prefix used in the catalog. When set, only their members, and members of admin groups, can sign in. Empty: anyone the provider accepts. |
-| `OIDC_ADMIN_GROUPS` | empty | `portal-admins` | Comma-separated groups whose members are administrators, named as the provider sends them, without the `oidc:` prefix. Empty: nobody is administrator through the provider. A role set on the person in the Users screen takes precedence. |
+| `OIDC_ADMIN_GROUPS` | empty | `portal-admins` | Comma-separated groups whose members are administrators, named as the provider sends them, without the `oidc:` prefix. Empty: nobody is administrator through the provider. A role set on the person's page under **People** takes precedence. |
 | `OIDC_SCOPES` | `openid email profile` | `openid email profile groups` | Scopes requested, separated by spaces or commas. Some providers need `groups`. |
 
 Provider setup and behaviour: [oidc.md](oidc.md).

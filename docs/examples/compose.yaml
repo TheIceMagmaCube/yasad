@@ -1,7 +1,7 @@
 # YASAD alone, on port 3000. Put the values in a .env file next to this one (see the README).
 services:
   yasad:
-    image: ghcr.io/theicemagmacube/yasad:beta
+    image: ghcr.io/theicemagmacube/yasad:latest
     # Every variable in .env reaches YASAD (see docs/configuration.md).
     env_file: .env
     # Stop with a clear message when a required value is missing.

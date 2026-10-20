@@ -10,8 +10,8 @@ YASAD runs as one Docker image or as a Cloudflare Worker. The image does not han
 
    ```sh
    mkdir yasad && cd yasad
-   curl -fsSLO https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/examples/caddy/compose.yaml
-   curl -fsSLO https://raw.githubusercontent.com/TheIceMagmaCube/yasad/beta/docs/examples/caddy/Caddyfile
+   curl -fsSLO https://raw.githubusercontent.com/TheIceMagmaCube/yasad/main/docs/examples/caddy/compose.yaml
+   curl -fsSLO https://raw.githubusercontent.com/TheIceMagmaCube/yasad/main/docs/examples/caddy/Caddyfile
    ```
 
    [compose.yaml](examples/caddy/compose.yaml) runs YASAD and Caddy. YASAD publishes no port: only Caddy reaches it, and `TRUST_PROXY` is `1`.
@@ -47,7 +47,7 @@ Put YASAD on Nginx Proxy Manager's Docker network and publish no port. Find that
 ```yaml
 services:
   yasad:
-    image: ghcr.io/theicemagmacube/yasad:beta
+    image: ghcr.io/theicemagmacube/yasad:latest
     env_file: .env
     environment:
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env (openssl rand -base64 32)}
@@ -80,12 +80,12 @@ Create the `.env` file as in the Caddy steps above, and add `TRUST_PROXY=2` to i
 
 ## Cloudflare Workers
 
-The same code runs on Cloudflare Workers, with a D1 database. You need a Cloudflare account, Git and Node 24. YASAD has no stable release yet, so use the `beta` branch.
+The same code runs on Cloudflare Workers, with a D1 database. You need a Cloudflare account, Git and Node 24. Use the `main` branch, which holds the last stable release (`beta` holds unreleased work).
 
 1. Get the code and install the dependencies, then go to `backend/`:
 
    ```sh
-   git clone -b beta https://github.com/TheIceMagmaCube/yasad.git
+   git clone -b main https://github.com/TheIceMagmaCube/yasad.git
    cd yasad
    npm ci
    cd backend
