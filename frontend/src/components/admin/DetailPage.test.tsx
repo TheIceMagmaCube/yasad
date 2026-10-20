@@ -1,7 +1,7 @@
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { listHref, rememberRow, useQueryState, useRestoreRow } from "./DetailPage";
+import { DetailColumns, listHref, rememberRow, useQueryState, useRestoreRow } from "./DetailPage";
 
 afterEach(cleanup);
 
@@ -42,5 +42,12 @@ describe("rememberRow and useRestoreRow", () => {
 
   it("returns the bare address of a list never left", () => {
     expect(listHref("/elsewhere")).toBe("/elsewhere");
+  });
+});
+
+describe("DetailColumns", () => {
+  it("keeps an item page at most 1024 px wide in the wide app column", () => {
+    const { container } = render(<DetailColumns main={<p>main</p>} side={<p>side</p>} />);
+    expect(container.firstElementChild).toHaveClass("max-w-5xl");
   });
 });

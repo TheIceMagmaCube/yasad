@@ -4,13 +4,16 @@ import { cn } from "@/lib/utils";
 
 import { claimFocus } from "../../lib/focus";
 
+/** Maximum width of an admin item page (1024 px), so a label stays near its value in the wide app column. */
+export const ITEM_WIDTH = "max-w-5xl";
+
 /**
  * Lay out an item page: two columns from lg (what the item is at the left, what it belongs to at the right), one
- * below; the actions that lose data under both, full width.
+ * below; the actions that lose data under both, full width. At most `ITEM_WIDTH` wide.
  */
 export function DetailColumns({ main, side, danger }: { main: ReactNode; side?: ReactNode; danger?: ReactNode }) {
   return (
-    <div className="flex flex-col gap-10">
+    <div className={cn("flex flex-col gap-10", ITEM_WIDTH)}>
       <div className={cn("grid grid-cols-1 gap-10", side && "lg:grid-cols-2 lg:gap-12")}>
         <div className="flex min-w-0 flex-col gap-10">{main}</div>
         {side && <div className="flex min-w-0 flex-col gap-10">{side}</div>}

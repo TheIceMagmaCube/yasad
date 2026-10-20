@@ -334,6 +334,36 @@ test("the administration pages fit a 320 px screen in French", async ({ page }) 
   await expectNoHorizontalScroll(page, "add wizard with errors in French");
 });
 
+test("on a wide screen, the header lines up with the content, lists use the wide column and item and account pages keep their former width", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const header = await box("header");
+  const main = await box("main#content");
+  expect(Math.abs(header.x - main.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(header.width - main.width)).toBeLessThanOrEqual(1);
+  expect(main.width).toBeCloseTo(1280, 0);
+
+  await page.goto("/admin/users");
+  await expect(page.getByRole("heading", { level: 1, name: "People" })).toBeVisible();
+  expect((await box("table")).width).toBeGreaterThan(1024);
+
+  await page.goto(`/admin/users/${GRACE.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: GRACE.name })).toBeVisible();
+  expect((await box("main#content .max-w-5xl")).width).toBeLessThanOrEqual(1024);
+
+  await page.goto("/admin/links/mail");
+  await expect(page.getByRole("heading", { level: 1, name: "Mail" })).toBeVisible();
+  expect((await box("main#content .max-w-5xl")).width).toBeLessThanOrEqual(1024);
+
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  expect((await box('[data-slot="page"]')).width).toBeLessThanOrEqual(1024);
+});
+
 test.describe("keyboard and focus", () => {
   test.beforeEach(async ({ page }) => {
     await signInAsAdmin(page);
