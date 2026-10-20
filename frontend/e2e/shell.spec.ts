@@ -1,23 +1,11 @@
-import { readFileSync } from "node:fs";
-
-import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 import { ICONS_BASE } from "../src/icons-base";
-import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, importCatalog, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
 const signIn = signInAsAdmin;
-
-/** Import a catalog file through the admin API: preview, then apply with the preview's base version. */
-async function importCatalog(request: APIRequestContext, path: string): Promise<void> {
-  const yaml = readFileSync(path, "utf8");
-  const preview = await request.post("/api/admin/catalog", { data: { yaml, dryRun: true } });
-  expect(preview.ok(), await preview.text()).toBe(true);
-  const { baseVersion } = (await preview.json()) as { baseVersion: string };
-  const applied = await request.post("/api/admin/catalog", { data: { yaml, dryRun: false, baseVersion } });
-  expect(applied.ok(), await applied.text()).toBe(true);
-}
 
 /** Categories of e2e/fixtures/home.yaml, in order, as the admin sees them (the admin holds no local group). */
 const HOME_CATEGORIES = ["Public", "Everyday", "Documentation", "People", "Money", "Operations", "Miscellaneous"];

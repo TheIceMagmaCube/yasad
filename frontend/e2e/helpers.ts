@@ -1,10 +1,11 @@
+import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 import AxeBuilder from "@axe-core/playwright";
 import { hashPassword } from "better-auth/crypto";
-import { expect, type Page } from "@playwright/test";
+import { type APIRequestContext, expect, type Page } from "@playwright/test";
 
-import { E2E_DB } from "../playwright.config";
+import { BASE_URL, E2E_DB } from "../playwright.config";
 
 /** Open a server's database, waiting while the running server holds its write lock. */
 function openDb(file: string): DatabaseSync {
@@ -151,5 +152,34 @@ export function addGroup({ id, name, source = "local", memberIds = [] }: { id: s
     for (const userId of memberIds) db.prepare(`insert into user_group (user_id, group_id) values (?, ?)`).run(userId, id);
   } finally {
     db.close();
+  }
+}
+
+/** Import a catalog file through the admin API: preview, then apply with the preview's base version. */
+export async function importCatalog(request: APIRequestContext, path: string): Promise<void> {
+  const yaml = readFileSync(path, "utf8");
+  const preview = await request.post("/api/admin/catalog", { data: { yaml, dryRun: true } });
+  expect(preview.ok(), await preview.text()).toBe(true);
+  const { baseVersion } = (await preview.json()) as { baseVersion: string };
+  const applied = await request.post("/api/admin/catalog", { data: { yaml, dryRun: false, baseVersion } });
+  expect(applied.ok(), await applied.text()).toBe(true);
+}
+
+/** Pin the links `ids`, in this order, for the person `request` is signed in as. */
+export async function pinByApi(request: APIRequestContext, ids: string[]): Promise<void> {
+  for (const linkId of ids) {
+    const res = await request.post("/api/pins", { data: { linkId }, headers: { Origin: BASE_URL } });
+    expect(res.ok(), `pin ${linkId}: ${await res.text()}`).toBe(true);
+  }
+}
+
+/** Remove every visible pin of the person `request` is signed in as. */
+export async function unpinAllByApi(request: APIRequestContext): Promise<void> {
+  const home = await request.get("/api/home");
+  expect(home.ok(), await home.text()).toBe(true);
+  const { pins } = (await home.json()) as { pins: string[] };
+  for (const linkId of pins) {
+    const res = await request.delete(`/api/pins/${linkId}`, { data: {}, headers: { Origin: BASE_URL } });
+    expect(res.ok(), `unpin ${linkId}: ${await res.text()}`).toBe(true);
   }
 }
