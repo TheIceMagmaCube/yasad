@@ -43,3 +43,36 @@ export async function addMembership(app: TestApp, userId: string, source: string
 export async function join(admin: TestApp, userId: string, name: string) {
   expect((await send(admin, "PUT", `/api/admin/groups/${await groupId(admin, "local", name)}/members/${userId}`)).status).toBe(204);
 }
+
+/** Return the source and name of a catalog group reference: `@everyone`, `local:Ops`, `oidc:Dev`. */
+function groupRef(ref: string): { source: string; name: string } {
+  if (ref.startsWith("@")) return { source: "system", name: ref.slice(1) };
+  const colon = ref.indexOf(":");
+  return { source: ref.slice(0, colon), name: ref.slice(colon + 1) };
+}
+
+/**
+ * Write a catalog straight into the database in one batch, as {@link catalog} describes it. Used where the
+ * import and the admin writes are refused, under CATALOG_FILE.
+ */
+export async function seedCatalogSql(app: TestApp, categories: CategorySpec[]) {
+  const statements: string[] = [];
+  const grant = (table: "category_group" | "link_group", column: string, id: string, refs: string[]) => {
+    for (const ref of refs) {
+      const { source, name } = groupRef(ref);
+      statements.push(`insert or ignore into "group" (id, name, source) values ('${source}:${name}', '${name}', '${source}')`);
+      statements.push(`insert into ${table} (${column}, group_id) select '${id}', id from "group" where source = '${source}' and name = '${name}'`);
+    }
+  };
+  categories.forEach((cat, position) => {
+    statements.push(`insert into category (id, title, position) values ('${cat.id}', 'Category ${cat.id}', ${position})`);
+    grant("category_group", "category_id", cat.id, cat.groups);
+    cat.links.forEach((lnk, rank) => {
+      statements.push(
+        `insert into link (id, category_id, title, url, position, active) values ('${lnk.id}', '${cat.id}', '${lnk.title ?? `Link ${lnk.id}`}', 'https://${lnk.id}.example.invalid/', ${rank}, ${lnk.active === false ? 0 : 1})`,
+      );
+      grant("link_group", "link_id", lnk.id, lnk.groups);
+    });
+  });
+  await app.batch(statements);
+}
