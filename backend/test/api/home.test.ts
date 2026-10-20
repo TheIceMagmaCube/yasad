@@ -9,6 +9,7 @@ type HomeBody = {
   signedIn: boolean;
   categories: { id: string; title: string; links: { id: string; title: string; description: string; url: string; icon: Icon | null; keywords: string[] }[] }[];
   empty: string | null;
+  pins: string[];
 };
 
 /** Return a client signed in as an administrator, on a fresh database. */
@@ -69,9 +70,9 @@ describe("GET /api/home, anonymous", () => {
 
   it("returns an empty list and no state, whether the catalog is empty or not", async () => {
     const admin = await adminApp();
-    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null });
+    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null, pins: [] });
     await load(admin, [{ id: "private", groups: ["@authenticated"], links: [{ id: "intranet", groups: ["@authenticated"] }] }]);
-    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null });
+    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null, pins: [] });
   });
 
   it("treats an invalid or expired session cookie as anonymous", async () => {
@@ -222,7 +223,7 @@ describe("GET /api/home, visibility rules", () => {
     const admin = await adminApp();
     await load(admin, [{ id: "tools", groups: ["local:Ops"], links: [{ id: "console", groups: ["local:Ops"] }] }]);
     const { body } = await home(admin);
-    expect(body).toEqual({ signedIn: true, categories: [], empty: "admin_no_access" });
+    expect(body).toEqual({ signedIn: true, categories: [], empty: "admin_no_access", pins: [] });
   });
 
   it("applies changes at the next request: membership, deactivation, group deletion", async () => {
@@ -301,6 +302,7 @@ describe("GET /api/home, response", () => {
         },
       ],
       empty: null,
+      pins: [],
     });
   });
 
@@ -348,7 +350,7 @@ describe("GET /api/home, response", () => {
 describe("GET /api/home, empty states", () => {
   it("tells an admin the catalog is empty, and another person they have no group", async () => {
     const admin = await adminApp();
-    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty" });
+    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty", pins: [] });
     const user = await localUser(admin, "bob");
     expect((await home(user)).body.empty).toBe("no_groups");
   });
@@ -367,7 +369,7 @@ describe("GET /api/home, empty states", () => {
   it("tells an admin the catalog is empty when every link is inactive", async () => {
     const admin = await adminApp();
     await load(admin, [{ id: "tools", groups: ["@authenticated"], links: [{ id: "console", groups: ["@authenticated"], active: false }] }]);
-    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty" });
+    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty", pins: [] });
   });
 
   it("is null when something is visible", async () => {
