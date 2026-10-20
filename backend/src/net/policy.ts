@@ -62,7 +62,10 @@ export function checkTarget(raw: string | URL): TargetCheck {
 
   let host = url.hostname.toLowerCase();
   if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
-  host = host.replace(/\.+$/, "");
+  // A loop, not /\.+$/: that regex is quadratic on a run of dots inside a host, and redirect targets are remote input.
+  let end = host.length;
+  while (end > 0 && host.charCodeAt(end - 1) === 46) end--;
+  host = host.slice(0, end);
   if (host === "") return { ok: false, code: "invalid_target" };
   if (isReservedName(host)) return { ok: false, code: "blocked_address" };
 

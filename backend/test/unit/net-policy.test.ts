@@ -27,6 +27,13 @@ describe("checkTarget", () => {
   });
 });
 
+it("checkTarget stays linear on a long run of dots inside the host", () => {
+  // Redirect targets come from remote servers: a quadratic strip would block the event loop.
+  const started = performance.now();
+  checkTarget(`http://a${".".repeat(100_000)}a/`);
+  expect(performance.now() - started).toBeLessThan(200);
+});
+
 describe("BAD_PORTS", () => {
   it("holds the Fetch bad ports and Redis, and leaves the web ports out", () => {
     for (const port of [0, 1, 22, 25, 53, 6379, 6697, 10080]) expect(BAD_PORTS.has(port)).toBe(true);
