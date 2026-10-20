@@ -17,10 +17,11 @@ const DATA: HomeData = {
     { id: "a-first", title: "First letter, later", links: [link("mail")] },
   ],
   empty: null,
+  pins: [],
 };
 
 const home = (body: HomeData) => ({ "GET /api/home": { status: 200, body } });
-const empty = (code: HomeData["empty"]) => home({ signedIn: true, categories: [], empty: code });
+const empty = (code: HomeData["empty"]) => home({ signedIn: true, categories: [], empty: code, pins: [] });
 
 afterEach(() => {
   cleanup();

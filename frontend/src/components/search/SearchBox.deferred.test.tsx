@@ -19,6 +19,7 @@ const DATA: HomeData = {
   signedIn: true,
   categories: [{ id: "everyday", title: "Everyday", links: [{ id: "mail", title: "Mail", description: "", url: "https://mail.example.invalid/", icon: null, keywords: [] }] }],
   empty: null,
+  pins: [],
 };
 
 afterEach(() => {
