@@ -31,9 +31,11 @@ export const POLICY_CASES: readonly PolicyCase[] = [
   // Reserved names.
   blocked("http://localhost/"),
   blocked("http://localhost./"),
+  blocked("http://localhost../"),
   blocked("http://LOCALHOST/"),
   blocked("http://foo.localhost/"),
   blocked("http://nas.local/"),
+  blocked("http://nas.local../"),
   blocked("http://x.internal/"),
   blocked("http://r.home.arpa/"),
   // Malformed targets.

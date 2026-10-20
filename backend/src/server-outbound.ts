@@ -100,7 +100,10 @@ function mapError(error: unknown, signal: AbortSignal): OutboundError {
   return new OutboundError("not_attempted", { cause: error });
 }
 
-/** Addresses of `name` from `resolve4` and `resolve6` together; `[]` when neither family has any. */
+/**
+ * Addresses of `name` from `resolve4` and `resolve6` together; `[]` when neither family has any. A resolution still
+ * pending at the deadline is `resolver_failed`, as on Workers: a DNS outage leaves the target's state unknown.
+ */
 async function resolveName(resolver: NodeResolver, name: string, signal: AbortSignal): Promise<string[]> {
   let results: PromiseSettledResult<string[]>[];
   try {
@@ -112,7 +115,7 @@ async function resolveName(resolver: NodeResolver, name: string, signal: AbortSi
       untilAborted(signal),
     ]);
   } catch (error) {
-    throw new OutboundError("timeout", { cause: error });
+    throw new OutboundError("resolver_failed", { cause: error });
   }
   const addresses: string[] = [];
   for (const result of results) {

@@ -46,7 +46,7 @@ export function isPublicAddress(ip: string): boolean {
 /**
  * Check an outbound target before any resolution: scheme, credentials, host name, port, then the address when the
  * host is an IP literal. The host is checked as `new URL` normalises it (numeric IPv4 forms expanded, IPv6 compressed),
- * without brackets or a trailing dot, in lower case. A name still has to be resolved and its addresses checked.
+ * without brackets or trailing dots, in lower case. A name still has to be resolved and its addresses checked.
  */
 export function checkTarget(raw: string | URL): TargetCheck {
   let url: URL;
@@ -62,7 +62,7 @@ export function checkTarget(raw: string | URL): TargetCheck {
 
   let host = url.hostname.toLowerCase();
   if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
-  if (host.endsWith(".")) host = host.slice(0, -1);
+  host = host.replace(/\.+$/, "");
   if (host === "") return { ok: false, code: "invalid_target" };
   if (isReservedName(host)) return { ok: false, code: "blocked_address" };
 

@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { fetchOutbound } from "../../src/net/fetch-outbound";
 import { OutboundError, type OutboundErrorCode, type OutboundOptions } from "../../src/net/outbound";
 import { nodeOutbound, pinnedLookup } from "../../src/server-outbound";
 import { version } from "../../src/version";
@@ -306,6 +307,17 @@ describe("pinnedLookup", () => {
   });
 });
 
+describe("a resolver that never answers", () => {
+  it("gives resolver_failed on both targets, never timeout", async () => {
+    const never = () => new Promise<string[]>(() => {});
+    const node = nodeOutbound({ resolver: { resolve4: never, resolve6: never } });
+    const fetched = fetchOutbound({ fetch: () => Promise.reject(new Error("no fetch expected")), resolve: never });
+    const options = { ...OPTIONS, deadlineMs: 100 };
+    expect(await codeOf(node.request("http://slow.test/", options))).toBe("resolver_failed");
+    expect(await codeOf(fetched.request("http://slow.test/", options))).toBe("resolver_failed");
+  });
+});
+
 describe("nodeOutbound and the libuv threadpool", () => {
   async function readsStayFast(checks: Promise<OutboundErrorCode>[]) {
     const dir = await mkdtemp(join(tmpdir(), "yasad-outbound-"));
@@ -315,7 +327,7 @@ describe("nodeOutbound and the libuv threadpool", () => {
       const started = performance.now();
       await Promise.all(Array.from({ length: 20 }, () => readFile(file)));
       expect(performance.now() - started).toBeLessThan(500);
-      expect(await Promise.all(checks)).toEqual(Array.from({ length: 6 }, () => "timeout"));
+      expect(await Promise.all(checks)).toEqual(Array.from({ length: 6 }, () => "resolver_failed"));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
