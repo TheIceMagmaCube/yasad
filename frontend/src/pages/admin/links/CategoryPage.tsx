@@ -4,7 +4,7 @@ import { type FormEvent, useState } from "react";
 import { type AdminCategory, type AdminGroup, api, type CategoryInput, type EditWarning } from "../../../api";
 import { AdminShell } from "../../../components/admin/AdminShell";
 import { ConfirmPanel } from "../../../components/admin/ConfirmPanel";
-import { listHref, PaneDanger } from "../../../components/admin/DetailPage";
+import { ITEM_WIDTH, listHref, PaneDanger } from "../../../components/admin/DetailPage";
 import { ErrorSummary } from "../../../components/form/ErrorSummary";
 import { Field } from "../../../components/form/Field";
 import { FormActions, FormStack } from "../../../components/form/FormLayout";
@@ -92,7 +92,7 @@ export function CategoryPage({ category, groups, readOnly, onSaved, onDeleted, o
   const links = base.links.length;
   return (
     <AdminShell section="links" title={category.title} back={{ href: listHref(LIST), label: m.admin.backTo(s.title) }} subtitle={<p>{s.linkCount(links)}</p>}>
-      <div className="flex flex-col gap-10">
+      <div className={`flex flex-col gap-10 ${ITEM_WIDTH}`}>
         {readOnly && <Alert variant="info">{s.managedByFile}</Alert>}
         <Warnings warnings={warnings} />
         <form id={formId} noValidate aria-label={category.title} onSubmit={submit}>

@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Named content widths: a form column, readable text, or a full-width list. */
+/** Named content widths: a form column, readable text, a settings page with two columns, or a full-width list. */
 const WIDTHS = {
   form: "max-w-sm",
   reading: "max-w-2xl",
+  settings: "max-w-5xl",
   list: "max-w-none",
 } as const;
 

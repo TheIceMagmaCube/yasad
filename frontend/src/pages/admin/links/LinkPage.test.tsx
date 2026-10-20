@@ -159,9 +159,20 @@ describe("LinkPage", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "This item no longer exists." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to Links" })).toHaveAttribute("href", "/admin/links");
   });
+  it("keeps the link page at most 1024 px wide in the wide app column", async () => {
+    renderAdmin("/admin/links/wiki", linksRoutes({}));
+    expect(await screen.findByRole("heading", { level: 1, name: "Wiki" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Address").closest(".max-w-5xl")).not.toBeNull();
+  });
 });
 
 describe("CategoryPage", () => {
+  it("keeps the category page at most 1024 px wide in the wide app column", async () => {
+    renderAdmin("/admin/links/categories/dev", linksRoutes({}));
+    expect(await screen.findByRole("heading", { level: 1, name: "Development" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Title").closest(".max-w-5xl")).not.toBeNull();
+  });
+
   it("saves the title and groups of a category, announced, the home dropped", async () => {
     const { user, fetchMock } = renderAdmin(
       "/admin/links/categories/dev",

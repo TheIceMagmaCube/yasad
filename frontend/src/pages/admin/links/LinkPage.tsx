@@ -4,7 +4,7 @@ import { type FormEvent, useState } from "react";
 import { type AdminCategory, type AdminGroup, type AdminLink, api, type EditWarning, type LinkInput } from "../../../api";
 import { AdminShell } from "../../../components/admin/AdminShell";
 import { ConfirmPanel } from "../../../components/admin/ConfirmPanel";
-import { listHref, PaneDanger } from "../../../components/admin/DetailPage";
+import { ITEM_WIDTH, listHref, PaneDanger } from "../../../components/admin/DetailPage";
 import { ErrorSummary } from "../../../components/form/ErrorSummary";
 import { Field } from "../../../components/form/Field";
 import { FormActions, FormStack } from "../../../components/form/FormLayout";
@@ -131,7 +131,7 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
 
   return (
     <AdminShell section="links" title={link.title} back={{ href: listHref(LIST), label: m.admin.backTo(s.title) }} subtitle={<p className="wrap-anywhere">{link.url}</p>}>
-      <div className="flex flex-col gap-10">
+      <div className={`flex flex-col gap-10 ${ITEM_WIDTH}`}>
         {readOnly && <Alert variant="info">{s.managedByFile}</Alert>}
         <Warnings warnings={warnings} />
         <form id={formId} noValidate aria-label={link.title} onSubmit={submit}>

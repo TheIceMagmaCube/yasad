@@ -35,10 +35,10 @@ describe("Account", () => {
     expect(screen.queryByRole("button", { name: "Edit: E-mail" })).toBeNull();
   });
 
-  it("keeps a reading width in the wide app column", () => {
+  it("keeps its former width in the wide app column, room for its two columns", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
     renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
-    expect(document.querySelector('[data-slot="page"]')).toHaveAttribute("data-width", "reading");
+    expect(document.querySelector('[data-slot="page"]')).toHaveAttribute("data-width", "settings");
   });
 
   it("offers each field and the password of a local account in its row", async () => {
