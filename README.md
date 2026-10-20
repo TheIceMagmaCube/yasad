@@ -2,7 +2,7 @@
 
 **Yet Another Simple Accessible Dashboard.**
 
-A self-hosted portal that gives each person one clean screen with the links, tools and pages they are allowed to see. Beautiful by default, customizable without writing code, with fine-grained access rules based on groups. Works with local accounts, your identity provider (OIDC), or both.
+A self-hosted portal that gives each person one clean screen with the links, tools and dashboards they are allowed to see. Beautiful by default, customizable without writing code, with fine-grained access rules based on groups. Works with local accounts, your identity provider (OIDC), or both.
 
 ## Why another dashboard?
 
@@ -12,15 +12,15 @@ Most self-hosted dashboards make you choose:
 * customizable but configured by hand in YAML,
 * multi-user but with permissions only at the board level.
 
-YASAD aims to combine the three: a polished default look, a visual editor for pages and links, and access rules per link, page and category based on groups.
+YASAD aims to combine the three: a polished default look, a visual editor for dashboards and their layout, and access rules per link, category and dashboard based on groups.
 
 ## Goals
 
 * **Beautiful and calm by default.** A good-looking theme out of the box, with few well-chosen options. Colors, logo and theme can be changed from the interface.
 * **Easy to navigate, even when nearly empty.** Instant search (`/` or `Cmd+K`), full keyboard navigation, WCAG 2.2 AA, responsive layout.
 * **SSO optional.** Run YASAD with local accounts only, with an OIDC provider only, or with both at the same time. Local accounts are created by an admin, never by public sign-up.
-* **Access rules based on groups.** A person sees the union of what their groups allow: OIDC groups (read at each sign-in) and groups created in YASAD. A link is shown only if its category and page are visible too, and nothing is visible until a group allows it. Built-in `@everyone` and `@authenticated` groups cover public and signed-in access. Filtering happens on the server: forbidden links are never sent to the browser.
-* **Customizable without code.** Pages, categories, shortcuts, icons, theme and logo are edited in the interface.
+* **Access rules based on groups.** A person sees the union of what their groups allow: OIDC groups (read at each sign-in) and groups created in YASAD. A link is shown only if its category and dashboard are visible too, and nothing is visible until a group allows it. Built-in `@everyone` and `@authenticated` groups cover public and signed-in access. Filtering happens on the server: forbidden links are never sent to the browser.
+* **Customizable without code.** Dashboards and their layout, categories, shortcuts, icons, theme and logo are edited in the interface.
 * **Modular.** The core is small. Favorites, service status and widgets are modules you can switch off.
 * **Provider agnostic.** Any OIDC provider works (Okta, Authentik, Keycloak, and others), configured with environment variables. OIDC users are created on first sign-in and can be managed in the app.
 * **Simple to host.** One Docker image that serves everything, simple. The same code also runs on Cloudflare Workers with D1.
@@ -50,7 +50,7 @@ YASAD aims to combine the three: a polished default look, a visual editor for pa
 **Later**
 
 * Password reset by email, two-factor authentication for local accounts
-* Visual page editor, favorites, service status, theming, widgets
+* Several dashboards with a visual layout editor, favorites, service status, theming, widgets
 
 ## Tech stack
 

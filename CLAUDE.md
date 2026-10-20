@@ -53,7 +53,7 @@ The repository is public: never put the wiki's address, a link to one of its pag
 - Two targets, one code: no Node-only API (`fs`, `child_process`, timers for background jobs) outside `server.ts`; no filesystem writes; scheduled work goes through a function both entries can trigger.
 - Atomic writes use `db.batch([...])` (works on D1 and libSQL). Never `db.transaction()`: D1 does not support it. A check that must hold under concurrent requests goes inside the write (a `where exists` condition, or a guard statement in the batch), then the result is read back.
 - Foreign keys are enforced on both targets: deleting a user or a group relies on `ON DELETE CASCADE` for sessions, accounts, memberships and catalog links.
-- Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (pages, when they come, will join the intersection). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
+- Access is deny by default. A link is visible only if the user holds a group on the link AND on its category (dashboards, when they come, will join the intersection). `@everyone` and `@authenticated` are system groups. Groups carry a `source` (`oidc`, `local`, `system`); an OIDC group never matches a local group of the same name.
 - Filtering happens on the server; forbidden links never reach the browser, including through the API. Every access rule needs a test that calls the API directly.
 - OIDC groups are written server-side from the verified ID token (Better Auth hook), never from user-editable fields.
 - No automatic linking between a local account and an OIDC account sharing an e-mail.
