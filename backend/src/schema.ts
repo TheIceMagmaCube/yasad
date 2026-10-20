@@ -187,6 +187,25 @@ export const linkGroup = sqliteTable(
 );
 
 /**
+ * A person's favourite links. Positions are unique per person but not dense: every write keeps them
+ * unique (an insert takes max + 1, a move swaps two values), and a hidden pin keeps its row and position.
+ */
+export const userLinkPin = sqliteTable(
+  "user_link_pin",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    linkId: text("link_id")
+      .notNull()
+      .references(() => link.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.linkId] }), index("user_link_pin_link_id_idx").on(t.linkId)],
+);
+
+/**
  * Admin actions, one row per gesture, append-only: triggers refuse any update, and any delete of a row
  * younger than 30 days. `actor_id` has no foreign key, so deleting a person leaves their entries intact.
  */
