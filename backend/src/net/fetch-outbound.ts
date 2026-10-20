@@ -1,31 +1,17 @@
 import { resolveDoh } from "./doh";
 import {
+  isForbiddenHeader,
   type Outbound,
   OutboundError,
   type OutboundOptions,
   type OutboundResponse,
   outboundHeaders,
+  REDIRECT_STATUSES,
 } from "./outbound";
 import { checkTarget, isPublicAddress } from "./policy";
 
 /** Resolves a host name to its addresses, under the request's deadline; rejects with an `OutboundError`. */
 export type Resolve = (name: string, signal: AbortSignal) => Promise<string[]>;
-
-/** Statuses whose `Location` is followed when `maxRedirects` allows it. */
-const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
-
-/** True for a header the caller may not set: credentials, and anything that says where a request came from. */
-function isForbiddenHeader(name: string): boolean {
-  const lower = name.toLowerCase();
-  return (
-    lower === "cookie" ||
-    lower === "authorization" ||
-    lower === "proxy-authorization" ||
-    lower === "referer" ||
-    lower === "cf-connecting-ip" ||
-    lower.startsWith("x-forwarded-")
-  );
-}
 
 /** `outboundHeaders()` with the caller's headers over it, the forbidden ones left out. */
 function requestHeaders(extra: Record<string, string> | undefined): Headers {

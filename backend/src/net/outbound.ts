@@ -55,3 +55,19 @@ export function outboundHeaders(): Record<string, string> {
     Accept: "*/*",
   };
 }
+
+/** Statuses whose `Location` is followed when `maxRedirects` allows it. */
+export const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+/** True for a header the caller may not set: credentials, and anything that says where a request came from. */
+export function isForbiddenHeader(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower === "cookie" ||
+    lower === "authorization" ||
+    lower === "proxy-authorization" ||
+    lower === "referer" ||
+    lower === "cf-connecting-ip" ||
+    lower.startsWith("x-forwarded-")
+  );
+}
