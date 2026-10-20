@@ -13,7 +13,48 @@ on:
 permissions:
   contents: read
 
+# A new push or title edit on a pull request cancels its run in progress: the new run tests the
+# same head commit, so the required checks still report. Pushes to main and beta each get their
+# own group (by commit), so no merge loses its image or its release.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      # A pull request that only touches documentation skips test and e2e, which then report as
+      # skipped (a pass for the required checks). The list is the whole pull request, not the last
+      # push, so a later docs commit cannot hide an earlier code change. Pushes always run
+      # everything. docs/catalog.example.yaml is read by tests, so it counts as code.
+      - name: Is anything other than documentation changed?
+        id: files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')"
+          echo "$files"
+          code=false
+          while read -r f; do
+            case "$f" in
+              docs/catalog.example.yaml) code=true ;;
+              *.md | docs/* | .github/ISSUE_TEMPLATE/*) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   pr-title:
     name: PR title (Conventional Commits)
     # Squash merges use the PR title as the commit message, which semantic-release reads.
@@ -43,6 +84,9 @@ jobs:
 
   test:
     name: Lint, typecheck, tests, builds
+    needs: changes
+    # Runs unless the changes job said "docs only": if that job fails, the tests still run.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,6 +125,9 @@ jobs:
 
   e2e:
     name: Accessibility and browser tests (Playwright)
+    needs: changes
+    # Runs unless the changes job said "docs only": if that job fails, the tests still run.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
