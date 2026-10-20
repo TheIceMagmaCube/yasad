@@ -8,6 +8,8 @@ export type ApiErrorBody = {
   fields?: Record<string, string>;
   /** The item as stored now, with `item_changed`. */
   current?: unknown;
+  /** The most pins a person may have, with `pins_full`. */
+  max?: number;
 };
 
 export class ApiError extends Error {
@@ -161,7 +163,8 @@ export type HomeLink = { id: string; title: string; description: string; url: st
 export type HomeCategory = { id: string; title: string; links: HomeLink[] };
 /** Why the home page is empty; set only when `categories` is empty and someone is signed in. */
 export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";
-export type HomeData = { signedIn: boolean; categories: HomeCategory[]; empty: HomeEmpty | null };
+/** `pins` lists the ids of the viewer's visible pinned links, in their order; empty when nobody is signed in. */
+export type HomeData = { signedIn: boolean; categories: HomeCategory[]; empty: HomeEmpty | null; pins: string[] };
 
 /** Error codes saying the session the app holds is out of date: signed out, temporary password set, or no longer an admin. */
 const STALE_SESSION_CODES = new Set(["unauthenticated", "password_change_required", "forbidden"]);
@@ -260,6 +263,13 @@ export const api = {
   /** Move a link one step in its category; `order` is the list of that category's link ids after the move. */
   moveLink: (id: string, direction: Direction) => call<{ order: string[] }>(`/api/admin/links/${encodeURIComponent(id)}/move`, post({ direction })),
   deleteLink: (id: string, revision: number) => call<void>(`/api/admin/links/${encodeURIComponent(id)}`, send("DELETE", { revision })),
+  /** Pin a visible link (already pinned is fine); `pins` is the viewer's list after the write. */
+  pin: (linkId: string) => call<{ pins: string[] }>("/api/pins", post({ linkId })),
+  /** Unpin a link; answers the list even when it was not pinned. */
+  unpin: (linkId: string) => call<{ pins: string[] }>(`/api/pins/${encodeURIComponent(linkId)}`, send("DELETE")),
+  /** Move a pin one step among the visible ones; the list is unchanged at either end. */
+  movePin: (linkId: string, direction: Direction) =>
+    call<{ pins: string[] }>(`/api/pins/${encodeURIComponent(linkId)}/move`, post({ direction })),
   history: (query: HistoryQuery = {}) => call<HistoryPage>(`/api/admin/history${historyQueryString(query)}`),
   historyActors: async () => (await call<{ actors: HistoryActor[] }>("/api/admin/history/actors")).actors,
 };

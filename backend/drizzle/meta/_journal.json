@@ -71,6 +71,13 @@
       "when": 1792427401033,
       "tag": "0009_audit_log_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792488955075,
+      "tag": "0010_salty_corsair",
+      "breakpoints": true
     }
   ]
 }

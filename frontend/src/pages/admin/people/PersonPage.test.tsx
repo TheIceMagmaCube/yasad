@@ -48,7 +48,7 @@ describe("PersonPage", () => {
       routes({ "PUT /api/admin/groups/g2/members/bob": { status: 204 }, "DELETE /api/admin/groups/g1/members/bob": { status: 204 } }),
     );
     await screen.findByRole("heading", { level: 1, name: "Bob" });
-    primeHome("user:ada", { signedIn: true, categories: [], empty: null });
+    primeHome("user:ada", { signedIn: true, categories: [], empty: null, pins: [] });
     const cached = renderHook(() => useHomeEntry("user:ada")).result;
     const groups = section("Local groups");
     expect(within(groups).getByRole("checkbox", { name: "Finance" })).toBeChecked();

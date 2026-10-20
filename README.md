@@ -114,6 +114,15 @@ A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:
 
 Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
 
+### Favourites
+
+A signed-in person pins the links they open often: **Manage** in the **Favourites** panel of the home page shows a **Pin** button on each link, and **Up**, **Down** and **Remove** on each favourite. Favourites are personal: nobody else sees them, admins included, and they follow the account to every device. A person has up to 20 favourites they can see. A favourite whose link they can no longer see (access removed, link made inactive) is kept but hidden, and comes back with the access.
+
+Favourites belong to the account and to the link id:
+
+* Deleting an account deletes its favourites. An OIDC account deleted in YASAD is created again at the next sign-in as a new account, without favourites.
+* Deleting a link deletes the favourites pinned on it. Changing a link's `id` in the catalog file counts as deleting the link and creating a new one at import: its favourites are lost. Moving a link to another category keeps them.
+
 ### Themes
 
 YASAD ships two themes, each in light and dark: `default` (cream and ink, yellow accents, pixel touches) and `dusk` (warm creams and terracotta). Each person picks light, dark or the system setting under **Appearance**. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.

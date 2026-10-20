@@ -3,12 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeData } from "@/api";
 
-import { homeKey, invalidateHome, loadHome, onViewerChanged, primeHome, useHomeEntry } from "./home-store";
+import { homeKey, invalidateHome, loadHome, onViewerChanged, primeHome, setHomePins, useHomeEntry } from "./home-store";
 
 const data = (title: string): HomeData => ({
   signedIn: true,
   categories: [{ id: "c", title, links: [] }],
   empty: null,
+  pins: [],
 });
 
 /** Replace fetch with one whose answers the test releases, in call order. */
@@ -145,5 +146,68 @@ describe("home store", () => {
     });
     expect(stored).toBe(false);
     expect(result.current).toBeNull();
+  });
+  it("setHomePins patches the ready entry of the same generation", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useHomeEntry("user:ada"));
+    act(() => void primeHome("user:ada", { ...data("A"), pins: ["a"] }));
+    const gen = result.current!.generation;
+    let patched = false;
+    act(() => {
+      patched = setHomePins("user:ada", gen, ["b", "a"]);
+    });
+    expect(patched).toBe(true);
+    expect(result.current?.state).toEqual({ status: "ready", data: { ...data("A"), pins: ["b", "a"] } });
+    expect(result.current?.generation).toBe(gen);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("setHomePins ignores a stale generation and reloads without skeleton", async () => {
+    const { fetchMock, release } = controlledFetch();
+    const statuses: string[] = [];
+    const { result } = renderHook(() => {
+      const current = useHomeEntry("user:ada");
+      if (current) statuses.push(current.state.status);
+      return current;
+    });
+    act(() => void primeHome("user:ada", { ...data("A"), pins: ["a"] }));
+    const oldGen = result.current!.generation;
+    // The session changed and the home was read again before the gesture's answer came back.
+    act(() => {
+      invalidateHome();
+      loadHome("user:ada");
+    });
+    await release(0, { ...data("A"), pins: ["a"] });
+    await vi.waitFor(() => expect(result.current?.state.status).toBe("ready"));
+    const readyFrom = statuses.length - 1;
+
+    let patched = true;
+    act(() => {
+      patched = setHomePins("user:ada", oldGen, ["x"]);
+    });
+    expect(patched).toBe(false);
+    expect(result.current?.state).toEqual({ status: "ready", data: { ...data("A"), pins: ["a"] } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await release(1, { ...data("A"), pins: ["x", "a"] });
+    await vi.waitFor(() => expect(result.current?.state).toEqual({ status: "ready", data: { ...data("A"), pins: ["x", "a"] } }));
+    expect(statuses.slice(readyFrom)).not.toContain("loading");
+  });
+
+  it("setHomePins for another viewer leaves the entry alone", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useHomeEntry("anonymous"));
+    const pub = { ...data("Public"), signedIn: false };
+    act(() => void primeHome("anonymous", pub));
+    const gen = result.current!.generation;
+    let patched = true;
+    act(() => {
+      patched = setHomePins("user:b", gen, ["x"]);
+    });
+    expect(patched).toBe(false);
+    expect(result.current?.key).toBe("anonymous");
+    expect(result.current?.state).toEqual({ status: "ready", data: pub });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

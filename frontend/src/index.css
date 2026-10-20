@@ -258,6 +258,51 @@
   }
 }
 
+/* Favourites panel of the home page (PinsPanel). On a screen wide and tall enough it sticks under the header (the
+   same 6rem as the scroll padding) and scrolls inside; while managing it leaves room for the bar at the bottom.
+   Smaller screens and strong zoom keep it in the flow, above the categories. */
+@layer components {
+  @media (min-width: 64rem) and (min-height: 48rem) {
+    .pins-panel {
+      position: sticky;
+      top: 6rem;
+      max-height: calc(100dvh - 7rem);
+      overflow-y: auto;
+    }
+
+    html[data-pins-managing] .pins-panel {
+      max-height: calc(100dvh - 11rem);
+    }
+  }
+
+  /* The fixed manage bar must never hide the focused element (WCAG 2.4.11). */
+  html[data-pins-managing] {
+    scroll-padding-bottom: 5rem;
+  }
+
+  /* Manage bar: fixed at the bottom of the window, clear of the safe area; at the end of the page on a low screen,
+     where a fixed bar would take too much of it. Forced colors mode drops its shadow: a real border edges it. */
+  .pins-bar {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 30;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  @media (max-height: 30rem) {
+    .pins-bar {
+      position: static;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .pins-bar {
+      border-top: 1px solid CanvasText;
+    }
+  }
+}
+
 /* Motions of the pixel drawing of the signed-out screens, used on pixel-part elements under motion-safe: only, so
    reduced motion leaves the drawing still. */
 @keyframes pixel-blink {

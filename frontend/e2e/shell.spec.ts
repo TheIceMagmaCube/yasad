@@ -1,23 +1,11 @@
-import { readFileSync } from "node:fs";
-
-import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 import { ICONS_BASE } from "../src/icons-base";
-import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, importCatalog, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
 const signIn = signInAsAdmin;
-
-/** Import a catalog file through the admin API: preview, then apply with the preview's base version. */
-async function importCatalog(request: APIRequestContext, path: string): Promise<void> {
-  const yaml = readFileSync(path, "utf8");
-  const preview = await request.post("/api/admin/catalog", { data: { yaml, dryRun: true } });
-  expect(preview.ok(), await preview.text()).toBe(true);
-  const { baseVersion } = (await preview.json()) as { baseVersion: string };
-  const applied = await request.post("/api/admin/catalog", { data: { yaml, dryRun: false, baseVersion } });
-  expect(applied.ok(), await applied.text()).toBe(true);
-}
 
 /** Categories of e2e/fixtures/home.yaml, in order, as the admin sees them (the admin holds no local group). */
 const HOME_CATEGORIES = ["Public", "Everyday", "Documentation", "People", "Money", "Operations", "Miscellaneous"];
@@ -92,7 +80,8 @@ for (const theme of THEMES) {
         const csp = watchCsp(page);
         await open(page, "/", theme, mode, width);
         const main = page.getByRole("main");
-        await expect(main.getByRole("heading", { level: 2 })).toHaveText(HOME_CATEGORIES);
+        // The favourites panel has its own h2, before the categories.
+        await expect(page.locator("#home-links").getByRole("heading", { level: 2 })).toHaveText(HOME_CATEGORIES);
         for (const title of HIDDEN_LINKS) await expect(main.getByText(title)).toHaveCount(0);
         const body = await (await page.request.get("/api/home")).text();
         for (const title of HIDDEN_LINKS) expect(body).not.toContain(title);
@@ -366,6 +355,11 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await expect(menu).toBeHidden();
   await expect(trigger).toBeFocused();
 
+  // The favourites panel comes first; its skip link leads past it to the categories.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Go to the links" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#home-links")).toBeFocused();
   await page.keyboard.press("Tab");
   const card = page.getByRole("link", { name: "Status page" });
   await expect(card).toBeFocused();

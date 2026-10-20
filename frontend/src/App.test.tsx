@@ -16,14 +16,14 @@ const CATEGORY = {
 };
 
 /** Home answer of an anonymous visitor on an instance with no public link. */
-const NO_PUBLIC_LINKS: Routes = { "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null } } };
+const NO_PUBLIC_LINKS: Routes = { "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } } };
 
 /** Return the API answers for a signed-in person, admin lists included. */
 function signedIn(user: object): Routes {
   return {
     "GET /api/setup": { status: 200, body: { open: false } },
     "GET /api/auth/get-session": { status: 200, body: { user, session: {} } },
-    "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
+    "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible", pins: [] } },
     "GET /api/admin/users": { status: 200, body: { users: [] } },
     "GET /api/admin/groups": { status: 200, body: { groups: [] } },
     "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } },
@@ -70,7 +70,7 @@ describe("App", () => {
     mockApi({
       "GET /api/setup": { status: 200, body: { open: false, setupCodeStillSet: false } },
       "GET /api/auth/get-session": { status: 200, body: { user: ADA, session: {} } },
-      "GET /api/home": { status: 200, body: { signedIn: true, categories: [CATEGORY], empty: null } },
+      "GET /api/home": { status: 200, body: { signedIn: true, categories: [CATEGORY], empty: null, pins: [] } },
     });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toBeInTheDocument();
@@ -131,8 +131,8 @@ describe("App", () => {
         { status: 200, body: null },
       ],
       "GET /api/home": [
-        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
-        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty", pins: [] } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
       ],
       "POST /api/auth/sign-out": { status: 200, body: {} },
     });
@@ -155,7 +155,7 @@ describe("App", () => {
         { status: 200, body: { user: { ...ADA, mustChangePassword: true }, session: {} } },
         { status: 200, body: { user: ADA, session: {} } },
       ],
-      "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
+      "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible", pins: [] } },
       "POST /api/account/password": { status: 204 },
     });
     const user = userEvent.setup();
@@ -213,7 +213,7 @@ describe("App", () => {
   });
 
   describe("anonymous visitor", () => {
-    const PUBLIC_HOME = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    const PUBLIC_HOME = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null, pins: [] } };
     const anonymous: Routes = {
       "GET /api/setup": { status: 200, body: { open: false } },
       "GET /api/auth/get-session": { status: 200, body: null },
@@ -241,7 +241,7 @@ describe("App", () => {
     });
 
     it("sees the sign-in screen on / when no link is public", async () => {
-      mockApi({ ...anonymous, "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null } } });
+      mockApi({ ...anonymous, "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } } });
       renderAt("/");
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
       expect(screen.getByLabelText("Password")).toBeInTheDocument();
@@ -263,7 +263,7 @@ describe("App", () => {
           { status: 200, body: null },
           { status: 200, body: { user: BOB, session: {} } },
         ],
-        "GET /api/home": [PUBLIC_HOME, { status: 200, body: { signedIn: true, categories: [CATEGORY], empty: null } }],
+        "GET /api/home": [PUBLIC_HOME, { status: 200, body: { signedIn: true, categories: [CATEGORY], empty: null, pins: [] } }],
         "POST /api/auth/sign-in/email": { status: 200, body: {} },
       });
       renderAt("/sign-in");
@@ -290,7 +290,7 @@ describe("App", () => {
           { status: 200, body: { user: BOB, session: {} } },
           { status: 200, body: null },
         ],
-        "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }],
+        "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } }],
       });
       renderAt("/");
       expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
@@ -487,8 +487,8 @@ describe("App", () => {
           { status: 200, body: { user: ADA, session: {} } },
         ],
         "GET /api/home": [
-          { status: 200, body: { signedIn: false, categories: [], empty: null } },
-          { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
+          { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
+          { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible", pins: [] } },
         ],
         "POST /api/auth/sign-in/email": { status: 200, body: {} },
       });
@@ -531,7 +531,7 @@ describe("App", () => {
       mockApi({
         "GET /api/setup": { status: 200, body: { open: false } },
         "GET /api/auth/get-session": { status: 200, body: null },
-        "GET /api/home": { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } },
+        "GET /api/home": { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null, pins: [] } },
       });
       renderAt("/");
       await screen.findByRole("heading", { name: "Links", level: 1 });
@@ -553,8 +553,8 @@ describe("App", () => {
     });
 
     it("never shows the previous person's links after the session changed", async () => {
-      const adaHome = { signedIn: true, categories: [{ id: "c", title: "Private", links: [{ ...CATEGORY.links[0]!, id: "vault", title: "Ada vault" }] }], empty: null };
-      const bobHome = { signedIn: true, categories: [CATEGORY], empty: null };
+      const adaHome = { signedIn: true, categories: [{ id: "c", title: "Private", links: [{ ...CATEGORY.links[0]!, id: "vault", title: "Ada vault" }] }], empty: null, pins: [] };
+      const bobHome = { signedIn: true, categories: [CATEGORY], empty: null, pins: [] };
       let session: object = { ...ADA, id: "ada" };
       let homeBody: object = adaHome;
       const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -590,8 +590,8 @@ describe("App", () => {
     });
 
     it("never keeps a signed-in answer on the public page, and reloads the session instead", async () => {
-      const publicHome = { signedIn: false, categories: [CATEGORY], empty: null };
-      const bobHome = { signedIn: true, categories: [{ id: "c", title: "Private", links: [{ ...CATEGORY.links[0]!, id: "vault", title: "Bob vault" }] }], empty: null };
+      const publicHome = { signedIn: false, categories: [CATEGORY], empty: null, pins: [] };
+      const bobHome = { signedIn: true, categories: [{ id: "c", title: "Private", links: [{ ...CATEGORY.links[0]!, id: "vault", title: "Bob vault" }] }], empty: null, pins: [] };
       let session: object | null = null;
       let homeBody: object = publicHome;
       const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
@@ -691,9 +691,9 @@ describe("App, views and focus", () => {
         { status: 200, body: null },
       ],
       "GET /api/home": [
-        { status: 200, body: { signedIn: false, categories: [], empty: null } },
-        { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible" } },
-        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
+        { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible", pins: [] } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
       ],
       "POST /api/auth/sign-in/email": { status: 200, body: {} },
       "POST /api/auth/sign-out": { status: 200, body: {} },
@@ -744,14 +744,14 @@ describe("App, views and focus", () => {
 
   it("says the session ended over the public links, with a sign-in link, until the next navigation", async () => {
     const user = userEvent.setup();
-    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null, pins: [] } };
     mockApi({
       ...signedIn({ ...BOB, id: "bob" }),
       "GET /api/auth/get-session": [
         { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
         { status: 200, body: null },
       ],
-      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } }, publicHome],
     });
     renderAt("/");
     const notice = await screen.findByRole("note");
@@ -766,14 +766,14 @@ describe("App, views and focus", () => {
   });
 
   it("stops saying the session ended once the notice is gone", async () => {
-    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null, pins: [] } };
     mockApi({
       ...signedIn({ ...BOB, id: "bob" }),
       "GET /api/auth/get-session": [
         { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
         { status: 200, body: null },
       ],
-      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } }, publicHome],
     });
     renderAt("/");
     await screen.findByRole("note");
@@ -784,14 +784,14 @@ describe("App, views and focus", () => {
   });
 
   it("clears the shell notice on the next navigation", async () => {
-    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null } };
+    const publicHome = { status: 200, body: { signedIn: false, categories: [CATEGORY], empty: null, pins: [] } };
     mockApi({
       ...signedIn({ ...BOB, id: "bob" }),
       "GET /api/auth/get-session": [
         { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
         { status: 200, body: null },
       ],
-      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null } }, publicHome],
+      "GET /api/home": [{ status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } }, publicHome],
     });
     renderAt("/");
     await screen.findByRole("note");
@@ -813,7 +813,7 @@ describe("App, views and focus", () => {
     mockApi({
       "GET /api/setup": [{ status: 200, body: { open: true } }, { status: 200, body: { open: false } }],
       "GET /api/auth/get-session": [{ status: 200, body: null }, { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } }],
-      "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
+      "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty", pins: [] } },
       "POST /api/setup/verify-code": { status: 204 },
       "POST /api/setup": { status: 201, body: { user: ADA } },
     });
@@ -1077,8 +1077,8 @@ describe("App, OIDC sign-in", () => {
         { status: 200, body: null },
       ],
       "GET /api/home": [
-        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
-        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty", pins: [] } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
       ],
       "POST /api/auth/sign-out": { status: 200, body: { success: true } },
     });
@@ -1102,8 +1102,8 @@ describe("App, OIDC sign-in", () => {
         { status: 200, body: null },
       ],
       "GET /api/home": [
-        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty" } },
-        { status: 200, body: { signedIn: false, categories: [], empty: null } },
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty", pins: [] } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
       ],
       "POST /api/auth/sign-out": { status: 500, body: { error: { code: "internal_error", message: "" } } },
     });

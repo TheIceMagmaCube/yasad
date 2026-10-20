@@ -125,7 +125,7 @@ describe("AdminCatalog", () => {
         "POST /api/admin/catalog": [preview(FULL), { status: 200, body: { applied: true, baseVersion: "v1", diff: diffOf({ ...FULL, groupsCreated: ["local:Staff"] }) } }],
       }),
     );
-    primeHome("user:ada", { signedIn: true, categories: [], empty: null });
+    primeHome("user:ada", { signedIn: true, categories: [], empty: null, pins: [] });
     const cached = renderHook(() => useHomeEntry("user:ada"));
     await choose(userEv);
     await userEv.click(await screen.findByRole("button", { name: "Import and delete 2 items" }));

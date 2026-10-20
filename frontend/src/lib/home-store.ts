@@ -108,6 +108,22 @@ export function primeHome(key: string, data: HomeData): boolean {
   return true;
 }
 
+/**
+ * Replace the pins of the cached entry with those a pin gesture answered, and return true.
+ *
+ * `generation` is the one read when the gesture was sent. When the entry has been replaced since for the same
+ * viewer (a reload or a session change), or holds no data yet, nothing is patched: the home of `key` is read
+ * again without a reset, since that read includes the write. An entry of another viewer is left alone.
+ */
+export function setHomePins(key: string, generation: number, pins: string[]): boolean {
+  if (entry?.key === key && entry.generation === generation && entry.state.status === "ready") {
+    set({ ...entry, state: { status: "ready", data: { ...entry.state.data, pins } } });
+    return true;
+  }
+  if (entry?.key === key) loadHome(key);
+  return false;
+}
+
 /** Drop the cached answer and any request in flight: the next reader loads afresh. Call it whenever the session or what it may see changes. */
 export function invalidateHome(): void {
   generation += 1;

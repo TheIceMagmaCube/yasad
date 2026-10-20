@@ -1,13 +1,15 @@
-import { and, asc, eq, exists, inArray, ne, sql, type SQLWrapper } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, ne, type SQL, sql, type SQLWrapper } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/sqlite-core";
 
 import { parseKeywords } from "./catalog/format";
 import type { DB } from "./db";
 import { type Icon, resolveIcon } from "./icons/resolve";
-import { category, categoryGroup, group, link, linkGroup, userGroup } from "./schema";
+import { category, categoryGroup, group, link, linkGroup, userGroup, userLinkPin } from "./schema";
 
 /** Who is asking: nobody signed in, or a signed-in person with their role. */
 export type Viewer = { kind: "anonymous" } | { kind: "user"; userId: string; role: "admin" | "user" };
+/** A signed-in viewer. */
+export type UserViewer = Extract<Viewer, { kind: "user" }>;
 
 /** A visible link as sent to the browser. `keywords` are sent as stored, for the search in the header. */
 export type HomeLink = { id: string; title: string; description: string; url: string; icon: Icon | null; keywords: string[] };
@@ -43,6 +45,70 @@ export function viewerGroupIds(db: DB, viewer: Viewer): SQLWrapper {
 }
 
 /**
+ * Return the condition under which the viewer may see a link, over the `link` and `category` columns
+ * of a query joining both.
+ *
+ * Deny by default: the link is active, and the viewer holds a group on the link and a group on its
+ * category (not necessarily the same one). Administrators follow the same rule. Every read or guard
+ * on a link's visibility goes through this condition.
+ */
+export function linkVisibleWhere(db: DB, viewer: Viewer): SQL {
+  const ids = viewerGroupIds(db, viewer);
+  const one = sql`1`;
+  return and(
+    eq(link.active, true),
+    exists(db.select({ one }).from(categoryGroup).where(and(eq(categoryGroup.categoryId, category.id), inArray(categoryGroup.groupId, ids)))),
+    exists(db.select({ one }).from(linkGroup).where(and(eq(linkGroup.linkId, link.id), inArray(linkGroup.groupId, ids)))),
+  ) as SQL;
+}
+
+/**
+ * Return an `exists` condition, usable without a FROM, that holds when the link `linkId` exists and the
+ * viewer may see it. A missing, inactive or forbidden link all give false.
+ */
+export function visibleLink(db: DB, viewer: Viewer, linkId: string): SQL {
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(link)
+      .innerJoin(category, eq(category.id, link.categoryId))
+      .where(and(eq(link.id, linkId), linkVisibleWhere(db, viewer))),
+  );
+}
+
+/**
+ * Return the ids of the viewer's pinned links they may see, in pin order `(position, link_id)`.
+ *
+ * Anonymous viewers get `[]`. A hidden pin (link inactive, or access lost) keeps its row but never
+ * comes out of this function.
+ */
+export async function visiblePins(db: DB, viewer: Viewer): Promise<string[]> {
+  if (viewer.kind === "anonymous") return [];
+  const rows = await db
+    .select({ id: userLinkPin.linkId })
+    .from(userLinkPin)
+    .innerJoin(link, eq(link.id, userLinkPin.linkId))
+    .innerJoin(category, eq(category.id, link.categoryId))
+    .where(and(eq(userLinkPin.userId, viewer.userId), linkVisibleWhere(db, viewer)))
+    .orderBy(asc(userLinkPin.position), asc(userLinkPin.linkId));
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Return a scalar subquery counting the viewer's visible pins, for the guard on the cap. Hidden pins
+ * are not counted, as in {@link visiblePins}.
+ */
+export function visiblePinCount(db: DB, viewer: UserViewer): SQL {
+  const count = db
+    .select({ count: sql`count(*)` })
+    .from(userLinkPin)
+    .innerJoin(link, eq(link.id, userLinkPin.linkId))
+    .innerJoin(category, eq(category.id, link.categoryId))
+    .where(and(eq(userLinkPin.userId, viewer.userId), linkVisibleWhere(db, viewer)));
+  return sql`${count}`;
+}
+
+/**
  * Return the categories and links the viewer may see, in catalog order.
  *
  * Deny by default: an active link is visible only when the viewer holds a group on the link and a
@@ -50,8 +116,6 @@ export function viewerGroupIds(db: DB, viewer: Viewer): SQLWrapper {
  * Categories without a visible link are left out.
  */
 export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCategory[]> {
-  const ids = viewerGroupIds(db, viewer);
-  const one = sql`1`;
   const rows = await db
     .select({
       categoryId: category.id,
@@ -65,13 +129,7 @@ export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCatego
     })
     .from(category)
     .innerJoin(link, eq(link.categoryId, category.id))
-    .where(
-      and(
-        eq(link.active, true),
-        exists(db.select({ one }).from(categoryGroup).where(and(eq(categoryGroup.categoryId, category.id), inArray(categoryGroup.groupId, ids)))),
-        exists(db.select({ one }).from(linkGroup).where(and(eq(linkGroup.linkId, link.id), inArray(linkGroup.groupId, ids)))),
-      ),
-    )
+    .where(linkVisibleWhere(db, viewer))
     .orderBy(asc(category.position), asc(category.id), asc(link.position), asc(link.id));
 
   const categories: HomeCategory[] = [];

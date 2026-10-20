@@ -16,6 +16,7 @@ import { adminUsers } from "./routes/admin-users";
 import { authRoutes } from "./routes/auth";
 import { home } from "./routes/home";
 import { instance } from "./routes/instance";
+import { pins } from "./routes/pins";
 import { setup } from "./routes/setup";
 import { sameOriginOnly, withSecurityHeaders } from "./security";
 import { version } from "./version";
@@ -94,6 +95,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
   app.route("/instance", instance);
   app.route("/setup", setup);
   app.route("/account", accountRoutes);
+  app.route("/pins", pins);
   app.route("/admin/catalog", adminCatalog);
   app.route("/admin/categories", adminCategories);
   app.route("/admin/links", adminLinks);

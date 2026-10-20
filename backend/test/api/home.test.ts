@@ -1,6 +1,7 @@
 import { type TestApp, testApp } from "#harness";
 import { describe, expect, it } from "vitest";
 
+import { addMembership, catalog, type CategorySpec, groupId, join, localUser } from "./home-catalog";
 import { addOidcUser, addUser, post, send, signedCookie, signIn } from "./users";
 
 type Icon = { set: "si" | "lucide"; name: string };
@@ -8,23 +9,8 @@ type HomeBody = {
   signedIn: boolean;
   categories: { id: string; title: string; links: { id: string; title: string; description: string; url: string; icon: Icon | null; keywords: string[] }[] }[];
   empty: string | null;
+  pins: string[];
 };
-
-type LinkSpec = { id: string; groups: string[]; title?: string; description?: string; icon?: string; active?: boolean; keywords?: string[] };
-type CategorySpec = { id: string; groups: string[]; links: LinkSpec[] };
-
-/** Return a catalog file (JSON is valid YAML) with a title and URL derived from each id. */
-function catalog(categories: CategorySpec[]): string {
-  return JSON.stringify({
-    version: 1,
-    categories: categories.map((cat) => ({
-      id: cat.id,
-      title: `Category ${cat.id}`,
-      groups: cat.groups,
-      links: cat.links.map(({ id, title, ...rest }) => ({ id, title: title ?? `Link ${id}`, url: `https://${id}.example.invalid/`, ...rest })),
-    })),
-  });
-}
 
 /** Return a client signed in as an administrator, on a fresh database. */
 async function adminApp(): Promise<TestApp> {
@@ -42,31 +28,6 @@ async function load(admin: TestApp, categories: CategorySpec[]) {
   const { baseVersion } = (await preview.json()) as { baseVersion: string };
   const applied = await post(admin, "/api/admin/catalog", { yaml, dryRun: false, baseVersion });
   expect(applied.status).toBe(200);
-}
-
-/** Return a second browser signed in as a new local user. */
-async function localUser(admin: TestApp, id: string, role: "admin" | "user" = "user"): Promise<TestApp> {
-  const browser = admin.another();
-  await addUser(browser, { id, email: `${id}@example.invalid`, role });
-  expect((await signIn(browser, `${id}@example.invalid`)).status).toBe(200);
-  return browser;
-}
-
-/** Return the id of a group, by source and name. */
-async function groupId(app: TestApp, source: string, name: string): Promise<string> {
-  const rows = await app.query(`select id from "group" where source = '${source}' and name = '${name}'`);
-  expect(rows).toHaveLength(1);
-  return rows[0]!.id as string;
-}
-
-/** Add a membership row directly, as the OIDC sign-in hook will. */
-async function addMembership(app: TestApp, userId: string, source: string, name: string) {
-  await app.exec(`insert into user_group (user_id, group_id) select '${userId}', id from "group" where source = '${source}' and name = '${name}'`);
-}
-
-/** Put a user in a local group through the admin API. */
-async function join(admin: TestApp, userId: string, name: string) {
-  expect((await send(admin, "PUT", `/api/admin/groups/${await groupId(admin, "local", name)}/members/${userId}`)).status).toBe(204);
 }
 
 async function home(app: TestApp) {
@@ -109,9 +70,9 @@ describe("GET /api/home, anonymous", () => {
 
   it("returns an empty list and no state, whether the catalog is empty or not", async () => {
     const admin = await adminApp();
-    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null });
+    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null, pins: [] });
     await load(admin, [{ id: "private", groups: ["@authenticated"], links: [{ id: "intranet", groups: ["@authenticated"] }] }]);
-    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null });
+    expect((await home(admin.another())).body).toEqual({ signedIn: false, categories: [], empty: null, pins: [] });
   });
 
   it("treats an invalid or expired session cookie as anonymous", async () => {
@@ -262,7 +223,7 @@ describe("GET /api/home, visibility rules", () => {
     const admin = await adminApp();
     await load(admin, [{ id: "tools", groups: ["local:Ops"], links: [{ id: "console", groups: ["local:Ops"] }] }]);
     const { body } = await home(admin);
-    expect(body).toEqual({ signedIn: true, categories: [], empty: "admin_no_access" });
+    expect(body).toEqual({ signedIn: true, categories: [], empty: "admin_no_access", pins: [] });
   });
 
   it("applies changes at the next request: membership, deactivation, group deletion", async () => {
@@ -341,6 +302,7 @@ describe("GET /api/home, response", () => {
         },
       ],
       empty: null,
+      pins: [],
     });
   });
 
@@ -388,7 +350,7 @@ describe("GET /api/home, response", () => {
 describe("GET /api/home, empty states", () => {
   it("tells an admin the catalog is empty, and another person they have no group", async () => {
     const admin = await adminApp();
-    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty" });
+    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty", pins: [] });
     const user = await localUser(admin, "bob");
     expect((await home(user)).body.empty).toBe("no_groups");
   });
@@ -407,7 +369,7 @@ describe("GET /api/home, empty states", () => {
   it("tells an admin the catalog is empty when every link is inactive", async () => {
     const admin = await adminApp();
     await load(admin, [{ id: "tools", groups: ["@authenticated"], links: [{ id: "console", groups: ["@authenticated"], active: false }] }]);
-    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty" });
+    expect((await home(admin)).body).toEqual({ signedIn: true, categories: [], empty: "catalog_empty", pins: [] });
   });
 
   it("is null when something is visible", async () => {

@@ -28,12 +28,14 @@ const DATA: HomeData = {
     { id: "docs", title: "Docs", links: [link("lists", "Mailing lists"), link("wiki", "Wiki", { description: "Team knowledge base" })] },
   ],
   empty: null,
+  pins: [],
 };
 
 const MANY: HomeData = {
   signedIn: true,
   categories: [{ id: "tools", title: "Tools", links: Array.from({ length: 12 }, (_, i) => link(`t${i}`, `Tool ${i}`)) }],
   empty: null,
+  pins: [],
 };
 
 let styles: HTMLStyleElement | null = null;

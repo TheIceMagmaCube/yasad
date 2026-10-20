@@ -15,7 +15,8 @@ categories:
     #   local:<name>    a group managed in YASAD
     groups: ["@authenticated"]
     links:
-      - id: mail            # Unique across all categories: moving a link keeps its id.
+      - id: mail            # Unique across all categories: moving a link keeps its id, changing it
+                            # drops the favourites pinned on it.
         title: Mail
         url: https://mail.example.org            # http or https only.
         description: Company mailbox             # Optional.

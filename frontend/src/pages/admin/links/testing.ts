@@ -53,7 +53,7 @@ export const linksRoutes = (extra: Routes = {}, { categories = [TOOLS, DEV, EMPT
 
 /** Put an answer in the home cache; the function returned says whether it is still there. */
 export function primeHomeCache(): () => boolean {
-  primeHome("user:ada", { signedIn: true, categories: [], empty: null });
+  primeHome("user:ada", { signedIn: true, categories: [], empty: null, pins: [] });
   const cached = renderHook(() => useHomeEntry("user:ada")).result;
   return () => cached.current !== null;
 }
