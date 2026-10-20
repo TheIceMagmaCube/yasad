@@ -1,3 +1,4 @@
+import { ArrowDown, ArrowUp, X } from "lucide-react";
 import type { Ref } from "react";
 
 import type { HomeCategory, HomeLink } from "@/api";
@@ -54,8 +55,11 @@ export function pinnedLinks(categories: HomeCategory[], pins: string[]): { link:
  * (index.css, `.pins-panel`). It is the scroller, so it carries no role, name or tabindex; the aside inside it is the
  * landmark. Each favourite is a link with its icon and a marker in its category's current colour. Without one, a
  * short invitation takes the list's place; the one Manage button sits in the panel header.
+ *
+ * In the manage mode each favourite gets Up, Down and Remove, which go under the title when the row is too narrow.
+ * At either end the move is aria-disabled, so it keeps its place in the tab order and the focus.
  */
-export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, error }: PinsPanelProps) {
+export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, gestures, error }: PinsPanelProps) {
   const m = useStrings().home.pins;
   const items = pinnedLinks(categories, pins);
   return (
@@ -80,8 +84,8 @@ export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, err
           <p className="text-sm text-muted-foreground">{managing ? m.emptyManaging : m.invite}</p>
         ) : (
           <ul role="list" className="flex flex-col divide-y divide-border">
-            {items.map(({ link, categoryIndex }) => (
-              <li key={link.id} className="flex min-h-11 items-center gap-3 py-1.5">
+            {items.map(({ link, categoryIndex }, index) => (
+              <li key={link.id} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1.5 py-1.5">
                 <LinkIcon icon={link.icon} title={link.title} className="size-8 bg-muted text-foreground [&_[data-initial]]:text-lg [&_svg]:size-5" />
                 <a
                   href={link.url}
@@ -94,11 +98,46 @@ export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, err
                   data-slot="pin-category"
                   className={cn("size-3 shrink-0 rounded-[2px] forced-colors:border", categoryTone(categoryIndex).bar)}
                 />
+                {managing && <RowActions link={link} first={index === 0} last={index === items.length - 1} gestures={gestures} />}
               </li>
             ))}
           </ul>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Up, Down and Remove of one favourite in the manage mode; each button is `pending` while its gesture waits. */
+function RowActions({ link, first, last, gestures }: { link: HomeLink; first: boolean; last: boolean; gestures: PinGestures }) {
+  const m = useStrings().home.pins;
+  const moves = [
+    { direction: "up", id: `pin-up-${link.id}`, edge: first, label: m.moveUp(link.title), text: m.moveUpShort, Icon: ArrowUp },
+    { direction: "down", id: `pin-down-${link.id}`, edge: last, label: m.moveDown(link.title), text: m.moveDownShort, Icon: ArrowDown },
+  ] as const;
+  const removeId = `pin-remove-${link.id}`;
+  return (
+    <div className="ml-auto flex flex-wrap gap-1">
+      {moves.map(({ direction, id, edge, label, text, Icon }) => (
+        <Button
+          key={direction}
+          id={id}
+          variant="outline"
+          className="px-3"
+          aria-label={label}
+          // Set only at an end: the button's own aria-disabled marks it pending otherwise.
+          {...(edge ? { "aria-disabled": true } : {})}
+          pending={gestures.isPending(id)}
+          onClick={() => !edge && gestures.move(link.id, direction, id)}
+        >
+          <Icon aria-hidden="true" />
+          <span className="max-sm:sr-only">{text}</span>
+        </Button>
+      ))}
+      <Button id={removeId} variant="outline" className="px-3" aria-label={m.remove(link.title)} pending={gestures.isPending(removeId)} onClick={() => gestures.remove(link.id)}>
+        <X aria-hidden="true" />
+        <span className="max-sm:sr-only">{m.removeShort}</span>
+      </Button>
     </div>
   );
 }

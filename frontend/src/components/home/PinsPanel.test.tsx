@@ -1,4 +1,5 @@
 import { cleanup, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeCategory } from "@/api";
@@ -74,5 +75,37 @@ describe("PinsPanel", () => {
     const alert = document.querySelector("[data-slot=alert]");
     expect(alert).toHaveTextContent("Your favourites could not be saved. Try again.");
     expect(alert).toHaveFocus();
+  });
+
+  it("marks the ends aria-disabled without disabled or pendingLabel", async () => {
+    const user = userEvent.setup();
+    const gestures = { move: vi.fn(), remove: vi.fn(), isPending: (id: string) => id === "pin-down-l3" };
+    renderWithProviders(
+      <PinsPanel categories={CATEGORIES} pins={["l1", "l2", "l3"]} managing onToggle={() => {}} toggleRef={{ current: null }} gestures={gestures} error={null} />,
+    );
+    const up = screen.getByRole("button", { name: "Move L1 up" });
+    const down = screen.getByRole("button", { name: "Move L3 down" });
+    for (const end of [up, down]) {
+      expect(end).toHaveAttribute("aria-disabled", "true");
+      expect(end).not.toBeDisabled();
+    }
+    expect(up).toHaveAttribute("id", "pin-up-l1");
+    expect(screen.getByRole("button", { name: "Move L1 down" })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("button", { name: "Remove L2" })).toHaveAttribute("id", "pin-remove-l2");
+    // The visible words stay while pending, hidden only on narrow screens.
+    expect(down).toHaveTextContent(/^Down$/);
+    expect(down.querySelector(".max-sm\\:sr-only")).not.toBeNull();
+    await user.click(up);
+    expect(gestures.move).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Move L2 up" }));
+    expect(gestures.move).toHaveBeenCalledWith("l2", "up", "pin-up-l2");
+    await user.click(screen.getByRole("button", { name: "Remove L2" }));
+    expect(gestures.remove).toHaveBeenCalledWith("l2");
+  });
+
+  it("has no row button outside the manage mode", () => {
+    panel(["l1", "l2"]);
+    expect(screen.queryByRole("button", { name: "Remove L1" })).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 });

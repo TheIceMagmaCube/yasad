@@ -1,14 +1,19 @@
 import { cleanup, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { categoryTone } from "@/lib/category-tone";
 import { renderWithProviders } from "@/test-utils";
 
-import { LinkCard } from "./LinkCard";
+import { type CardPin, LinkCard } from "./LinkCard";
 
 afterEach(cleanup);
 
 const TONE = categoryTone(2);
+/** The card of a link without description, as it rendered before the manage mode existed. */
+const PLAIN_CARD =
+  `<div class="relief relative flex h-full items-start gap-3 rounded-(--radius-card) bg-card p-4 text-card-foreground [--relief-ring:var(--border)] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-ring [--relief-color:var(--category-3-fill)]"><span aria-hidden="true" data-slot="link-icon" class="pixel-corners flex size-11 shrink-0 items-center justify-center bg-category-3-fill text-on-fill"><span data-initial="J" class="text-pixel text-2xl leading-none before:content-[attr(data-initial)]"></span></span><span class="min-w-0 flex-1"><a href="https://jira.example.invalid/board" class="block font-heading font-bold wrap-anywhere outline-none after:absolute after:inset-0 after:rounded-(--radius-card) after:content-['']">Jira</a></span></div>`;
+
 const LINK = { id: "jira", title: "Jira", description: "Tickets and sprints", url: "https://jira.example.invalid/board", icon: null, keywords: [] };
 
 describe("LinkCard", () => {
@@ -51,5 +56,60 @@ describe("LinkCard", () => {
     const card = screen.getByRole("link", { name: long }).parentElement!.parentElement!;
     expect(card.querySelectorAll(".wrap-anywhere")).toHaveLength(2);
     expect(card.querySelector(".truncate")).toBeNull();
+  });
+
+  describe("pin button of the manage mode", () => {
+    const pin = (over: Partial<CardPin> = {}): CardPin => ({ pinned: false, pending: false, onToggle: vi.fn(), id: "pin-card-jira", ...over });
+
+    it("has no pin button outside the manage mode", () => {
+      renderWithProviders(<LinkCard link={LINK} tone={TONE} />);
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("renders unchanged without pin", () => {
+      const { container } = renderWithProviders(<LinkCard link={{ ...LINK, description: "" }} tone={TONE} />);
+      expect(container.firstElementChild!.outerHTML).toBe(PLAIN_CARD);
+    });
+
+    it("names the button from its visible text, without aria-pressed", () => {
+      const { rerender } = renderWithProviders(<LinkCard link={{ ...LINK, title: "Status page" }} tone={TONE} pin={pin()} />);
+      const button = screen.getByRole("button", { name: "Pin Status page" });
+      expect(button).toHaveTextContent(/^Pin$/);
+      expect(button).toHaveAttribute("id", "pin-card-jira");
+      expect(button).not.toHaveAttribute("aria-pressed");
+      expect(button).toHaveClass("min-h-11");
+      expect(button.closest("div.relative.z-10")).not.toBeNull();
+
+      rerender(<LinkCard link={{ ...LINK, title: "Status page" }} tone={TONE} pin={pin({ pinned: true })} />);
+      const pinned = screen.getByRole("button", { name: "Pinned: remove Status page from favourites" });
+      expect(pinned).toHaveTextContent(/^Pinned$/);
+      expect(pinned).not.toHaveAttribute("aria-pressed");
+      expect(pinned.getAttribute("aria-label")!.startsWith(pinned.textContent!)).toBe(true);
+      expect(pinned.querySelector("svg")).toHaveClass("fill-current");
+      // The link stays the card's one anchor, named by its title only.
+      expect(screen.getByRole("link", { name: "Status page" })).toBeInTheDocument();
+    });
+
+    it("keeps the focus on the button after a click", async () => {
+      const user = userEvent.setup();
+      const onToggle = vi.fn();
+      renderWithProviders(<LinkCard link={LINK} tone={TONE} pin={pin({ onToggle })} />);
+      const button = screen.getByRole("button", { name: "Pin Jira" });
+      await user.click(button);
+      expect(onToggle).toHaveBeenCalledTimes(1);
+      expect(button).toHaveFocus();
+    });
+
+    it("stays focusable and ignores clicks while pending, with its text kept", async () => {
+      const user = userEvent.setup();
+      const onToggle = vi.fn();
+      renderWithProviders(<LinkCard link={LINK} tone={TONE} pin={pin({ onToggle, pending: true })} />);
+      const button = screen.getByRole("button", { name: "Pin Jira" });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).not.toBeDisabled();
+      await user.click(button);
+      expect(onToggle).not.toHaveBeenCalled();
+      expect(button).toHaveTextContent(/^Pin$/);
+    });
   });
 });
