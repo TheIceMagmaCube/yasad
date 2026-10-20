@@ -193,22 +193,63 @@ describe("resolveDoh", () => {
     expect(await codeOf(resolve("empty.test", {}).promise)).toBe("dns_not_found");
   });
 
-  it("gives timeout when the signal is already aborted, without a request", async () => {
+  it("gives resolver_failed when the signal is already aborted, without a request", async () => {
     const controller = new AbortController();
     controller.abort();
     const { promise, requests } = resolve("x.test", {}, controller.signal);
-    expect(await codeOf(promise)).toBe("timeout");
+    expect(await codeOf(promise)).toBe("resolver_failed");
     expect(requests).toHaveLength(0);
   });
 
-  it("gives timeout when the signal aborts while the query waits", async () => {
+  it("gives resolver_failed, with the abort as cause, when the signal aborts while the query waits", async () => {
     const controller = new AbortController();
+    const reason = new DOMException("deadline", "TimeoutError");
     const fetch: typeof globalThis.fetch = (_input, init) =>
       new Promise((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
       });
     const promise = resolveDoh("x.test", { fetch, signal: controller.signal });
-    controller.abort(new DOMException("deadline", "TimeoutError"));
-    expect(await codeOf(promise)).toBe("timeout");
+    controller.abort(reason);
+    const error: unknown = await promise.catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(OutboundError);
+    expect((error as OutboundError).code).toBe("resolver_failed");
+    expect((error as OutboundError).cause).toBe(reason);
+  });
+
+  it("sends the AAAA query only once the A answer has been read", async () => {
+    const table = {
+      "seq.test A": answer([cname("seq.test", "edge.seq.test")]),
+      "seq.test AAAA": answer([cname("seq.test", "edge.seq.test")]),
+      "edge.seq.test A": answer([a("edge.seq.test", "93.184.215.14")]),
+      "edge.seq.test AAAA": answer([aaaa("edge.seq.test", "2001:db8::1")]),
+    };
+    const inner = stubFetch(table);
+    let pending = 0;
+    let most = 0;
+    const order: string[] = [];
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      pending += 1;
+      most = Math.max(most, pending);
+      order.push(new URL(String(input)).searchParams.get("type") ?? "");
+      try {
+        await new Promise((settle) => setTimeout(settle, 5));
+        const response = await inner.fetch(input, init);
+        return new Response(await response.text(), { status: response.status });
+      } finally {
+        pending -= 1;
+      }
+    };
+    await expect(resolveDoh("seq.test", { fetch, signal: new AbortController().signal })).resolves.toEqual([
+      "93.184.215.14",
+      "2001:db8::1",
+    ]);
+    expect(most).toBe(1);
+    expect(order).toEqual(["A", "AAAA", "A", "AAAA"]);
+  });
+
+  it("does not send the AAAA query when the A query fails", async () => {
+    const { promise, requests } = resolve("x.test", { "x.test A": answer([], { Status: 2 }) });
+    expect(await codeOf(promise)).toBe("resolver_failed");
+    expect(requests.map(({ url }) => url.searchParams.get("type"))).toEqual(["A"]);
   });
 });

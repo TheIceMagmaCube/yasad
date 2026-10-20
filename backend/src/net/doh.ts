@@ -91,7 +91,10 @@ export function parseDohAnswer(json: unknown, name: string): { addresses: string
   return { addresses, cname };
 }
 
-/** One DoH query; `timeout` once `signal` aborts, `resolver_failed` for any other failure. */
+/**
+ * One DoH query; any failure gives `resolver_failed`, with the abort reason as `cause` once `signal` has aborted: a
+ * resolver that does not answer in time says nothing about the target.
+ */
 async function query(
   name: string,
   type: "A" | "AAAA",
@@ -110,27 +113,29 @@ async function query(
     }
     return parseAnswer(await response.json(), name);
   } catch (error) {
-    if (options.signal.aborted) throw new OutboundError("timeout", { cause: error });
+    if (options.signal.aborted) throw new OutboundError("resolver_failed", { cause: options.signal.reason });
     if (error instanceof OutboundError) throw error;
     throw new OutboundError("resolver_failed", { cause: error });
   }
 }
 
 /**
- * Resolve `name` to its A and AAAA addresses through DoH, both families queried in parallel. A CNAME the answers leave
- * unresolved is queried in turn, up to 8 hops in all. Throws `dns_not_found` when no address is found, `timeout` when
- * `signal` aborts, `resolver_failed` for any other failure. The addresses are not checked here: the caller does it.
+ * Resolve `name` to its A and AAAA addresses through DoH. A is queried, then AAAA once the A answer has been read, so a
+ * resolution holds at most one connection waiting for headers (Workers allows 6 per invocation). A CNAME the answers
+ * leave unresolved is queried in turn, up to 8 hops in all. Throws `dns_not_found` when no address is found and
+ * `resolver_failed` for any other failure, an aborted `signal` included (its reason as `cause`). The addresses are not
+ * checked here: the caller does it.
  */
 export async function resolveDoh(
   name: string,
   options: { fetch: typeof fetch; signal: AbortSignal },
 ): Promise<string[]> {
-  if (options.signal.aborted) throw new OutboundError("timeout", { cause: options.signal.reason });
+  if (options.signal.aborted) throw new OutboundError("resolver_failed", { cause: options.signal.reason });
   const seen = new Set([normaliseName(name)]);
   let hops = 0;
   let current = normaliseName(name);
   for (;;) {
-    const answers = await Promise.all([query(current, "A", options), query(current, "AAAA", options)]);
+    const answers = [await query(current, "A", options), await query(current, "AAAA", options)] as const;
     const addresses = answers.flatMap((answer) => answer.addresses);
     if (addresses.length > 0) {
       hops += Math.max(...answers.map((answer) => answer.chain.length));
