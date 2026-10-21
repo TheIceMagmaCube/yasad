@@ -635,6 +635,7 @@ export const fr = {
       fonts: "Polices",
       icons: "Icônes",
       nablaNote: "logotype, sous-ensemble latin",
+      separator: " : ",
       lucideNote: "ISC ; MIT pour les icônes issues de Feather. Icônes de l'interface et du catalogue.",
       simpleIconsNote:
         "Données sous CC0 1.0. Certains logos ont leur propre licence (CC-BY, CC-BY-SA), indiquée dans les licences détaillées. Les logos sont des marques de leurs propriétaires ; les afficher identifie le service lié, sans aucun soutien de sa part.",

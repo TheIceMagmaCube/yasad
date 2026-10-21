@@ -100,7 +100,7 @@ export function About() {
                 <li key={font.id}>
                   <CreditLink credit={font} />
                   {font.id === "nabla" && <span> ({a.credits.nablaNote})</span>}
-                  {": "}
+                  {a.credits.separator}
                   <span lang="en">{LICENSE_NAMES[font.license]}</span>
                 </li>
               ))}
@@ -110,7 +110,7 @@ export function About() {
               {ICON_CREDITS.map((set) => (
                 <li key={set.id}>
                   <CreditLink credit={set} />
-                  {": "}
+                  {a.credits.separator}
                   {iconNotes[set.id]}
                 </li>
               ))}

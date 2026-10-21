@@ -33,6 +33,11 @@ afterEach(() => {
   document.documentElement.lang = "en";
 });
 
+/** The text of the list item holding a credit's link. */
+function creditOf(link: HTMLElement): string | null | undefined {
+  return link.closest("li")?.textContent;
+}
+
 describe("About", () => {
   it("shows the version, the source and the licence to a user, without the instance section", async () => {
     mockApi({ "GET /api/about": { status: 200, body: USER_BODY } });
@@ -96,6 +101,15 @@ describe("About", () => {
     expect(screen.getByRole("link", { name: "Inter" })).toHaveAttribute("rel", "noreferrer");
     expect(screen.getByRole("link", { name: "Lucide" })).toHaveAttribute("href", "https://lucide.dev");
     expect(screen.getByRole("link", { name: "Simple Icons" })).toHaveAttribute("href", "https://simpleicons.org");
+    expect(screen.getByRole("link", { name: "GNU AGPL 3.0" })).toHaveAttribute("lang", "en");
+  });
+
+  it("gives each credit its licence", async () => {
+    mockApi({ "GET /api/about": { status: 200, body: USER_BODY } });
+    renderWithProviders(<About />);
+    expect(creditOf(await screen.findByRole("link", { name: "Inter" }))).toBe("Inter: SIL Open Font License 1.1");
+    expect(creditOf(screen.getByRole("link", { name: "Lucide" }))).toMatch(/^Lucide: ISC; MIT for the icons derived from Feather\./);
+    expect(creditOf(screen.getByRole("link", { name: "Simple Icons" }))).toMatch(/^Simple Icons: Data under CC0 1\.0\./);
   });
 
   it("names the instance in its description, and itself when the instance keeps the default title", () => {
@@ -129,6 +143,7 @@ describe("About", () => {
     expect(screen.getByRole("heading", { level: 1, name: "À propos" })).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "TheIceMagmaCube/yasad sur GitHub" })).toBeInTheDocument();
     expect(screen.getByText("Chargé depuis CATALOG_FILE au démarrage")).toBeInTheDocument();
-    expect(screen.getByText(/ISC ; MIT pour les icônes issues de Feather/)).toBeInTheDocument();
+    expect(creditOf(screen.getByRole("link", { name: "Inter" }))).toBe("Inter : SIL Open Font License 1.1");
+    expect(creditOf(screen.getByRole("link", { name: "Lucide" }))).toMatch(/^Lucide : ISC ; MIT pour les icônes issues de Feather\./);
   });
 });

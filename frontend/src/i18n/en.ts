@@ -623,6 +623,7 @@ export const en = {
       fonts: "Fonts",
       icons: "Icons",
       nablaNote: "wordmark, Latin subset",
+      separator: ": ",
       lucideNote: "ISC; MIT for the icons derived from Feather. Interface and catalog icons.",
       simpleIconsNote:
         "Data under CC0 1.0. Some logos carry their own licence (CC-BY, CC-BY-SA), given in the detailed licences. The logos are trademarks of their owners; showing one identifies the linked service and implies no endorsement.",

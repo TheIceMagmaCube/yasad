@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { sourceRefOf } from "../../src/version";
 
 const spawned = vi.hoisted(() => ({ execFileSync: vi.fn(), spawnSync: vi.fn() }));
 vi.mock("node:child_process", () => spawned);
 
-const { deployArgs, versionOf } = await import("../../scripts/deploy-worker.mjs");
+const { deployArgs, main, versionOf } = await import("../../scripts/deploy-worker.mjs");
 
 describe("deploy-worker", () => {
   it("does not run git or wrangler when imported", () => {
@@ -40,5 +40,37 @@ describe("deploy-worker", () => {
       "--config",
       "wrangler.prod.jsonc",
     ]);
+  });
+
+  describe("main", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      spawned.execFileSync.mockReset();
+      spawned.spawnSync.mockReset();
+    });
+
+    it("runs wrangler without a shell, with the define and the caller's arguments, and returns its status", () => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+      spawned.execFileSync.mockReturnValue("v0.2.0-6-gac6136b\n");
+      spawned.spawnSync.mockReturnValue({ status: 3 });
+      expect(main(["--config", "wrangler.prod.jsonc"])).toBe(3);
+      expect(spawned.spawnSync).toHaveBeenCalledTimes(1);
+      expect(spawned.spawnSync).toHaveBeenCalledWith(
+        "wrangler",
+        ["deploy", "--define", '__APP_VERSION__:"0.2.0-6-gac6136b"', "--config", "wrangler.prod.jsonc"],
+        { stdio: "inherit" },
+      );
+    });
+
+    it("returns 1 when wrangler did not run", () => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      spawned.execFileSync.mockImplementation(() => {
+        throw new Error("not a git checkout");
+      });
+      spawned.spawnSync.mockReturnValue({ status: null, error: new Error("spawn wrangler ENOENT") });
+      expect(main([])).toBe(1);
+      expect(spawned.spawnSync.mock.calls[0]?.[1]).toEqual(["deploy", "--define", '__APP_VERSION__:"dev"']);
+    });
   });
 });
