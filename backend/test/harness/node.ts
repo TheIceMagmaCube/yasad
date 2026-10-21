@@ -21,6 +21,7 @@ export async function testApp(env: TestEnv = {}): Promise<TestApp> {
     getDb: () => db as unknown as DB,
     getRawConfig: () => raw,
     getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown",
+    runtime: "docker",
   });
   return client(
     async (req) => app.fetch(req),

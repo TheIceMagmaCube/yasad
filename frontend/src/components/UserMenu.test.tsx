@@ -45,12 +45,24 @@ describe("UserMenu", () => {
     expect(menu).toHaveTextContent("Ada Lovelace");
     expect(menu).toHaveTextContent("ada@example.invalid");
     expect(menu).toHaveTextContent("Administrator");
-    expect(items(menu)).toEqual(["My links", "My account", "Administration", "Sign out"]);
+    expect(items(menu)).toEqual(["My links", "My account", "Administration", "About", "Sign out"]);
     for (const item of menu.querySelectorAll('[role="menuitem"]')) expect(item.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1);
     expect(within(menu).getByRole("menuitem", { name: "My links" })).toHaveAttribute("href", "/");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("href", "/account");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).not.toHaveAttribute("aria-current");
     expect(within(menu).getByRole("menuitem", { name: "Administration" })).toHaveAttribute("href", "/admin");
+    expect(within(menu).getByRole("menuitem", { name: "About" })).toHaveAttribute("href", "/about");
+  });
+
+  it.each(["user", "admin"])("sets the about page apart for a %s, between two separators", async (role) => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserMenu user={{ ...ADA, role }} path="/" onSignOut={vi.fn()} />);
+    const menu = await openMenu(user);
+    const about = within(menu).getByRole("menuitem", { name: "About" });
+    expect(about).toHaveAttribute("href", "/about");
+    expect(about).not.toHaveAttribute("aria-current");
+    expect(about.previousElementSibling).toHaveAttribute("role", "separator");
+    expect(about.nextElementSibling).toHaveAttribute("role", "separator");
   });
 
   it("leaves language and appearance to the account page", async () => {
@@ -66,7 +78,7 @@ describe("UserMenu", () => {
     const user = userEvent.setup();
     renderWithProviders(<UserMenu user={{ ...ADA, role: "user" }} path="/account" onSignOut={vi.fn()} />);
     const menu = await openMenu(user);
-    expect(items(menu)).toEqual(["My links", "My account", "Sign out"]);
+    expect(items(menu)).toEqual(["My links", "My account", "About", "Sign out"]);
     expect(menu).not.toHaveTextContent("Administrator");
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
   });
@@ -76,11 +88,12 @@ describe("UserMenu", () => {
     ["/account", "My account"],
     ["/admin/groups", "Administration"],
     ["/admin", "Administration"],
+    ["/about", "About"],
   ])("marks the entry of %s with more than colour", async (path, current) => {
     const user = userEvent.setup();
     renderWithProviders(<UserMenu user={ADA} path={path} onSignOut={vi.fn()} />);
     const menu = await openMenu(user);
-    for (const name of ["My links", "My account", "Administration"]) {
+    for (const name of ["My links", "My account", "Administration", "About"]) {
       const item = within(menu).getByRole("menuitem", { name });
       if (name === current) {
         expect(item).toHaveAttribute("aria-current", "page");
@@ -91,6 +104,14 @@ describe("UserMenu", () => {
         expect(item.querySelector('[data-slot="current-mark"]')).toBeNull();
       }
     }
+  });
+
+  it("marks the about page for a user", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<UserMenu user={{ ...ADA, role: "user" }} path="/about" onSignOut={vi.fn()} />);
+    const menu = await openMenu(user);
+    expect(within(menu).getByRole("menuitem", { name: "About" })).toHaveAttribute("aria-current", "page");
+    expect(within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-current") === "page")).toHaveLength(1);
   });
 
   it("lets the menu scroll when it is taller than the room left", async () => {

@@ -1,4 +1,4 @@
-import { version } from "../version";
+import { SOURCE_REPOSITORY, version } from "../version";
 
 /**
  * Why an outbound request gave no response. `not_attempted` covers platform errors and anything not mapped to a
@@ -51,7 +51,7 @@ export interface Outbound {
 /** The headers every outbound request starts from, built anew on each call; nothing from an incoming request. */
 export function outboundHeaders(): Record<string, string> {
   return {
-    "User-Agent": `YASAD-status/${version} (+https://github.com/TheIceMagmaCube/yasad)`,
+    "User-Agent": `YASAD-status/${version} (+${SOURCE_REPOSITORY})`,
     Accept: "*/*",
   };
 }

@@ -74,6 +74,7 @@ export const fr = {
     home: "Mes liens",
     account: "Mon compte",
     admin: "Administration",
+    about: "À propos",
     signOut: "Se déconnecter",
   },
   setup: {
@@ -612,6 +613,34 @@ export const fr = {
     appearance: "Apparence",
     signInWith: (method) => `Connexion : ${method.toLowerCase()}`,
     passwordValue: "Défini",
+  },
+  about: {
+    title: "À propos",
+    poweredBy: (title) => `${title} fonctionne avec YASAD, un portail libre et auto-hébergé.`,
+    poweredBySelf: "YASAD est un portail libre et auto-hébergé.",
+    version: "Version",
+    devBuild: "(build sans numéro de version)",
+    source: "Code source",
+    sourceLink: (repository) => `${repository} sur GitHub`,
+    license: "Licence",
+    instance: {
+      title: "Cette instance",
+      runtime: "Cible",
+      runtimes: { docker: "Docker", workers: "Cloudflare Workers" },
+      catalog: "Catalogue",
+      catalogStates: { file: "Chargé depuis CATALOG_FILE au démarrage", app: "Modifié dans l'administration" },
+    },
+    credits: {
+      title: "Crédits",
+      fonts: "Polices",
+      icons: "Icônes",
+      nablaNote: "logotype, sous-ensemble latin",
+      separator: " : ",
+      lucideNote: "ISC ; MIT pour les icônes issues de Feather. Icônes de l'interface et du catalogue.",
+      simpleIconsNote:
+        "Données sous CC0 1.0. Certains logos ont leur propre licence (CC-BY, CC-BY-SA), indiquée dans les licences détaillées. Les logos sont des marques de leurs propriétaires ; les afficher identifie le service lié, sans aucun soutien de sa part.",
+      notice: "Licences détaillées des icônes (texte, en anglais)",
+    },
   },
   home: {
     title: "Mes liens",
