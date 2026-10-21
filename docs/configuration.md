@@ -75,6 +75,23 @@ Mount the folder, not the file alone: many editors save by replacing the file, a
 |---|---|---|---|
 | `AUDIT_RETENTION_DAYS` | `365` | `730` | How many days the history of administrator actions keeps an entry, from 30 to 3650. Older entries are hidden at once and deleted, 100 at a time, by the next administrator actions. |
 
+## Status checks
+
+YASAD checks the links marked for it (`check: true` in the catalog file, or **Check availability** on the link's page) every minute: a cron trigger on Workers, a timer on Docker, which also runs once at startup. Each link is checked at most once per interval.
+
+| Variable | Default | Example | Description |
+|---|---|---|---|
+| `STATUS_CHECK_INTERVAL_MINUTES` | `5` | `15` | Minutes between two checks of a link, from 1 to 1440. |
+| `STATUS_CHECK_TIMEOUT_SECONDS` | `10` | `5` | Time allowed for one whole check, name resolution included, from 2 to 30 seconds. |
+| `STATUS_CHECK_BATCH` | `10` | `50` | Links checked by one batch, from 1 to 200. |
+| `STATUS_CHECK_CONCURRENCY` | `4` | `6` | Checks in flight at once, from 1 to 6. |
+
+`ceil(STATUS_CHECK_BATCH / STATUS_CHECK_CONCURRENCY) × STATUS_CHECK_TIMEOUT_SECONDS` must stay at most 600 seconds, or the start stops.
+
+On Docker, batches follow one another for up to 50 seconds in each minute. On Workers, each minute runs one batch, and the Free plan allows 50 subrequests per run: 3 per link plus the database, so about 15 links per run. A higher `STATUS_CHECK_BATCH` changes nothing there, and YASAD logs a warning when the checked links exceed what the interval allows. The Free plan also allows 5 cron triggers per account, shared by all its Workers; YASAD uses one.
+
+Only public addresses are checked: a link that points to a private or reserved address, or to a name that resolves to one, gets an unknown status and is never contacted. Requests send `User-Agent: YASAD-status/<version>`, no cookie and no credential. On Workers, Cloudflare may add `Accept-Encoding` and `CF-Worker: <zone>`.
+
 ## Sign-in with OIDC
 
 All optional. OIDC is on when `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` are set. Setting only one or two of them stops the start.

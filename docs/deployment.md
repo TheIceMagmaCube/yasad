@@ -131,6 +131,8 @@ The same code runs on Cloudflare Workers, with a D1 database. You need a Cloudfl
 
    It sets the version from `git describe --tags --always`, like the Docker image, then runs `wrangler deploy`. Arguments after `--` go to `wrangler deploy`, for example `npm run deploy:worker -- --config <file>`.
 
+   The deploy also registers the cron trigger that runs the link checks every minute ([status checks](configuration.md#status-checks)). To run one locally: `npm run dev:worker -- --test-scheduled`, then `curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"`.
+
 7. Set the secrets. Each command asks for the value.
 
    ```sh
