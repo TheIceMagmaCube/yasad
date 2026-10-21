@@ -106,6 +106,33 @@ test("the account page fits a 320 px screen in French", async ({ page }) => {
   }
 });
 
+test("a person without groups is led from the empty home to their groups, in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInAs(page, CAROL.email, CAROL.password);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `empty home, no groups (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 2, name: "No access yet" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "See my groups" })).toBeVisible();
+        await expectAccessible(page, label);
+        await expectNoHorizontalScroll(page, label);
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+
+  setInstanceTheme("default");
+  await page.goto("/");
+  const link = page.getByRole("link", { name: "See my groups" });
+  await link.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/account#groups$/);
+  await expect(page.getByRole("heading", { level: 2, name: "My groups" })).toBeFocused();
+});
+
 test("the account menu opens the account page with the focus on its heading", async ({ page }) => {
   setInstanceTheme("default");
   await signInAsAdmin(page);
