@@ -1,6 +1,7 @@
 import { resolveDoh } from "./doh";
 import {
   isForbiddenHeader,
+  isPlatformError,
   type Outbound,
   OutboundError,
   type OutboundOptions,
@@ -13,13 +14,20 @@ import { checkTarget, isPublicAddress } from "./policy";
 /** Resolves a host name to its addresses, under the request's deadline; rejects with an `OutboundError`. */
 export type Resolve = (name: string, signal: AbortSignal) => Promise<string[]>;
 
-/** `outboundHeaders()` with the caller's headers over it, the forbidden ones left out. */
+/**
+ * `outboundHeaders()` with the caller's headers over it, the forbidden ones left out; an invalid name or value gives
+ * `not_attempted`.
+ */
 function requestHeaders(extra: Record<string, string> | undefined): Headers {
-  const headers = new Headers(outboundHeaders());
-  for (const [name, value] of Object.entries(extra ?? {})) {
-    if (!isForbiddenHeader(name)) headers.set(name, value);
+  try {
+    const headers = new Headers(outboundHeaders());
+    for (const [name, value] of Object.entries(extra ?? {})) {
+      if (!isForbiddenHeader(name)) headers.set(name, value);
+    }
+    return headers;
+  } catch (error) {
+    throw new OutboundError("not_attempted", { cause: error });
   }
-  return headers;
 }
 
 /** Rejects with the signal's reason once it aborts, so a call that ignores the signal cannot outlive the deadline. */
@@ -31,12 +39,14 @@ function untilAborted(signal: AbortSignal): Promise<never> {
 }
 
 /**
- * The coded error for a failure of `fetch` or of reading its body: `timeout` once the deadline has passed, a
- * `TypeError` is a network failure (`tls_error` when its message names the certificate, TLS or SSL), and anything
- * else is a platform error, `not_attempted`, never read as the target being down.
+ * The coded error for a failure of `fetch` or of reading its body: a platform error (`isPlatformError`, whatever its
+ * class and even after the deadline) is `not_attempted`, then `timeout` once the deadline has passed, a `TypeError` is
+ * a network failure (`tls_error` when its message names the certificate, TLS or SSL), and anything else is
+ * `not_attempted`, never read as the target being down.
  */
 function mapFetchError(error: unknown, signal: AbortSignal): OutboundError {
   if (error instanceof OutboundError) return error;
+  if (isPlatformError(error)) return new OutboundError("not_attempted", { cause: error });
   if (signal.aborted) return new OutboundError("timeout", { cause: error });
   if (error instanceof TypeError) {
     const code = /certificate|tls|ssl/i.test(error.message) ? "tls_error" : "connect_failed";

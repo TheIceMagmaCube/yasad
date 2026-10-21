@@ -146,12 +146,25 @@ async function admit(
   return { url: target.url, host: target.host, addresses };
 }
 
-/** `outboundHeaders()` with the caller's headers over it, the forbidden ones left out, and `Host` from the URL. */
-function requestHeaders(extra: Record<string, string> | undefined, url: URL): Record<string, string> {
-  const headers = new Headers(outboundHeaders());
-  for (const [name, value] of Object.entries(extra ?? {})) {
-    if (!isForbiddenHeader(name)) headers.set(name, value);
+/**
+ * `outboundHeaders()` with the caller's headers over it, the forbidden ones left out; an invalid name or value gives
+ * `not_attempted`. Built once per request, before any resolution.
+ */
+function callerHeaders(extra: Record<string, string> | undefined): Headers {
+  try {
+    const headers = new Headers(outboundHeaders());
+    for (const [name, value] of Object.entries(extra ?? {})) {
+      if (!isForbiddenHeader(name)) headers.set(name, value);
+    }
+    return headers;
+  } catch (error) {
+    throw new OutboundError("not_attempted", { cause: error });
   }
+}
+
+/** The headers of one hop: `base` with `Host` from the URL. */
+function hopHeaders(base: Headers, url: URL): Record<string, string> {
+  const headers = new Headers(base);
   headers.set("host", url.host);
   return Object.fromEntries(headers);
 }
@@ -238,6 +251,7 @@ export function nodeOutbound(
 
   return {
     async request(url: string, request: OutboundOptions): Promise<OutboundResponse> {
+      const base = callerHeaders(request.headers);
       const signal = AbortSignal.timeout(request.deadlineMs);
       let resolver = options.resolver;
       if (resolver === undefined) {
@@ -251,7 +265,7 @@ export function nodeOutbound(
         const target = await admit(current, resolver, isAllowed, signal);
         let response: http.IncomingMessage;
         try {
-          const headers = requestHeaders(request.headers, target.url);
+          const headers = hopHeaders(base, target.url);
           response = await Promise.race([send(target, headers, signal), untilAborted(signal)]);
         } catch (error) {
           throw mapError(error, signal);

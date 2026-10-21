@@ -1,6 +1,6 @@
 import ipaddr from "ipaddr.js";
 
-import { OutboundError } from "./outbound";
+import { isPlatformError, OutboundError } from "./outbound";
 
 /** The DNS-over-HTTPS resolver queried with `?name=<name>&type=A|AAAA`, JSON answers. */
 export const DOH_ENDPOINT = "https://cloudflare-dns.com/dns-query";
@@ -92,8 +92,11 @@ export function parseDohAnswer(json: unknown, name: string): { addresses: string
 }
 
 /**
- * One DoH query; any failure gives `resolver_failed`, with the abort reason as `cause` once `signal` has aborted: a
- * resolver that does not answer in time says nothing about the target.
+ * One DoH query. A rejected `fetch` passes an `OutboundError` through and gives `not_attempted` for a platform error
+ * (`isPlatformError`, even once `signal` has aborted); then `resolver_failed`, with the abort reason as `cause`, once
+ * `signal` has aborted (a resolver that does not answer in time says nothing about the target), `resolver_failed` for
+ * a `TypeError` (network), and `not_attempted` for anything else. A non-OK status, invalid JSON or an unexpected
+ * shape gives `resolver_failed`.
  */
 async function query(
   name: string,
@@ -101,12 +104,21 @@ async function query(
   options: { fetch: typeof fetch; signal: AbortSignal },
 ): Promise<ReturnType<typeof parseAnswer>> {
   const url = `${DOH_ENDPOINT}?${new URLSearchParams({ name, type }).toString()}`;
+  let response: Response;
   try {
-    const response = await options.fetch(url, {
+    response = await options.fetch(url, {
       headers: { Accept: "application/dns-json" },
       redirect: "manual",
       signal: options.signal,
     });
+  } catch (error) {
+    if (error instanceof OutboundError) throw error;
+    if (isPlatformError(error)) throw new OutboundError("not_attempted", { cause: error });
+    if (options.signal.aborted) throw new OutboundError("resolver_failed", { cause: options.signal.reason });
+    if (error instanceof TypeError) throw new OutboundError("resolver_failed", { cause: error });
+    throw new OutboundError("not_attempted", { cause: error });
+  }
+  try {
     if (!response.ok) {
       await response.body?.cancel();
       throw failed();
@@ -122,7 +134,8 @@ async function query(
 /**
  * Resolve `name` to its A and AAAA addresses through DoH. A is queried, then AAAA once the A answer has been read, so a
  * resolution holds at most one connection waiting for headers (Workers allows 6 per invocation). A CNAME the answers
- * leave unresolved is queried in turn, up to 8 hops in all. Throws `dns_not_found` when no address is found and
+ * leave unresolved is queried in turn, up to 8 hops in all. Throws `dns_not_found` when no address is found,
+ * `not_attempted` when `fetch` fails with a platform error or anything but a network error (see `query`), and
  * `resolver_failed` for any other failure, an aborted `signal` included (its reason as `cause`). The addresses are not
  * checked here: the caller does it.
  */

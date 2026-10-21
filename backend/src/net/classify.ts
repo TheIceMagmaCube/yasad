@@ -34,8 +34,9 @@ const ERROR_STATES: Readonly<Record<OutboundErrorCode, CheckState | null>> = {
 
 /**
  * Map an outbound result to the state to store. A response is down on 5xx, 404 and 410, and up otherwise (2xx, an
- * unfollowed 3xx, 401, 403, 407, 429 and the other 4xx), with its status kept. An error maps through
- * `ERROR_STATES`; null for `not_attempted` and `too_large`.
+ * unfollowed 3xx, 401, 403, 407, 429 and the other 4xx), with its status kept. A status outside 200..599 is unknown
+ * with `http_error`, its status kept when it is an integer from 0 to 999. An error maps through `ERROR_STATES`; null
+ * for `not_attempted` and `too_large`.
  */
 export function classify(result: OutboundResponse | OutboundError): Classification | null {
   if (result instanceof OutboundError) {
@@ -44,6 +45,10 @@ export function classify(result: OutboundResponse | OutboundError): Classificati
     return { state, reason: result.code as CheckReason, httpStatus: null };
   }
   const { status } = result;
+  if (!(status >= 200 && status <= 599)) {
+    const kept = Number.isInteger(status) && status >= 0 && status <= 999 ? status : null;
+    return { state: "unknown", reason: "http_error", httpStatus: kept };
+  }
   if (status >= 500 || status === 404 || status === 410) {
     return { state: "down", reason: "http_error", httpStatus: status };
   }
