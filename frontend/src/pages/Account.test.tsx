@@ -6,14 +6,20 @@ import { getAnnouncer, mockApi, renderWithProviders, sentBody } from "../test-ut
 import { Account } from "./Account";
 
 const ADA = { id: "ada", name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
-const LOCAL = { "GET /api/account": { status: 200, body: { origin: "local" } } };
-const OIDC = { "GET /api/account": { status: 200, body: { origin: "oidc" } } };
+const SYSTEM = [
+  { name: "everyone", source: "system" },
+  { name: "authenticated", source: "system" },
+];
+const LOCAL = { "GET /api/account": { status: 200, body: { origin: "local", groups: SYSTEM, providerGroupsAt: null } } };
+const OIDC = { "GET /api/account": { status: 200, body: { origin: "oidc", groups: SYSTEM, providerGroupsAt: null } } };
+const WITH_TEAM = { "GET /api/account": { status: 200, body: { origin: "local", groups: [...SYSTEM, { name: "Night Shift", source: "local" }], providerGroupsAt: null } } };
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   document.documentElement.lang = "en";
   document.documentElement.removeAttribute("data-mode");
+  history.replaceState(null, "", "/");
 });
 
 /** Return the setting row named `label`. */
@@ -76,9 +82,48 @@ describe("Account", () => {
     expect(await within(row("Password")).findByText("Your sign-in method could not be loaded.")).toBeInTheDocument();
     expect(row("Password")).not.toHaveTextContent("Set");
     expect(screen.queryByRole("button", { name: "Change password" })).toBeNull();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(within(row("Password")).getByRole("alert")).toBeInTheDocument();
+    const groups = screen.getByRole("region", { name: "My groups" });
+    expect(groups).toHaveTextContent("Your groups could not be loaded. Use Try again in the Password row.");
+    expect(within(groups).queryByRole("button")).toBeNull();
     await user.click(within(row("Password")).getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("button", { name: "Change password" })).toBeInTheDocument();
+    expect(within(groups).getByText("@everyone")).toBeInTheDocument();
+    expect(groups).not.toHaveTextContent("could not be loaded");
     expect(screen.getByRole("heading", { level: 1, name: "Ada Lovelace" })).toHaveFocus();
+  });
+
+  it("shows the person's groups after the settings, under their own heading", async () => {
+    mockApi(WITH_TEAM);
+    renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
+    const groups = await screen.findByRole("region", { name: "My groups" });
+    expect(await within(groups).findByRole("list", { name: "Local groups (1)" })).toHaveTextContent("Night Shift");
+    const settings = screen.getByRole("heading", { level: 2, name: "Settings" });
+    const grid = row("Password").closest("ul")!.parentElement!;
+    expect(settings.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(grid.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(grid.contains(groups)).toBe(false);
+    const headings = screen.getAllByRole("heading").map((h) => `${h.tagName} ${h.textContent}`);
+    expect(headings).toEqual(["H1 Ada Lovelace", "H2 Settings", "H2 My groups", "H3 Built-in groups", "H3 Local groups (1)"]);
+  });
+
+  it("marks the groups as loading while the server has not answered", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    renderWithProviders(<Account user={ADA} onProfileChanged={vi.fn()} />);
+    expect(screen.getByRole("region", { name: "My groups" })).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("gives the focus to the groups heading once loaded when the address ends in #groups", async () => {
+    history.replaceState(null, "", "/account#groups");
+    mockApi(WITH_TEAM);
+    renderWithProviders(
+      <main id="content">
+        <Account user={ADA} onProfileChanged={vi.fn()} />
+      </main>,
+    );
+    await screen.findByRole("list", { name: "Local groups (1)" });
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "My groups" })).toHaveFocus());
   });
 
   it("opens the password form in its row on its first field, and gives the focus back on Escape", async () => {

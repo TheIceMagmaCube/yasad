@@ -2,7 +2,8 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { api, type User } from "../api";
+import { type AccountInfo, api, type User } from "../api";
+import { GroupsSection } from "../components/account/GroupsSection";
 import { PasswordForm } from "../components/account/PasswordForm";
 import { ProfileForm } from "../components/account/ProfileForm";
 import { LoadError } from "../components/LoadError";
@@ -18,26 +19,24 @@ import { useDocumentTitle } from "../lib/page";
 import { LANGUAGES, type Mode, MODES } from "../preferences";
 import { useTheme } from "../theme/ThemeProvider";
 
-type Origin = "local" | "oidc";
-/** How the account signs in, asked of the server: a failure must never look like "no password". */
-type OriginState = { status: "loading" } | { status: "error"; attempt: number; retrying: boolean } | { status: "ready"; origin: Origin };
+/** The account answer (sign-in method and groups), asked of the server: a failure must never look like "no password". */
+type AccountState = { status: "loading" } | { status: "error"; attempt: number; retrying: boolean } | { status: "ready"; account: AccountInfo };
 
-/** Return the state of a request for the sign-in method, after `previous` (whose failures stay counted). */
-async function fetchOrigin(previous: OriginState): Promise<OriginState> {
+/** Return the state of a request for the account answer, after `previous` (whose failures stay counted). */
+async function fetchAccount(previous: AccountState): Promise<AccountState> {
   try {
-    const { origin } = await api.account();
-    return { status: "ready", origin };
+    return { status: "ready", account: await api.account() };
   } catch {
     return { status: "error", attempt: (previous.status === "error" ? previous.attempt : 0) + 1, retrying: false };
   }
 }
 
-/** Load the sign-in method of the account once, with a retry. */
-function useOrigin() {
-  const [state, setState] = useState<OriginState>({ status: "loading" });
+/** Load the account answer once, with a retry shared by the Password row and the groups section. */
+function useAccountInfo() {
+  const [state, setState] = useState<AccountState>({ status: "loading" });
   useEffect(() => {
     let active = true;
-    void fetchOrigin({ status: "loading" }).then((next) => active && setState(next));
+    void fetchAccount({ status: "loading" }).then((next) => active && setState(next));
     return () => {
       active = false;
     };
@@ -46,7 +45,7 @@ function useOrigin() {
     if (state.status !== "error") return;
     const retrying = { ...state, retrying: true };
     setState(retrying);
-    void fetchOrigin(retrying).then(setState);
+    void fetchAccount(retrying).then(setState);
   };
   return { state, retry };
 }
@@ -60,7 +59,8 @@ const ACTION_ID = { name: "account-name-edit", email: "account-email-edit", pass
  * The signed-in person's page: who they are, then two ruled lists with a row per setting (label, value, action), the
  * account's and this device's. A setting is changed inside its row; a success is announced and the focus goes back
  * to the row's button. Name and e-mail are editable for a local account only, the identity provider owning the
- * others; language and appearance apply at once on this device.
+ * others; language and appearance apply at once on this device. Then the groups the person holds, from the same
+ * answer: when it fails, the Password row carries the one alert and the retry.
  */
 export function Account({ user, onProfileChanged }: { user: User; onProfileChanged: () => Promise<unknown> }) {
   const m = useStrings();
@@ -68,8 +68,8 @@ export function Account({ user, onProfileChanged }: { user: User; onProfileChang
   const { language } = useLocale();
   useDocumentTitle(a.title);
   const announce = useAnnounce();
-  const { state, retry } = useOrigin();
-  const origin = state.status === "ready" ? state.origin : null;
+  const { state, retry } = useAccountInfo();
+  const origin = state.status === "ready" ? state.account.origin : null;
   const [editing, setEditing] = useState<Editing>(null);
   const [status, setStatus] = useState("");
   const role = (m.roles as Record<string, string>)[user.role] ?? user.role;
@@ -195,6 +195,7 @@ export function Account({ user, onProfileChanged }: { user: User; onProfileChang
           <SettingRow label={a.appearance} value={<AppearanceCards />} wide />
         </ul>
       </div>
+      <GroupsSection state={state} />
     </Page>
   );
 }

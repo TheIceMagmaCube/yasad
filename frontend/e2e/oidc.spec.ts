@@ -127,6 +127,48 @@ test("a refused sign-in shows why, once, without going back to the provider", as
   expect(csp).toEqual([]);
 });
 
+const PROVIDER_GROUPS = "Identity provider groups (1)";
+
+test("the account page shows the provider groups and when they are read again", async ({ page }) => {
+  const csp = watchCsp(page);
+  await signedInAtProvider(ALICE);
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: ALICE.name, level: 1 })).toBeVisible();
+  await expect(page.getByRole("list", { name: PROVIDER_GROUPS })).toContainText("portal-users");
+  await expect(page.getByText("They are read again at your next sign-in.")).toBeVisible();
+  await expect(page.getByRole("listitem", { name: "Password" })).toHaveCount(0);
+  expect(csp).toEqual([]);
+});
+
+test("the account page of a provider account is accessible in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signedInAtProvider(ALICE);
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: ALICE.name, level: 1 })).toBeVisible();
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `account, provider (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/account", theme, mode, width, OIDC_E2E_DB);
+        await expect(page.getByRole("list", { name: PROVIDER_GROUPS })).toBeVisible();
+        await expectAccessible(page, label);
+        await expectNoHorizontalScroll(page, label);
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+});
+
+test("a very long provider group name fits a 320 px screen", async ({ page }) => {
+  const long = "g".repeat(120);
+  await signedInAtProvider({ ...ALICE, groups: ["portal-users", long] });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/account");
+  await expect(page.getByRole("list", { name: "Identity provider groups (2)" }).getByText(long)).toBeVisible();
+  await expectNoHorizontalScroll(page, "account, long provider group");
+});
+
 for (const theme of THEMES) {
   for (const mode of MODES) {
     for (const width of WIDTHS) {

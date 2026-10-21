@@ -613,6 +613,27 @@ export const fr = {
     appearance: "Apparence",
     signInWith: (method) => `Connexion : ${method.toLowerCase()}`,
     passwordValue: "Défini",
+    groups: {
+      title: "Mes groupes",
+      intro: "Vos groupes décident des liens que vous voyez. S'il vous manque un lien, donnez ces groupes à votre administrateur.",
+      system: {
+        title: "Groupes intégrés",
+        everyone: "Tout le monde le détient, même sans connexion. Sert aux liens publics.",
+        authenticated: "Toute personne connectée le détient. Sert aux liens de toutes les personnes connectées.",
+      },
+      local: {
+        title: (n) => `Groupes locaux (${n})`,
+        hint: "Gérés dans YASAD par un administrateur.",
+        none: "Aucun groupe local.",
+      },
+      provider: {
+        title: (n) => `Groupes du fournisseur d'identité (${n})`,
+        readAt: { before: "Reçus à votre connexion du ", after: ". Ils seront relus à la prochaine connexion." },
+        readAtUnknown: "Reçus à votre dernière connexion. Ils seront relus à la prochaine connexion.",
+        none: "Aucun groupe reçu à votre dernière connexion.",
+      },
+      loadError: "Vos groupes n'ont pas pu être chargés. Utilisez Réessayer dans la ligne Mot de passe.",
+    },
   },
   about: {
     title: "À propos",
@@ -665,8 +686,9 @@ export const fr = {
       },
       noGroups: {
         title: "Pas encore d'accès",
-        body: "Votre compte n'est dans aucun groupe. Contactez votre administrateur.",
+        body: "Vous n'avez aucun groupe en dehors des groupes intégrés. Contactez votre administrateur.",
       },
+      seeGroups: "Voir mes groupes",
       nothingVisible: {
         title: "Rien à afficher pour l'instant",
         body: "Vos groupes n'ouvrent encore aucun lien. Si vous en attendiez, contactez votre administrateur.",

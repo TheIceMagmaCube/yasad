@@ -1,7 +1,8 @@
 import { and, eq, ne } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 
-import { authFor, MAX_PASSWORD, MIN_PASSWORD } from "../auth";
+import { type ViewerGroup, viewerGroups } from "../access";
+import { authFor, MAX_PASSWORD, MIN_PASSWORD, sessionFor } from "../auth";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { apiError } from "../errors";
@@ -9,6 +10,13 @@ import { PASSWORD_CHANGE_LIMIT, releaseAttempt, reserveAttempt } from "../rate-l
 import { account, session, user } from "../schema";
 import { emailTaken } from "./admin-users";
 import { EMAIL } from "./setup";
+import { viewerOf } from "./viewer";
+
+/**
+ * Body of `GET /api/account`. `providerGroupsAt`: the last sign-in, which wrote the provider groups; null for a
+ * local account or when unknown.
+ */
+export type AccountResponse = { origin: "local" | "oidc"; groups: ViewerGroup[]; providerGroupsAt: string | null };
 
 export const accountRoutes = new Hono<AppEnv>();
 
@@ -26,12 +34,27 @@ async function readFields(c: Context): Promise<Record<string, unknown>> {
   return body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
 }
 
-/** Return how the signed-in user signs in: `local` with a YASAD password, `oidc` through the identity provider. */
+/**
+ * Return how the signed-in user signs in (`local` with a YASAD password, `oidc` through the identity provider),
+ * the groups they hold and, for an `oidc` account, when its provider groups were written. The person comes from
+ * the session only.
+ */
 accountRoutes.get("/", async (c) => {
-  const current = await authFor(c).api.getSession({ headers: c.req.raw.headers });
+  const { db } = c.var;
+  const current = await sessionFor(c);
   if (!current) return apiError(c, 401, "unauthenticated", "Sign in first.");
-  const credential = await localCredential(c.var.db, current.user.id);
-  return c.json({ origin: credential?.password ? "local" : "oidc" });
+  const id = current.user.id;
+  const viewer = await viewerOf(c);
+  const [credential, groups, row] = await Promise.all([
+    localCredential(db, id),
+    viewerGroups(db, viewer),
+    db.select({ lastSignInAt: user.lastSignInAt }).from(user).where(eq(user.id, id)).get(),
+  ]);
+  const origin = credential?.password ? "local" : "oidc";
+  const providerGroupsAt = origin === "oidc" ? (row?.lastSignInAt?.toISOString() ?? null) : null;
+  // The body depends on the cookie: no shared cache may keep it.
+  c.header("Cache-Control", "private, no-store");
+  return c.json({ origin, groups, providerGroupsAt } satisfies AccountResponse);
 });
 
 /**

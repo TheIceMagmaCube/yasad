@@ -9,6 +9,15 @@ import { mockApi, type Routes } from "./test-utils";
 
 const ADA = { name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
 const BOB = { name: "Bob", email: "bob@example.invalid", role: "user" };
+const SYSTEM_GROUPS = [
+  { name: "everyone", source: "system" },
+  { name: "authenticated", source: "system" },
+];
+/** `GET /api/account` answer of a local account holding the built-in groups and `local`. */
+const accountOf = (...local: string[]) => ({
+  status: 200,
+  body: { origin: "local", groups: [...SYSTEM_GROUPS, ...local.map((name) => ({ name, source: "local" }))], providerGroupsAt: null },
+});
 const CATEGORY = {
   id: "everyday",
   title: "Everyday",
@@ -905,7 +914,7 @@ describe("App, temporary password and account", () => {
 
   it("opens the account page from the menu, marked as the current page", async () => {
     const user = userEvent.setup();
-    mockApi({ ...signedIn({ ...ADA, id: "ada" }), "GET /api/account": { status: 200, body: { origin: "local" } } });
+    mockApi({ ...signedIn({ ...ADA, id: "ada" }), "GET /api/account": accountOf() });
     renderAt("/");
     await screen.findByRole("heading", { level: 1, name: "My links" });
     await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
@@ -940,15 +949,27 @@ describe("App, temporary password and account", () => {
     expect(within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-current") === "page")).toHaveLength(1);
   });
 
+  it("opens the person's groups from the empty home, focused once loaded", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...signedIn({ ...BOB, id: "bob" }), "GET /api/account": accountOf("Night shift") });
+    renderAt("/");
+    await screen.findByRole("heading", { level: 2, name: "Nothing to show yet" });
+    await user.click(screen.getByRole("link", { name: "See my groups" }));
+    expect(location.pathname).toBe("/account");
+    expect(location.hash).toBe("#groups");
+    expect(await screen.findByText("Night shift")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "My groups" })).toHaveFocus());
+  });
+
   it("shows the saved name everywhere once the profile is changed", async () => {
     const user = userEvent.setup();
-    mockApi({
+    const fetchMock = mockApi({
       ...signedIn({ ...ADA, id: "ada" }),
       "GET /api/auth/get-session": [
         { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } },
         { status: 200, body: { user: { ...ADA, id: "ada", name: "Augusta Ada King" }, session: {} } },
       ],
-      "GET /api/account": { status: 200, body: { origin: "local" } },
+      "GET /api/account": accountOf(),
       "PATCH /api/account": { status: 200, body: { user: { id: "ada", name: "Augusta Ada King", email: ADA.email } } },
     });
     renderAt("/account");
@@ -961,6 +982,31 @@ describe("App, temporary password and account", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Edit: Name" })).toHaveFocus());
     expect(screen.getByRole("heading", { level: 1, name: "Augusta Ada King" })).toBeInTheDocument();
     expect(document.querySelector('[data-slot="account-status"]')).toHaveTextContent("Profile saved.");
+    // The same person: the page is not mounted again, so the account is asked once.
+    expect(fetchMock.mock.calls.filter(([path, init]) => path === "/api/account" && (init?.method ?? "GET") === "GET")).toHaveLength(1);
+  });
+
+  it("never shows the previous person's groups once another person is signed in", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi({
+      ...signedIn({ ...ADA, id: "ada" }),
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: { ...ADA, id: "ada" }, session: {} } },
+        { status: 200, body: { user: { ...BOB, id: "bob" }, session: {} } },
+      ],
+      "GET /api/account": [accountOf("Ada team"), accountOf("Bob team")],
+      "PATCH /api/account": { status: 200, body: { user: { id: "ada", name: "Augusta Ada King", email: ADA.email } } },
+    });
+    renderAt("/account");
+    expect(await screen.findByText("Ada team")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit: Name" }));
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await user.clear(name);
+    await user.type(name, "Augusta Ada King");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(await screen.findByText("Bob team")).toBeInTheDocument();
+    expect(screen.queryByText("Ada team")).toBeNull();
+    expect(fetchMock.mock.calls.filter(([path, init]) => path === "/api/account" && (init?.method ?? "GET") === "GET")).toHaveLength(2);
   });
 });
 

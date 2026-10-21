@@ -77,6 +77,18 @@ async function userByEmail(app: TestApp, email: string) {
   return row;
 }
 
+type AccountBody = { origin: string; groups: { name: string; source: string }[]; providerGroupsAt: string | null };
+
+/** Return the signed-in person's `GET /api/account` body, its groups sorted by `source:name`. */
+async function accountOf(app: TestApp): Promise<AccountBody> {
+  const body = (await (await app.request("/api/account")).json()) as AccountBody;
+  const key = (g: { name: string; source: string }) => `${g.source}:${g.name}`;
+  return { ...body, groups: [...body.groups].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0)) };
+}
+
+const lastSignInOf = async (app: TestApp, id: unknown) =>
+  new Date(Number((await app.query(`select last_sign_in_at from "user" where id = '${String(id)}'`))[0]!.last_sign_in_at)).toISOString();
+
 describe("OIDC configuration", () => {
   it("hides the routes and the button when OIDC is not configured", async () => {
     const app = await testApp();
@@ -181,6 +193,42 @@ describe("provider sign-in", () => {
     expect(await app.query(`select group_id from user_group where user_id = '${id}' and group_id = 'local-staff'`)).toHaveLength(1);
     // A group that left the token stays, empty, as after an import.
     expect(await app.query(`select name from "group" where source = 'oidc' order by name`)).toEqual([{ name: "lab" }, { name: "office" }, { name: "staff" }]);
+  });
+
+  it("shows the person the groups of the token, dated by the sign-in", async () => {
+    const app = await oidcApp();
+    await providerSignIn(app, { ...alice, groups: ["a", "b"] });
+    const { id } = (await userByEmail(app, "alice@example.invalid"))!;
+    expect(await accountOf(app)).toEqual({
+      origin: "oidc",
+      groups: [
+        { name: "a", source: "oidc" },
+        { name: "b", source: "oidc" },
+        { name: "authenticated", source: "system" },
+        { name: "everyone", source: "system" },
+      ],
+      providerGroupsAt: await lastSignInOf(app, id),
+    });
+  });
+
+  it("shows the groups of the new token after another sign-in, with the local ones", async () => {
+    const app = await oidcApp();
+    await providerSignIn(app, { ...alice, groups: ["a", "b"] });
+    const { id } = (await userByEmail(app, "alice@example.invalid"))!;
+    await app.exec(`insert into "group" (id, name, source) values ('local-staff', 'staff', 'local')`);
+    await app.exec(`insert into user_group (user_id, group_id) values ('${String(id)}', 'local-staff')`);
+    await app.exec(`update "user" set last_sign_in_at = 1000 where id = '${String(id)}'`);
+
+    const again = app.another();
+    await providerSignIn(again, { ...alice, groups: ["b", "c"] });
+    const body = await accountOf(again);
+    expect(body.groups.filter((g) => g.source !== "system")).toEqual([
+      { name: "staff", source: "local" },
+      { name: "b", source: "oidc" },
+      { name: "c", source: "oidc" },
+    ]);
+    expect(Date.parse(body.providerGroupsAt!)).toBeGreaterThan(1000);
+    expect(body.providerGroupsAt).toBe(await lastSignInOf(app, id));
   });
 
   it("stamps the token's groups as seen, and keeps the stamp of a group that left the token", async () => {
@@ -296,6 +344,15 @@ describe("provider sign-in refusals", () => {
     expect(await userByEmail(app, "alice@example.invalid")).toEqual(before);
     expect(await oidcGroupsOf(app, before!.id as string)).toEqual(["admins", "staff"]);
     expect(await app.query(`select id_token from account where provider_id = 'oidc'`)).toEqual([token]);
+  });
+
+  it("leaves the groups shown to the person as they were after a refused sign-in", async () => {
+    const app = await oidcApp({ OIDC_ALLOWED_GROUPS: "staff" });
+    await providerSignIn(app, { ...alice, groups: ["staff", "lab"] });
+    const before = await accountOf(app);
+    expect(before.groups).toContainEqual({ name: "lab", source: "oidc" });
+    expect(errorOf(await providerSignIn(app.another(), { ...alice, groups: ["guests"] }))).toBe("not_allowed");
+    expect(await accountOf(app)).toEqual(before);
   });
 
   it("refuses an address the provider marks unverified", async () => {

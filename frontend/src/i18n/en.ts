@@ -601,6 +601,27 @@ export const en = {
     appearance: "Appearance",
     signInWith: (method: string) => `Signs in with: ${method.toLowerCase()}`,
     passwordValue: "Set",
+    groups: {
+      title: "My groups",
+      intro: "Your groups decide which links you see. If a link is missing, give these groups to your administrator.",
+      system: {
+        title: "Built-in groups",
+        everyone: "Everyone holds it, even without signing in. Used for public links.",
+        authenticated: "Anyone signed in holds it. Used for links meant for everyone signed in.",
+      },
+      local: {
+        title: (n: number) => `Local groups (${n})`,
+        hint: "Managed in YASAD by an administrator.",
+        none: "No local group.",
+      },
+      provider: {
+        title: (n: number) => `Identity provider groups (${n})`,
+        readAt: { before: "Received when you signed in on ", after: ". They are read again at your next sign-in." },
+        readAtUnknown: "Received at your last sign-in. They are read again at your next sign-in.",
+        none: "No group received at your last sign-in.",
+      },
+      loadError: "Your groups could not be loaded. Use Try again in the Password row.",
+    },
   },
   about: {
     title: "About",
@@ -653,8 +674,9 @@ export const en = {
       },
       noGroups: {
         title: "No access yet",
-        body: "Your account is in no group. Contact your administrator.",
+        body: "You hold no group besides the built-in ones. Contact your administrator.",
       },
+      seeGroups: "See my groups",
       nothingVisible: {
         title: "Nothing to show yet",
         body: "Your groups do not open any link yet. If you expected some, contact your administrator.",

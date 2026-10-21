@@ -141,14 +141,24 @@ describe("Home", () => {
   });
 
   it.each([
-    ["no_groups", "No access yet", /Contact your administrator/],
+    ["no_groups", "No access yet", /besides the built-in ones/],
     ["nothing_visible", "Nothing to show yet", /do not open any link yet/],
-    [null, "Nothing to show yet", /do not open any link yet/],
-  ] as const)("explains the %s empty state without admin links", async (code, title, body) => {
+  ] as const)("explains the %s empty state with a link to the person's groups only", async (code, title, body) => {
     mockApi(empty(code));
     renderWithProviders(<Home user={{ ...ADA, role: "user" }} />);
     expect(await screen.findByRole("heading", { level: 2, name: title })).toBeInTheDocument();
     expect(screen.getByText(body)).toBeInTheDocument();
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName("See my groups");
+    expect(links[0]).toHaveAttribute("href", "/account#groups");
+  });
+
+  it("explains a missing empty code without any link", async () => {
+    mockApi(empty(null));
+    renderWithProviders(<Home user={{ ...ADA, role: "user" }} />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Nothing to show yet" })).toBeInTheDocument();
+    expect(screen.getByText(/do not open any link yet/)).toBeInTheDocument();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
@@ -572,5 +582,7 @@ describe("Home", () => {
     renderWithProviders(<Home user={ADA} />);
     expect(screen.getByRole("heading", { level: 1, name: "Mes liens" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { level: 2, name: "Pas encore d'accès" })).toBeInTheDocument();
+    expect(screen.getByText(/en dehors des groupes intégrés/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voir mes groupes" })).toHaveAttribute("href", "/account#groups");
   });
 });

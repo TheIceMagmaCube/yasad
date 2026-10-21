@@ -101,6 +101,11 @@ async function localUser() {
 const patchAccount = (app: Awaited<ReturnType<typeof testApp>>, body: unknown, init: RequestInit = {}) =>
   app.request("/api/account", { method: "PATCH", body: JSON.stringify(body), ...init });
 
+type AccountBody = { origin: string; groups: { name: string; source: string }[]; providerGroupsAt: string | null };
+const AUTHENTICATED = { name: "authenticated", source: "system" };
+const EVERYONE = { name: "everyone", source: "system" };
+const accountOf = async (app: Awaited<ReturnType<typeof testApp>>) => (await (await app.request("/api/account")).json()) as AccountBody;
+
 describe("GET /api/account", () => {
   it("needs a session", async () => {
     const res = await (await testApp()).request("/api/account");
@@ -108,10 +113,11 @@ describe("GET /api/account", () => {
     expect((await errorOf(res)).code).toBe("unauthenticated");
   });
 
-  it("says a password account is local, and nothing else", async () => {
+  it("says a password account is local and lists the built-in groups, never cached", async () => {
     const res = await (await localUser()).request("/api/account");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ origin: "local" });
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual({ origin: "local", groups: [AUTHENTICATED, EVERYONE], providerGroupsAt: null });
   });
 
   it("says an account with only another provider is oidc", async () => {
@@ -119,7 +125,71 @@ describe("GET /api/account", () => {
     await addOidcUser(app, { id: "olga", email: "olga@example.invalid" });
     const res = await app.request("/api/account", { headers: { cookie: await sessionCookie(app, "olga") } });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ origin: "oidc" });
+    // Session written straight in the database: no sign-in date.
+    expect(await res.json()).toEqual({ origin: "oidc", groups: [AUTHENTICATED, EVERYONE], providerGroupsAt: null });
+  });
+
+  it("lists a local group", async () => {
+    const app = await localUser();
+    await app.exec(`insert into "group" (id, name, source) values ('g1', 'Contractors', 'local')`);
+    await app.exec(`insert into user_group (user_id, group_id) values ('u1', 'g1')`);
+    expect(await accountOf(app)).toEqual({ origin: "local", groups: [{ name: "Contractors", source: "local" }, AUTHENTICATED, EVERYONE], providerGroupsAt: null });
+  });
+
+  it("lists a provider group and dates it by the last sign-in", async () => {
+    const app = await testApp();
+    await addOidcUser(app, { id: "olga", email: "olga@example.invalid" });
+    await app.exec(`update "user" set last_sign_in_at = 1760000000000 where id = 'olga'`);
+    await app.exec(`insert into "group" (id, name, source) values ('g1', 'Developers', 'oidc')`);
+    await app.exec(`insert into user_group (user_id, group_id) values ('olga', 'g1')`);
+    const res = await app.request("/api/account", { headers: { cookie: await sessionCookie(app, "olga") } });
+    expect(await res.json()).toEqual({
+      origin: "oidc",
+      groups: [{ name: "Developers", source: "oidc" }, AUTHENTICATED, EVERYONE],
+      providerGroupsAt: new Date(1760000000000).toISOString(),
+    });
+  });
+
+  it("lists only the signed-in person's groups, whatever the query says", async () => {
+    const app = await localUser();
+    await addUser(app, { id: "u2", email: "carol@example.invalid" });
+    await app.exec(`insert into "group" (id, name, source) values ('ga', 'A', 'local'), ('gb', 'B', 'local')`);
+    await app.exec(`insert into user_group (user_id, group_id) values ('u1', 'ga'), ('u2', 'gb')`);
+    const bodies = await Promise.all(["/api/account", "/api/account?userId=u2", "/api/account?id=u2"].map((path) => app.request(path).then((r) => r.text())));
+    for (const body of bodies) expect(body).not.toContain('"B"');
+    expect(new Set(bodies).size).toBe(1);
+    expect(JSON.parse(bodies[0]!)).toMatchObject({ groups: [{ name: "A", source: "local" }, AUTHENTICATED, EVERYONE] });
+  });
+
+  it("lists an administrator's own groups only", async () => {
+    const app = await testApp();
+    await addUser(app, { id: "ada", email: "ada@example.invalid", role: "admin" });
+    await addUser(app, { id: "u2", email: "carol@example.invalid" });
+    await app.exec(`insert into "group" (id, name, source) values ('ops', 'Ops', 'local'), ('gb', 'B', 'local')`);
+    await app.exec(`insert into user_group (user_id, group_id) values ('ada', 'ops'), ('u2', 'gb')`);
+    expect((await signIn(app, "ada@example.invalid")).status).toBe(200);
+    expect((await accountOf(app)).groups).toEqual([{ name: "Ops", source: "local" }, AUTHENTICATED, EVERYONE]);
+  });
+
+  it("keeps groups of the same name apart by origin and case", async () => {
+    const app = await localUser();
+    await app.exec(`insert into "group" (id, name, source) values ('l-dev', 'Dev', 'local'), ('o-dev', 'Dev', 'oidc'), ('o-dev2', 'dev', 'oidc')`);
+    await app.exec(`insert into user_group (user_id, group_id) values ('u1', 'l-dev'), ('u1', 'o-dev'), ('u1', 'o-dev2')`);
+    const { groups } = await accountOf(app);
+    expect(groups.filter((g) => g.source !== "system")).toEqual(
+      expect.arrayContaining([
+        { name: "Dev", source: "local" },
+        { name: "Dev", source: "oidc" },
+        { name: "dev", source: "oidc" },
+      ]),
+    );
+    expect(groups).toHaveLength(5);
+  });
+
+  it("never lists a built-in group twice, even with a forged membership", async () => {
+    const app = await localUser();
+    await app.exec(`insert into user_group (user_id, group_id) select 'u1', id from "group" where source = 'system' and name = 'authenticated'`);
+    expect((await accountOf(app)).groups).toEqual([AUTHENTICATED, EVERYONE]);
   });
 
   it("waits for a temporary password to be replaced", async () => {
