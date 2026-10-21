@@ -210,7 +210,7 @@ test("the links pages are accessible in each of their states, in every theme, mo
         await expectClean(page, `${label}, category page`);
 
         await page.route("**/api/admin/catalog/state", (route) =>
-          route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3 }, headers: { "cache-control": "no-store" } }),
+          route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3, checks: { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null } }, headers: { "cache-control": "no-store" } }),
         );
         await open(page, "/admin/links", theme, mode, width);
         await expect(page.getByText("Managed by CATALOG_FILE: read only.")).toBeVisible();
@@ -295,7 +295,7 @@ test("the YAML file page is accessible in each of its states, in every theme, mo
         await expectClean(page, `${label}, invalid file`);
 
         await page.route("**/api/admin/catalog/state", (route) =>
-          route.fulfill({ json: { managedByFile: true, categories: 4, links: 4, groups: 5 }, headers: { "cache-control": "no-store" } }),
+          route.fulfill({ json: { managedByFile: true, categories: 4, links: 4, groups: 5, checks: { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null } }, headers: { "cache-control": "no-store" } }),
         );
         await page.reload();
         await expect(page.getByText("The catalog comes from a file")).toBeVisible();
