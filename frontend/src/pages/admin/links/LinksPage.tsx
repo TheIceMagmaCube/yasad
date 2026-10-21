@@ -242,6 +242,8 @@ export function LinksPage({ open }: { open: LinksRoute }) {
           catalog.setData((all) => all.map((c) => ({ ...c, links: c.links.filter((l) => l.id !== deleted.id) })));
           invalidateHome();
           void groups.refresh();
+          // The number of checked links may have changed.
+          void state.refresh();
           navigate(listHref(LIST));
         }}
       />
@@ -267,6 +269,8 @@ export function LinksPage({ open }: { open: LinksRoute }) {
           feedback.say(s.deleted(deleted.title));
           invalidateHome();
           void groups.refresh();
+          // Its links went with it, checked ones included.
+          void state.refresh();
           navigate(listHref(LIST));
           void focusById(FILTER_ID);
         }}

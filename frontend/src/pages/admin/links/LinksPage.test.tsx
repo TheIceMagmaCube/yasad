@@ -148,6 +148,34 @@ describe("Link status in the list", () => {
     else expect(screen.queryByText(/per interval/)).toBeNull();
   });
 
+  it("reads the checked count again after a deletion, so the warning goes", async () => {
+    const overloaded = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 51, capacity: 50 } } };
+    const fits = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 50, capacity: 50 } } };
+    const { user } = renderAdmin(
+      "/admin/links",
+      linksRoutes({ "GET /api/admin/catalog/state": [overloaded, fits], "DELETE /api/admin/links/down": { status: 204 } }, { categories: [CHECKED] }),
+    );
+    await screen.findByText(/per interval/);
+    await user.click(screen.getByRole("link", { name: "Down" }));
+    await user.click(await screen.findByRole("button", { name: "Delete Down" }));
+    await user.click(within(screen.getByRole("group", { name: "Delete the link Down?" })).getByRole("button", { name: "Delete for good" }));
+    await waitFor(() => expect(screen.queryByText(/per interval/)).toBeNull());
+  });
+
+  it("reads the checked count again after deleting a category, whose checked links went with it", async () => {
+    const overloaded = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 51, capacity: 50 } } };
+    const fits = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 46, capacity: 50 } } };
+    const { user } = renderAdmin(
+      "/admin/links",
+      linksRoutes({ "GET /api/admin/catalog/state": [overloaded, fits], "DELETE /api/admin/categories/tools": { status: 204 } }, { categories: [CHECKED] }),
+    );
+    await screen.findByText(/per interval/);
+    await user.click(screen.getByRole("link", { name: "Tools" }));
+    await user.click(await screen.findByRole("button", { name: "Delete Tools" }));
+    await user.click(within(screen.getByRole("group", { name: "Delete Tools and its 5 links?" })).getByRole("button", { name: "Delete for good" }));
+    await waitFor(() => expect(screen.queryByText(/per interval/)).toBeNull());
+  });
+
   it("reads the marks and the warning in French", async () => {
     localStorage.setItem("yasad.language", "fr");
     try {
