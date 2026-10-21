@@ -249,7 +249,8 @@ function canonicalPath(path: string): string {
 /** Return the page of a signed-in user for a canonical path; `onProfileChanged` reloads the session. */
 function SignedInPage({ user, path, onProfileChanged }: { user: User; path: string; onProfileChanged: () => Promise<unknown> }) {
   if (path === "/") return <Home user={user} />;
-  if (path === "/account") return <Account user={user} onProfileChanged={onProfileChanged} />;
+  // Keyed by person: another person's account never keeps the previous one's state (groups, open form).
+  if (path === "/account") return <Account key={user.id} user={user} onProfileChanged={onProfileChanged} />;
   if (path === "/about") return <About />;
   if (path === "/admin" || path.startsWith("/admin/")) return <AdminRoutes path={path} user={user} />;
   return <NotFound />;
