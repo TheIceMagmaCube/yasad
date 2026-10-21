@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import { BASE_URL } from "../playwright.config";
 import { addLocalUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, focused, MODES, open, setInstanceTheme, signInAsAdmin, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
@@ -13,6 +14,28 @@ async function signInAs(page: Page, email: string, password: string): Promise<vo
   expect(res.ok(), await res.text()).toBe(true);
 }
 
+/** A local group with spaces in its name: each name must stay on one line of the list. */
+const NIGHT_SHIFT = "Night Shift Staff";
+
+/**
+ * Make the signed-in administrator of `page` a member of a new local group named `name`, through the admin API.
+ * Return the cleanup, which deletes the group.
+ */
+async function holdLocalGroup(page: Page, name: string): Promise<() => Promise<void>> {
+  const session = await page.request.get("/api/auth/get-session");
+  expect(session.ok(), await session.text()).toBe(true);
+  const adminId = ((await session.json()) as { user: { id: string } }).user.id;
+  const created = await page.request.post("/api/admin/groups", { data: { name }, headers: { Origin: BASE_URL } });
+  expect(created.ok(), await created.text()).toBe(true);
+  const { id } = ((await created.json()) as { group: { id: string } }).group;
+  const added = await page.request.put(`/api/admin/groups/${id}/members/${adminId}`, { data: {}, headers: { Origin: BASE_URL } });
+  expect(added.ok(), await added.text()).toBe(true);
+  return async () => {
+    const removed = await page.request.delete(`/api/admin/groups/${id}`, { data: {}, headers: { Origin: BASE_URL } });
+    expect(removed.ok(), await removed.text()).toBe(true);
+  };
+}
+
 test.beforeAll(async () => {
   await addLocalUser(CAROL);
   await addLocalUser(TESS);
@@ -21,52 +44,66 @@ test.beforeAll(async () => {
 test("the account page is accessible, closed and with the password form open, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(180_000);
   await signInAsAdmin(page);
-  for (const theme of THEMES) {
-    for (const mode of MODES) {
-      for (const width of WIDTHS) {
-        const label = `account (${theme}, ${mode}, ${width}px)`;
-        const csp = watchCsp(page);
-        await open(page, "/account", theme, mode, width);
-        await expect(page.getByRole("heading", { level: 1, name: ADMIN.name })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Change password" })).toBeVisible();
-        await expectAccessible(page, label);
-        await expectNoHorizontalScroll(page, label);
+  const release = await holdLocalGroup(page, NIGHT_SHIFT);
+  try {
+    for (const theme of THEMES) {
+      for (const mode of MODES) {
+        for (const width of WIDTHS) {
+          const label = `account (${theme}, ${mode}, ${width}px)`;
+          const csp = watchCsp(page);
+          await open(page, "/account", theme, mode, width);
+          await expect(page.getByRole("heading", { level: 1, name: ADMIN.name })).toBeVisible();
+          await expect(page.getByRole("button", { name: "Change password" })).toBeVisible();
+          await expect(page.getByRole("list", { name: "Local groups (1)" })).toContainText(NIGHT_SHIFT);
+          await expectAccessible(page, label);
+          await expectNoHorizontalScroll(page, label);
 
-        await page.getByRole("button", { name: "Change password" }).click();
-        await expect(page.getByLabel("Current password", { exact: true })).toBeFocused();
-        await page.getByRole("button", { name: "Save password" }).click();
-        await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
-        await expectAccessible(page, `${label}, password form with errors`);
-        await expectNoHorizontalScroll(page, `${label}, password form with errors`);
+          await page.getByRole("button", { name: "Change password" }).click();
+          await expect(page.getByLabel("Current password", { exact: true })).toBeFocused();
+          await page.getByRole("button", { name: "Save password" }).click();
+          await expect(page.getByRole("group", { name: "Check the highlighted fields." })).toBeFocused();
+          await expectAccessible(page, `${label}, password form with errors`);
+          await expectNoHorizontalScroll(page, `${label}, password form with errors`);
 
-        // Opening the e-mail form closes the password one: one setting is edited at a time.
-        await page.getByRole("button", { name: "Edit: E-mail" }).click();
-        const email = page.getByRole("textbox", { name: "E-mail", exact: true });
-        await expect(email).toBeFocused();
-        await email.fill("someone.else@example.invalid");
-        await expect(page.getByLabel("Current password", { exact: true })).toBeVisible();
-        await expectAccessible(page, `${label}, e-mail form open`);
-        await expectNoHorizontalScroll(page, `${label}, e-mail form open`);
-        expect(csp).toEqual([]);
+          // Opening the e-mail form closes the password one: one setting is edited at a time.
+          await page.getByRole("button", { name: "Edit: E-mail" }).click();
+          const email = page.getByRole("textbox", { name: "E-mail", exact: true });
+          await expect(email).toBeFocused();
+          await email.fill("someone.else@example.invalid");
+          await expect(page.getByLabel("Current password", { exact: true })).toBeVisible();
+          await expectAccessible(page, `${label}, e-mail form open`);
+          await expectNoHorizontalScroll(page, `${label}, e-mail form open`);
+          expect(csp).toEqual([]);
+        }
       }
     }
+  } finally {
+    await release();
   }
 });
 
 test("the account page fits a 320 px screen in French", async ({ page }) => {
   await signInAsAdmin(page);
-  await open(page, "/", "default", "light", 320);
-  await page.evaluate(() => localStorage.setItem("yasad.language", "fr"));
-  await page.goto("/account");
-  await expect(page.getByRole("heading", { level: 1, name: ADMIN.name })).toBeVisible();
-  await expect(page).toHaveTitle("Mon compte - YASAD");
-  await expectNoHorizontalScroll(page, "account, fr");
-  await page.getByRole("button", { name: "Changer le mot de passe" }).click();
-  await expectNoHorizontalScroll(page, "account, fr, password form open");
-  await page.getByRole("button", { name: "Modifier : E-mail" }).click();
-  await expectNoHorizontalScroll(page, "account, fr, e-mail form open");
-  await expectAccessible(page, "account, fr, e-mail form open");
-  await page.evaluate(() => localStorage.removeItem("yasad.language"));
+  const release = await holdLocalGroup(page, NIGHT_SHIFT);
+  try {
+    await open(page, "/", "default", "light", 320);
+    await page.evaluate(() => localStorage.setItem("yasad.language", "fr"));
+    await page.goto("/account");
+    await expect(page.getByRole("heading", { level: 1, name: ADMIN.name })).toBeVisible();
+    await expect(page).toHaveTitle("Mon compte - YASAD");
+    await expect(page.getByRole("heading", { level: 2, name: "Mes groupes" })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Groupes locaux (1)" })).toContainText(NIGHT_SHIFT);
+    await expect(page.getByRole("term").filter({ hasText: "@everyone" })).toBeVisible();
+    await expectNoHorizontalScroll(page, "account, fr");
+    await page.getByRole("button", { name: "Changer le mot de passe" }).click();
+    await expectNoHorizontalScroll(page, "account, fr, password form open");
+    await page.getByRole("button", { name: "Modifier : E-mail" }).click();
+    await expectNoHorizontalScroll(page, "account, fr, e-mail form open");
+    await expectAccessible(page, "account, fr, e-mail form open");
+    await page.evaluate(() => localStorage.removeItem("yasad.language"));
+  } finally {
+    await release();
+  }
 });
 
 test("the account menu opens the account page with the focus on its heading", async ({ page }) => {
