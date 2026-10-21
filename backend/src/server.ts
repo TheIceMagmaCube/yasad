@@ -132,4 +132,12 @@ server.get("*", async (c) => {
   }
 });
 
-serve({ fetch: server.fetch, port }, () => console.log(`YASAD listening on :${port}`));
+// How long an idle keep-alive connection stays open. Node's default (5 s, dropped about 1 s later) is shorter
+// than a reverse proxy keeps its pooled connections (Nginx 60 s, Traefik 90 s, Caddy 2 min) and than a client
+// that ignores the Keep-Alive hint keeps its own: a request sent on the connection as Node drops it fails with
+// ECONNRESET, a 502 through the proxy. Outlast them, so the client side is the one that closes.
+const KEEP_ALIVE_TIMEOUT_MS = 125_000;
+
+serve({ fetch: server.fetch, port, serverOptions: { keepAliveTimeout: KEEP_ALIVE_TIMEOUT_MS } }, () =>
+  console.log(`YASAD listening on :${port}`),
+);
