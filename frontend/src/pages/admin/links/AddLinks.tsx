@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from "react";
 
-import { type AdminCategory, type AdminGroup, type AdminLink, ApiError, api, type EditWarning } from "../../../api";
+import { type AdminCategory, type AdminGroup, type AdminLink, ApiError, api, type CheckSettings, type EditWarning } from "../../../api";
 import { Recap, StepTitle, TypeChoice, WizardSteps } from "../../../components/admin/Wizard";
 import { ErrorSummary } from "../../../components/form/ErrorSummary";
 import { Field } from "../../../components/form/Field";
@@ -8,6 +8,7 @@ import { FormActions, FormStack } from "../../../components/form/FormLayout";
 import { SubmitButton } from "../../../components/form/PendingButton";
 import { SelectField } from "../../../components/form/SelectField";
 import { Button } from "../../../components/ui/button";
+import { CheckboxField } from "../../../components/ui/checkbox";
 import { useStrings } from "../../../i18n/LocaleProvider";
 import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefLabel } from "../../../lib/group-ref";
@@ -16,14 +17,16 @@ import { freeId, idFromTitle, isManagedByFile, isReservedId, linksErrorText } fr
 import { keywordsOf } from "./LinkPage";
 
 type Kind = "link" | "category";
-type FieldName = "url" | "title" | "id" | "categoryId" | "groups" | "icon" | "keywords";
-const FIELDS = ["url", "title", "id", "categoryId", "groups", "icon", "keywords"] as const;
+type FieldName = "url" | "title" | "id" | "categoryId" | "groups" | "icon" | "keywords" | "check";
+const FIELDS = ["url", "title", "id", "categoryId", "groups", "icon", "keywords", "check"] as const;
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 type AddLinksProps = {
   categories: AdminCategory[];
   groups: AdminGroup[];
   initialType: Kind;
+  /** How the instance checks links, for the hint of the check box; null while unknown. */
+  checks: CheckSettings | null;
   onLinkCreated: (link: AdminLink, warnings: EditWarning[]) => void;
   onCategoryCreated: (category: AdminCategory, warnings: EditWarning[]) => void;
   /** The server said CATALOG_FILE manages the catalog. */
@@ -32,12 +35,12 @@ type AddLinksProps = {
 
 /**
  * Wizard adding a link or a category, one question per step as on the setup screen. A link: address, title and id,
- * category, groups, icon and keywords (skippable), summary. A category: title and id, groups, summary.
+ * category, groups, icon, keywords and availability check (skippable), summary. A category: title and id, groups, summary.
  *
  * The id follows the title until it is edited, as the server would derive it, moved past the ids already used and
  * the words of other page addresses; it cannot change once created.
  */
-export function AddLinks({ categories, groups, initialType, onLinkCreated, onCategoryCreated, onManaged }: AddLinksProps) {
+export function AddLinks({ categories, groups, initialType, checks, onLinkCreated, onCategoryCreated, onManaged }: AddLinksProps) {
   const m = useStrings();
   const s = m.links;
   const w = m.admin.wizard;
@@ -53,6 +56,7 @@ export function AddLinks({ categories, groups, initialType, onLinkCreated, onCat
   const [other, setOther] = useState("");
   const [icon, setIcon] = useState("");
   const [keywords, setKeywords] = useState("");
+  const [check, setCheck] = useState(false);
   const [pending, setPending] = useState(false);
 
   const taken = useMemo(
@@ -96,6 +100,8 @@ export function AddLinks({ categories, groups, initialType, onLinkCreated, onCat
           categoryId,
           keywords: keywordsOf(keywords),
           ...(icon.trim() ? { icon: icon.trim() } : {}),
+          // Sent only when ticked, so an untouched wizard sends the body it always sent.
+          ...(check ? { check: true } : {}),
         });
         onLinkCreated(link, warnings);
       } else {
@@ -156,7 +162,7 @@ export function AddLinks({ categories, groups, initialType, onLinkCreated, onCat
         <FormStack className="gap-5">
           <ErrorSummary
             errors={errors}
-            labels={{ url: s.fields.url, title: s.fields.title, id: s.fields.id, categoryId: s.fields.category, groups: s.fields.groups, icon: s.fields.icon, keywords: s.fields.keywords }}
+            labels={{ url: s.fields.url, title: s.fields.title, id: s.fields.id, categoryId: s.fields.category, groups: s.fields.groups, icon: s.fields.icon, keywords: s.fields.keywords, check: s.fields.check }}
           />
           {step === 0 && (
             <TypeChoice
@@ -206,6 +212,13 @@ export function AddLinks({ categories, groups, initialType, onLinkCreated, onCat
                 onChange={(e) => setIcon(e.target.value)}
               />
               <Field {...errors.field("keywords")} label={s.fields.keywords} hint={s.fields.keywordsHint} autoComplete="off" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
+              <CheckboxField
+                id={errors.fieldId("check")}
+                label={s.fields.check}
+                hint={s.check.hint(checks?.intervalMinutes ?? null)}
+                checked={check}
+                onChange={(e) => setCheck(e.target.checked)}
+              />
             </div>
           )}
           {step === last && (
@@ -220,6 +233,7 @@ export function AddLinks({ categories, groups, initialType, onLinkCreated, onCat
                       [s.fields.groups, groupsText],
                       [s.fields.icon, icon.trim() || w.none],
                       [s.fields.keywords, keywordsOf(keywords).join(", ") || w.none],
+                      ...(check ? [[s.fields.check, m.history.yes] as [string, string]] : []),
                     ]
                   : [
                       [s.fields.title, title],
@@ -240,6 +254,7 @@ export function AddLinks({ categories, groups, initialType, onLinkCreated, onCat
                 onClick={() => {
                   setIcon("");
                   setKeywords("");
+                  setCheck(false);
                   errors.reset();
                   setStep(step + 1);
                 }}

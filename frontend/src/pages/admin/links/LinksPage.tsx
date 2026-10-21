@@ -208,6 +208,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
             categories={categories}
             groups={groups.data}
             initialType={open.type}
+            checks={checks}
             onManaged={onManaged}
             onLinkCreated={(link, warnings) => {
               replaceLink(link);
