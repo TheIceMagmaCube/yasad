@@ -489,7 +489,7 @@ export const fr = {
     managedByFile: "Géré par CATALOG_FILE : lecture seule.",
     types: { link: "Lien", category: "Catégorie" },
     typeHints: { link: "Dans une catégorie existante", category: "Contient des liens" },
-    steps: { type: "Type", address: "Adresse", category: "Catégorie", groups: "Groupes", extras: "Icône et mots-clés", recap: "Récapitulatif", title: "Titre" },
+    steps: { type: "Type", address: "Adresse", category: "Catégorie", groups: "Groupes", extras: "Icône, mots-clés et vérification", recap: "Récapitulatif", title: "Titre" },
   },
   history: {
     title: "Historique",

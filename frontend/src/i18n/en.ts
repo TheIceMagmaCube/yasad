@@ -480,7 +480,7 @@ export const en = {
     managedByFile: "Managed by CATALOG_FILE: read only.",
     types: { link: "Link", category: "Category" },
     typeHints: { link: "In an existing category", category: "Holds links" },
-    steps: { type: "Type", address: "Address", category: "Category", groups: "Groups", extras: "Icon and keywords", recap: "Summary", title: "Title" },
+    steps: { type: "Type", address: "Address", category: "Category", groups: "Groups", extras: "Icon, keywords and check", recap: "Summary", title: "Title" },
   },
   history: {
     title: "History",

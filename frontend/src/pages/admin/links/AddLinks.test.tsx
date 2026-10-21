@@ -30,7 +30,7 @@ describe("AddLinks", () => {
       "Step 2 of 6: Address",
       "Step 3 of 6: Category",
       "Step 4 of 6: Groups",
-      "Step 5 of 6: Icon and keywords",
+      "Step 5 of 6: Icon, keywords and check",
       "Step 6 of 6: Summary",
     ]);
 
@@ -51,7 +51,7 @@ describe("AddLinks", () => {
     expect(stepTitle()).toHaveTextContent("Groups");
     await user.click(screen.getByRole("checkbox", { name: "Finance" }));
     await user.click(next());
-    expect(stepTitle()).toHaveTextContent("Icon and keywords");
+    expect(stepTitle()).toHaveTextContent("Icon, keywords and check");
     await user.type(screen.getByLabelText("Icon"), "si:statuspage");
     await user.type(screen.getByLabelText("Keywords"), "uptime, , incidents");
     await user.click(next());
@@ -119,7 +119,7 @@ describe("AddLinks", () => {
     expect(sent.keywords).toEqual([]);
   });
 
-  /** Fill the first steps of a link and stop on the icon and keywords step. */
+  /** Fill the first steps of a link and stop on the icon, keywords and check step. */
   async function toExtras(user: ReturnType<typeof renderAdmin>["user"]) {
     await user.click(await screen.findByRole("button", { name: "Next" }));
     await user.clear(screen.getByRole("textbox", { name: "Address" }));
@@ -128,7 +128,7 @@ describe("AddLinks", () => {
     await user.click(next());
     await user.click(next());
     await user.click(next());
-    expect(stepTitle()).toHaveTextContent("Icon and keywords");
+    expect(stepTitle()).toHaveTextContent("Icon, keywords and check");
   }
   const postedLink = (fetchMock: ReturnType<typeof renderAdmin>["fetchMock"]) =>
     sentBody(fetchMock, fetchMock.mock.calls.findIndex(([path, init]) => path === "/api/admin/links" && init?.method === "POST")) as Record<string, unknown>;
