@@ -433,6 +433,7 @@ export const en = {
     check: {
       hint: (n: number | null) => `${n === null ? "" : `The server requests this address every ${n} min. `}Only public addresses are checked. A sign-in page counts as up.`,
       off: "Not checked",
+      inactive: "Inactive links are not checked.",
     },
     status: {
       title: "Last check",

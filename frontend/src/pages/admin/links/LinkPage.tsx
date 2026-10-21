@@ -191,7 +191,8 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
               <CheckboxField
                 id={errors.fieldId("check")}
                 label={s.fields.check}
-                hint={s.check.hint(checks?.intervalMinutes ?? null)}
+                // The scheduler never claims an inactive link: no interval to promise for it.
+                hint={active ? s.check.hint(checks?.intervalMinutes ?? null) : `${s.check.inactive} ${s.check.hint(null)}`}
                 disabled={readOnly}
                 checked={check}
                 onChange={(e) => setCheck(e.target.checked)}

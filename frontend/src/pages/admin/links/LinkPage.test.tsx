@@ -174,6 +174,27 @@ describe("LinkPage", () => {
     expect(sentBody(fetchMock, lastCall(fetchMock, "PATCH /api/admin/links/wiki"))).toEqual({ revision: 1, check: true });
   });
 
+  it("says an inactive link is not checked, without the interval, and with it again once ticked active", async () => {
+    const { user } = renderAdmin("/admin/links/old", linksRoutes());
+    await screen.findByRole("heading", { level: 1, name: "Old intranet" });
+    const box = screen.getByRole("checkbox", { name: "Check availability" });
+    expect(box).toHaveAccessibleDescription(/^Inactive links are not checked\. Only public addresses are checked\./);
+    expect(box).not.toHaveAccessibleDescription(/every 5 min/);
+    await user.click(screen.getByRole("checkbox", { name: "Active" }));
+    expect(box).toHaveAccessibleDescription(/^The server requests this address every 5 min\./);
+  });
+
+  it("says an inactive link is not checked in French", async () => {
+    localStorage.setItem("yasad.language", "fr");
+    try {
+      renderAdmin("/admin/links/old", linksRoutes());
+      await screen.findByRole("heading", { level: 1, name: "Old intranet" });
+      expect(screen.getByRole("checkbox", { name: "Vérifier la disponibilité" })).toHaveAccessibleDescription(/^Les liens inactifs ne sont pas vérifiés\. Seules/);
+    } finally {
+      localStorage.removeItem("yasad.language");
+    }
+  });
+
   it("leaves the interval out of the hint when the check settings are unknown", async () => {
     renderAdmin("/admin/links/wiki", linksRoutes({ "GET /api/admin/catalog/state": apiError(500, "internal") }));
     await screen.findByRole("heading", { level: 1, name: "Wiki" });

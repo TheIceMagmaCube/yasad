@@ -442,6 +442,7 @@ export const fr = {
       hint: (n) =>
         `${n === null ? "" : `Le serveur interroge cette adresse toutes les ${n} min. `}Seules les adresses publiques sont vérifiées. Une page de connexion compte comme en ligne.`,
       off: "Non vérifié",
+      inactive: "Les liens inactifs ne sont pas vérifiés.",
     },
     status: {
       title: "Dernier contrôle",
