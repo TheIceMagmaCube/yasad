@@ -232,14 +232,16 @@ jobs:
     runs-on: ubuntu-latest
     # After `release`, not in parallel: the image is labelled with the version that release
     # has just tagged. Does not rely on a tag push either: a tag created with GITHUB_TOKEN
-    # triggers no workflow.
-    needs: [test, release]
+    # triggers no workflow. Also after `e2e`: release is skipped on a merge into beta, so
+    # without it the beta and sha- images would be pushed with failing browser tests.
+    needs: [test, e2e, release]
     concurrency:
       group: build-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     if: >
       !cancelled()
       && needs.test.result == 'success'
+      && needs.e2e.result == 'success'
       && (needs.release.result == 'success' || needs.release.result == 'skipped')
     permissions:
       contents: read
