@@ -183,6 +183,28 @@ describe("Link status in the list", () => {
     await waitFor(() => expect(screen.queryByText(/per interval/)).toBeNull());
   });
 
+  it("judges staleness again when the state is read again, not against the time the page opened", async () => {
+    const opened = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(opened);
+    try {
+      const unseen = link({ id: "unseen", title: "New", check: true });
+      const aging = link({ id: "aging", title: "Up", check: true, status: status("up", new Date(opened - 14 * 60_000).toISOString(), null, 200) });
+      const { user } = renderAdmin(
+        "/admin/links",
+        linksRoutes({ "DELETE /api/admin/links/unseen": { status: 204 } }, { categories: [category({ id: "tools", title: "Tools", links: [aging, unseen] })] }),
+      );
+      await screen.findByRole("table", { name: "Links of Tools" });
+      expect(rowOf("Up")).not.toHaveTextContent("Status unknown");
+      clock.mockReturnValue(opened + 2 * 60_000);
+      await user.click(screen.getByRole("link", { name: "New" }));
+      await user.click(await screen.findByRole("button", { name: "Delete New" }));
+      await user.click(within(screen.getByRole("group", { name: "Delete the link New?" })).getByRole("button", { name: "Delete for good" }));
+      await waitFor(() => expect(rowOf("Up")).toHaveTextContent("Status unknown"));
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("reads the marks and the warning in French", async () => {
     localStorage.setItem("yasad.language", "fr");
     try {

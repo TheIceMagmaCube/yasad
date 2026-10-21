@@ -94,6 +94,12 @@ function unseenOidc(groups: AdminGroup[] | null): Set<string> {
 }
 
 /**
+ * Read the catalog state with the instant it was read. Every write reloads it, so statuses that went stale while the
+ * page stayed open are caught, and staleness is never measured against the mount time.
+ */
+const loadState = async () => ({ ...(await api.catalogState()), readAt: Date.now() });
+
+/**
  * Admin section of the catalog: one table per category in the stored order, a reorder mode, the pages of a link or
  * a category, and the wizard adding either. One component for all of them, so the loaded catalog and the filter stay
  * while going from the list to a page and back.
@@ -103,7 +109,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
   const s = m.links;
   const catalog = useAdminCollection(api.categories);
   const groups = useAdminCollection(api.groups);
-  const state = useAdminCollection(api.catalogState);
+  const state = useAdminCollection(loadState);
   const feedback = useListFeedback();
   const [query, setQuery] = useQueryState("q");
   const [stateParam, setStateParam] = useQueryState("state");
@@ -113,8 +119,8 @@ export function LinksPage({ open }: { open: LinksRoute }) {
   const [createdWarnings, setCreatedWarnings] = useState<Record<string, EditWarning[]>>({});
   const managed = state.data?.managedByFile ?? false;
   const checks = state.data?.checks ?? null;
-  // Read once, as the people list does, so every row and the filter judge staleness at the same instant.
-  const [now] = useState(() => Date.now());
+  // Every row and the filter judge staleness at the same instant, read again with each reload of the state.
+  const now = state.data?.readAt ?? 0;
   const statusOf = (l: AdminLink) => effectiveStatus(l, checks, now);
 
   const categories = catalog.data;
