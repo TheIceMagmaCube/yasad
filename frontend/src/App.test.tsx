@@ -15,6 +15,16 @@ const CATEGORY = {
   links: [{ id: "mail", title: "Mail", description: "Company mailbox", url: "https://mail.example.invalid", icon: null, keywords: [] }],
 };
 
+/** About answer of a user: no instance section. */
+const ABOUT = {
+  version: "0.2.0",
+  source: {
+    repository: "https://github.com/example/yasad",
+    tree: "https://github.com/example/yasad/tree/v0.2.0",
+    license: "https://github.com/example/yasad/blob/v0.2.0/LICENSE",
+  },
+};
+
 /** Home answer of an anonymous visitor on an instance with no public link. */
 const NO_PUBLIC_LINKS: Routes = { "GET /api/home": { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } } };
 
@@ -142,7 +152,7 @@ describe("App", () => {
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent("ada@example.invalid");
     expect(menu).toHaveTextContent("Administrator");
-    expect([...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual(["My links", "My account", "Administration", "Sign out"]);
+    expect([...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual(["My links", "My account", "Administration", "About", "Sign out"]);
     await user.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/auth/sign-out")).toBe(true);
@@ -905,6 +915,28 @@ describe("App, temporary password and account", () => {
     await waitFor(() => expect(document.title).toBe("My account - YASAD"));
     const menu = await openAccountMenu(user, ADA.name);
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
+    expect(within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-current") === "page")).toHaveLength(1);
+  });
+
+  it("shows the about page at /about", async () => {
+    mockApi({ ...signedIn({ ...BOB, id: "bob" }), "GET /api/about": { status: 200, body: ABOUT } });
+    renderAt("/about");
+    expect(await screen.findByRole("heading", { level: 1, name: "About" })).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("About - YASAD"));
+  });
+
+  it("opens the about page from the menu, marked as the current page", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...signedIn({ ...ADA, id: "ada" }), "GET /api/about": { status: 200, body: ABOUT } });
+    renderAt("/");
+    await screen.findByRole("heading", { level: 1, name: "My links" });
+    await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "About" }));
+    expect(location.pathname).toBe("/about");
+    expect(await screen.findByRole("heading", { level: 1, name: "About" })).toHaveFocus();
+    await waitFor(() => expect(document.title).toBe("About - YASAD"));
+    const menu = await openAccountMenu(user, ADA.name);
+    expect(within(menu).getByRole("menuitem", { name: "About" })).toHaveAttribute("aria-current", "page");
     expect(within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-current") === "page")).toHaveLength(1);
   });
 

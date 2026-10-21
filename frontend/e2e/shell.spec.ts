@@ -345,8 +345,8 @@ test("the account menu works with the keyboard", async ({ page }) => {
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem", { name: "My links" })).toBeFocused();
   await expect(menu.getByRole("menuitem", { name: "My links" })).toHaveAttribute("aria-current", "page");
-  // Language and appearance live on the account page: sign-out comes right after the pages.
-  for (const name of ["My account", "Administration", "Sign out"]) {
+  // Language and appearance live on the account page: sign-out comes right after the pages and About.
+  for (const name of ["My account", "Administration", "About", "Sign out"]) {
     await page.keyboard.press("ArrowDown");
     await expect(menu.getByRole("menuitem", { name })).toBeFocused();
   }
@@ -379,7 +379,7 @@ test("the sections and sign-out stay reachable at 400 % zoom, without horizontal
     await trigger.click();
     const menu = page.getByRole("menu");
     await expect(menu.getByRole("menuitem", { name: current })).toHaveAttribute("aria-current", "page");
-    for (const name of ["My links", "Administration", "Sign out"]) {
+    for (const name of ["My links", "Administration", "About", "Sign out"]) {
       const item = menu.getByRole("menuitem", { name });
       await item.scrollIntoViewIfNeeded();
       await expect(item).toBeInViewport();

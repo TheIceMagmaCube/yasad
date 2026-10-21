@@ -1,4 +1,4 @@
-import { ChevronDown, House, LogOut, type LucideIcon, Settings, UserRound } from "lucide-react";
+import { ChevronDown, House, Info, LogOut, type LucideIcon, Settings, UserRound } from "lucide-react";
 import { useRef } from "react";
 
 import type { User } from "../api";
@@ -24,7 +24,8 @@ const ENTRY =
   "relative min-h-11 gap-3 px-3 py-2 text-sm [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground aria-[current=page]:font-semibold aria-[current=page]:[&_svg]:text-foreground";
 
 /**
- * Account menu: who is signed in, the pages (my links, my account, administration for admins), then sign-out.
+ * Account menu: who is signed in, the pages (my links, my account, administration for admins), the about page in a
+ * group of its own (rarely opened), then sign-out.
  * Language and appearance live on the account page. `path` is the current path, to mark the entry of the open
  * section or page.
  *
@@ -91,6 +92,8 @@ export function UserMenu({ user, path, onSignOut }: { user: User; path: string; 
         {page("/", m.userMenu.home, House, path === "/")}
         {page("/account", m.userMenu.account, UserRound, path === "/account")}
         {user.role === "admin" && page("/admin", m.userMenu.admin, Settings, inAdmin(path))}
+        <DropdownMenuSeparator />
+        {page("/about", m.userMenu.about, Info, path === "/about")}
         <DropdownMenuSeparator />
         <DropdownMenuItem className={ENTRY} onSelect={onSignOut}>
           <LogOut aria-hidden="true" />
