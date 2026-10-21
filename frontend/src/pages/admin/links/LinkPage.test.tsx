@@ -204,6 +204,13 @@ describe("LinkPage", () => {
     expect(screen.queryByRole("region", { name: "Last check" })).toBeNull();
   });
 
+  it("shows no last check for an inactive checked link", async () => {
+    const inactive = { ...WIKI, active: false, check: true, status: { state: "down" as const, reason: "http_error", httpStatus: 502, checkedAt: new Date().toISOString() } };
+    renderAdmin("/admin/links/wiki", linksRoutes({}, { categories: [{ ...TOOLS, links: [inactive, ...TOOLS.links.slice(1)] }, DEV] }));
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    expect(screen.queryByRole("region", { name: "Last check" })).toBeNull();
+  });
+
   it("says when the address names a link that no longer exists", async () => {
     renderAdmin("/admin/links/nowhere", linksRoutes());
     expect(await screen.findByRole("heading", { level: 1, name: "This item no longer exists." })).toBeInTheDocument();

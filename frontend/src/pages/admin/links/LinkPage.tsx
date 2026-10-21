@@ -207,8 +207,9 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
             </FormActions>
           )}
         </form>
-        {/* The stored link, so a tick not saved yet shows no block, and a save that drops the result shows it gone. */}
-        <LinkStatus link={base} checks={checks} now={now} />
+        {/* The stored link, so a tick not saved yet shows no block, and a save that drops the result shows it gone. An
+            inactive link is never checked, so it shows no status, as in the list. */}
+        {base.active && <LinkStatus link={base} checks={checks} now={now} />}
         <RecentChanges type="link" id={link.id} scoped version={link} />
         {!readOnly && (
           <PaneDanger>
