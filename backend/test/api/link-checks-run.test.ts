@@ -1,8 +1,11 @@
 import { type TestApp, testApp, type TestEnv } from "#harness";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
+import { D1_CALLS, fitBatch, WORKERS_BUDGET } from "../../src/checks/budget";
 import { DOH_ENDPOINT } from "../../src/net/doh";
 import { type FakeNet, fakeNet, type SiteAnswer, targetRequests } from "../harness/fake-net";
+import { adminApp, importFile, type Link, newCategory, newLink } from "./catalog-items";
+import { send } from "./users";
 
 const NOW = Date.UTC(2030, 0, 1);
 const INTERVAL = 5 * 60_000;
@@ -221,6 +224,210 @@ describe("scheduled link checks", () => {
     expect(warn).toHaveBeenCalledOnce();
     expect(warn).toHaveBeenCalledWith(
       "Status checks: 2 links are checked, but this target checks at most 1 per interval; raise STATUS_CHECK_INTERVAL_MINUTES or check fewer links.",
+    );
+  });
+});
+
+/** A row claimed and released without a result: still due, free for the next run. */
+const released = (linkId: string) => ({
+  link_id: linkId,
+  state: null,
+  reason: null,
+  http_status: null,
+  checked_at: null,
+  due_at: 0,
+  claim_id: null,
+  claimed_until: 0,
+});
+
+const dohFor = (name: string) => net.requests.filter((r) => r.url.startsWith(`${DOH_ENDPOINT}?name=${name}&`));
+
+describe("scheduled link checks: concurrency, leases and budget", () => {
+  it("two runs at once never check a link twice", async () => {
+    const ids = ["a", "b", "c", "d", "e"];
+    const app = await checkedApp(
+      ids.map((id) => ({ id, url: site(`${id}.example`, 200) })),
+      { STATUS_CHECK_BATCH: "3" },
+    );
+    await Promise.all([app.runChecks({ now: NOW }), app.runChecks({ now: NOW })]);
+    expect(ids.map((id) => targetRequests(net, `https://${id}.example`).length)).toEqual([1, 1, 1, 1, 1]);
+    expect(await statusRows(app)).toEqual(ids.map((id) => result(id, "up", null, 200)));
+  });
+
+  it("a run in flight keeps its links from the next run", async () => {
+    const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
+    const releaseDns = net.hold(DOH_ENDPOINT);
+    const first = app.runChecks({ now: NOW });
+    await net.seen(DOH_ENDPOINT);
+    await app.runChecks({ now: NOW + 20_000 });
+    releaseDns();
+    await first;
+    expect(targetRequests(net, "https://up.example")).toHaveLength(1);
+    expect(await statusRows(app)).toEqual([result("up", "up", null, 200)]);
+  });
+
+  it("keeps the claim through resolution and request alike", async () => {
+    const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
+    const releaseDns = net.hold(DOH_ENDPOINT);
+    const first = app.runChecks({ now: NOW });
+    await net.seen(DOH_ENDPOINT);
+    await app.runChecks({ now: NOW + 20_000 });
+    const releaseGet = net.hold("https://up.example");
+    releaseDns();
+    await net.seen("https://up.example");
+    await app.runChecks({ now: NOW + 40_000 });
+    releaseGet();
+    await first;
+    expect(targetRequests(net, "https://up.example")).toHaveLength(1);
+    expect(await statusRows(app)).toEqual([result("up", "up", null, 200)]);
+  });
+
+  it("a late run keeps its lease", async () => {
+    // Scheduled minutes ago: the lease must run from the wall clock, not from the scheduled time.
+    const late = Date.now() - 5 * 60_000;
+    const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
+    const releaseGet = net.hold("https://up.example");
+    const first = app.runChecks({ now: late });
+    await net.seen("https://up.example");
+    // Past `late + leaseMs` with the defaults (60 s), while the first run is still in flight.
+    await app.runChecks({ now: late + 60_000 });
+    releaseGet();
+    await first;
+    expect(targetRequests(net, "https://up.example")).toHaveLength(1);
+    expect(await statusRows(app)).toEqual([result("up", "up", null, 200, late)]);
+  });
+
+  it("a platform error of the request writes nothing and leaves the link due", async () => {
+    const app = await checkedApp([{ id: "busy", url: site("busy.example", "platform") }]);
+    await app.runChecks({ now: NOW });
+    expect(await statusRows(app)).toEqual([released("busy")]);
+    await app.runChecks({ now: NOW });
+    expect(targetRequests(net, "https://busy.example")).toHaveLength(2);
+    expect(await statusRows(app)).toEqual([released("busy")]);
+  });
+
+  it("a platform error of the resolver writes nothing and leaves the link due", async () => {
+    net.dns["busy.example"] = { fail: "platform" };
+    const app = await checkedApp([{ id: "busy", url: "https://busy.example/" }]);
+    await app.runChecks({ now: NOW });
+    expect(await statusRows(app)).toEqual([released("busy")]);
+    const queries = dohFor("busy.example").length;
+    expect(queries).toBeGreaterThan(0);
+    await app.runChecks({ now: NOW });
+    expect(dohFor("busy.example").length).toBeGreaterThan(queries);
+    expect(targetRequests(net, "https://busy.example")).toEqual([]);
+    expect(await statusRows(app)).toEqual([released("busy")]);
+  });
+
+  it("keeps within the Workers subrequest budget", async () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `l${String(i).padStart(2, "0")}`);
+    const app = await checkedApp(
+      ids.map((id) => ({ id, url: site(`${id}.example`, 200) })),
+      { STATUS_CHECK_BATCH: "20" },
+    );
+    const fit = fitBatch(20, WORKERS_BUDGET);
+    await app.runChecks({ now: NOW });
+    const contacted = () => ids.filter((id) => targetRequests(net, `https://${id}.example`).length > 0);
+    expect(contacted()).toEqual(ids.slice(0, fit));
+    expect(net.requests.length).toBeLessThanOrEqual(WORKERS_BUDGET.subrequests! - D1_CALLS);
+    await app.runChecks({ now: NOW });
+    expect(contacted()).toEqual(ids);
+    expect(ids.map((id) => targetRequests(net, `https://${id}.example`).length)).toEqual(ids.map(() => 1));
+  });
+
+  it("releases what the counted fetch refuses", async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `l${i}`);
+    for (const id of ids) {
+      // Three CNAME hops: four names resolved (A and AAAA each), then the GET: 9 fetches per link.
+      net.dns[`${id}.example`] = { cname: `${id}-1.example` };
+      net.dns[`${id}-1.example`] = { cname: `${id}-2.example` };
+      net.dns[`${id}-2.example`] = { cname: `${id}-3.example` };
+      net.dns[`${id}-3.example`] = { a: [PUBLIC_A] };
+      net.sites[`https://${id}.example`] = 200;
+    }
+    const app = await checkedApp(ids.map((id) => ({ id, url: `https://${id}.example/` })));
+    await app.runChecks({ now: NOW });
+    expect(net.requests.length).toBeLessThanOrEqual(WORKERS_BUDGET.subrequests! - D1_CALLS);
+    const rows = await statusRows(app);
+    expect(rows).toHaveLength(ids.length);
+    const [done, left] = [rows.filter((r) => r.state !== null), rows.filter((r) => r.state === null)];
+    // A refusal is never a result: what was checked is up, the rest is released and still due.
+    for (const row of done) expect(row).toEqual(result(row.link_id as string, "up", null, 200));
+    for (const row of left) expect(row).toEqual(released(row.link_id as string));
+    expect(left.length).toBeGreaterThan(0);
+  });
+
+  it("frees a claim whose run died once its lease ends", async () => {
+    const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
+    await app.exec(
+      `insert into link_status (link_id, source, due_at, claim_id, claimed_until) values ('up', 'yasad', 0, 'dead', ${NOW + 1000})`,
+    );
+    await app.runChecks({ now: NOW });
+    expect(net.requests).toEqual([]);
+    await app.runChecks({ now: NOW + 1000 });
+    expect(targetRequests(net, "https://up.example")).toHaveLength(1);
+    expect(await statusRows(app)).toEqual([result("up", "up", null, 200, NOW + 1000)]);
+  });
+});
+
+describe("scheduled link checks: a link edited during its check", () => {
+  /** A checked link `wiki` at https://old.example/, created through the admin API. */
+  async function editedApp(): Promise<{ app: TestApp; created: Link }> {
+    const app = await adminApp();
+    site("old.example", 200);
+    site("new.example", 200);
+    await newCategory(app, { id: "tools", title: "Tools" });
+    const created = await newLink(app, { id: "wiki", title: "Wiki", categoryId: "tools", url: "https://old.example/", check: true });
+    return { app, created };
+  }
+
+  /** Runs a check of `wiki`, applying `edit` while its request to the old address is in flight. */
+  async function editDuringCheck(app: TestApp, edit: () => Promise<void>) {
+    const releaseGet = net.hold("https://old.example");
+    const run = app.runChecks({ now: NOW });
+    await net.seen("https://old.example");
+    await edit();
+    releaseGet();
+    await run;
+    expect(await statusRows(app)).toEqual([]);
+    expect(targetRequests(net, "https://old.example")).toHaveLength(1);
+    expect(targetRequests(net, "https://new.example")).toEqual([]);
+  }
+
+  it("drops the result when the address changes", async () => {
+    const { app, created } = await editedApp();
+    await editDuringCheck(app, async () => {
+      const res = await send(app, "PATCH", "/api/admin/links/wiki", { revision: created.revision, url: "https://new.example/" });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it("drops the result when the check is turned off", async () => {
+    const { app, created } = await editedApp();
+    await editDuringCheck(app, async () => {
+      const res = await send(app, "PATCH", "/api/admin/links/wiki", { revision: created.revision, check: false });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it("drops the result when an import changes the address", async () => {
+    const { app } = await editedApp();
+    await editDuringCheck(app, () =>
+      importFile(
+        app,
+        `version: 1
+categories:
+  - id: tools
+    title: Tools
+    groups: ["@everyone"]
+    links:
+      - id: wiki
+        title: Wiki
+        url: https://new.example/
+        groups: ["@everyone"]
+        check: true
+`,
+      ),
     );
   });
 });
