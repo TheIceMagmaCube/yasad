@@ -196,6 +196,20 @@ describe("HistoryPage", () => {
     expect(rows(table)).toEqual([["Title", "Wiki", "Team wiki"]]);
   });
 
+  it("names the check of a link and shows it as No and Yes", async () => {
+    const CHECKED = entry({
+      id: 9,
+      action: "update",
+      object: { type: "link", id: "wiki", label: "Wiki", exists: true },
+      before: { ...LINK_FIELDS, title: "Wiki", check: false },
+      after: { ...LINK_FIELDS, title: "Wiki", check: true },
+    });
+    const { user } = renderAdmin("/admin/history", routes({ "GET /api/admin/history": page([CHECKED]) }));
+    await screen.findByRole("table");
+    const details = await open(user, /Changed, Wiki/);
+    expect(rows(within(details).getByRole("table"))).toEqual([["Check availability", "No", "Yes"]]);
+  });
+
   it("shows a creation by the setup with its values only, Yes and No for flags, System as author", async () => {
     const { user } = renderAdmin("/admin/history", routes());
     await screen.findByRole("table");

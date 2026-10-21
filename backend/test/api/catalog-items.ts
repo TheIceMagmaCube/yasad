@@ -13,6 +13,8 @@ export type Link = {
   iconKnown: boolean;
   keywords: string[];
   active: boolean;
+  check: boolean;
+  status: Record<string, unknown> | null;
   groups: string[];
   revision: number;
 };

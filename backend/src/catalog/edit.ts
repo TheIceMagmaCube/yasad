@@ -4,7 +4,8 @@ import { z } from "zod";
 import { type AuditAction, type AuditEntry, type Auditor, auditStatements, readSnapshot, snapshot, unchangedSince } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
-import { category, categoryGroup, group, link, linkGroup } from "../schema";
+import { checkTarget } from "../net/policy";
+import { category, categoryGroup, group, link, linkGroup, linkStatus } from "../schema";
 import { categoryFields, errorOf, ICON, ID, linkSchema, MAX_CATEGORIES, MAX_LINKS_PER_CATEGORY, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 import { bumpRevision, categoryGroupRows, guard, linkGroupRows } from "./sync";
@@ -21,13 +22,27 @@ export type AdminLink = {
   iconKnown: boolean;
   keywords: string[];
   active: boolean;
+  /** Whether the server checks the link's address. */
+  check: boolean;
+  /** The last built-in check, null while unchecked or never checked; read only. */
+  status: AdminLinkStatus | null;
   groups: string[];
   revision: number;
 };
+
+/** The last built-in check of a link, for admins: reason and HTTP status included. */
+export type AdminLinkStatus = { state: "up" | "down" | "unknown"; reason: string | null; httpStatus: number | null; checkedAt: string | null };
 export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
 
 /** A point the admin should know after a write that went through, as a code the interface translates. */
-export type EditWarning = "no_group" | "unknown_icon" | "groups_differ_by_case" | "new_oidc_group";
+export type EditWarning =
+  | "no_group"
+  | "unknown_icon"
+  | "groups_differ_by_case"
+  | "new_oidc_group"
+  | "check_blocked_address"
+  | "check_blocked_port"
+  | "check_login_gateway";
 
 /** A refused edit, answered as `{ error: { code, ...details } }` with `status`. */
 export type EditFailure = { status: 404 | 409 | 422; code: string; details?: Record<string, unknown> };
@@ -133,7 +148,10 @@ function refsBy(rows: GroupRow[]): Map<string, string[]> {
   return map;
 }
 
-function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink {
+/** The join condition of a link's built-in status row. */
+const ownStatus = and(eq(linkStatus.linkId, link.id), eq(linkStatus.source, "yasad"));
+
+function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: typeof linkStatus.$inferSelect | null): AdminLink {
   return {
     id: row.id,
     categoryId: row.categoryId,
@@ -144,6 +162,11 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink
     iconKnown: resolveIcon(row.icon) !== null,
     keywords: parseKeywords(row.keywords),
     active: row.active,
+    check: row.check,
+    status:
+      row.check && status?.state
+        ? { state: status.state, reason: status.reason, httpStatus: status.httpStatus, checkedAt: status.checkedAt?.toISOString() ?? null }
+        : null,
     groups,
     revision: row.revision,
   };
@@ -153,7 +176,12 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink
 export async function readCategories(db: DB, id?: string): Promise<AdminCategory[]> {
   const [categories, links, categoryGroups, linkGroups] = await Promise.all([
     db.select().from(category).where(id === undefined ? undefined : eq(category.id, id)).orderBy(asc(category.position), asc(category.id)),
-    db.select().from(link).where(id === undefined ? undefined : eq(link.categoryId, id)).orderBy(asc(link.position), asc(link.id)),
+    db
+      .select()
+      .from(link)
+      .leftJoin(linkStatus, ownStatus)
+      .where(id === undefined ? undefined : eq(link.categoryId, id))
+      .orderBy(asc(link.position), asc(link.id)),
     db
       .select({ id: categoryGroup.categoryId, source: group.source, name: group.name })
       .from(categoryGroup)
@@ -173,7 +201,7 @@ export async function readCategories(db: DB, id?: string): Promise<AdminCategory
     title: cat.title,
     groups: catGroups.get(cat.id) ?? [],
     revision: cat.revision,
-    links: links.filter((lnk) => lnk.categoryId === cat.id).map((lnk) => toAdminLink(lnk, lnkGroups.get(lnk.id) ?? [])),
+    links: links.filter((r) => r.link.categoryId === cat.id).map((r) => toAdminLink(r.link, lnkGroups.get(r.link.id) ?? [], r.link_status)),
   }));
 }
 
@@ -183,10 +211,10 @@ export async function readCategory(db: DB, id: string): Promise<AdminCategory | 
 
 export async function readLink(db: DB, id: string): Promise<AdminLink | null> {
   const [row, groups] = await Promise.all([
-    db.select().from(link).where(eq(link.id, id)).get(),
+    db.select().from(link).leftJoin(linkStatus, ownStatus).where(eq(link.id, id)).get(),
     db.select({ id: linkGroup.linkId, source: group.source, name: group.name }).from(linkGroup).innerJoin(group, eq(group.id, linkGroup.groupId)).where(eq(linkGroup.linkId, id)),
   ]);
-  return row ? toAdminLink(row, refsBy(groups).get(id) ?? []) : null;
+  return row ? toAdminLink(row.link, refsBy(groups).get(id) ?? [], row.link_status) : null;
 }
 
 /**
@@ -228,6 +256,22 @@ function groupStatements(db: DB, refs: string[]): unknown[] {
 /** Return the statement failing the batch unless the item still exists with this revision. */
 function revisionGuard(db: DB, table: typeof category | typeof link, id: string, revision: number) {
   return guard(db, notExists(db.select({ one: sql`1` }).from(table).where(and(eq(table.id, id), eq(table.revision, revision)))));
+}
+
+/** Okta domains: a link on a subdomain is a sign-in tile, so its status measures the sign-in page. A closed list. */
+const LOGIN_GATEWAYS = ["okta.com", "oktapreview.com", "okta-emea.com"];
+
+/**
+ * Return what a checked link's address means for its status, from the address alone (no DNS): never contacted
+ * (`check_blocked_address`, `check_blocked_port`, as the outbound policy will refuse it) or a sign-in page.
+ */
+export function checkWarnings(url: string, check: boolean): EditWarning[] {
+  if (!check) return [];
+  const target = checkTarget(url);
+  // `invalid_target` (credentials in the URL) is refused as a blocked address by both outbound implementations.
+  if (!target.ok) return [target.code === "blocked_port" ? "check_blocked_port" : "check_blocked_address"];
+  // Subdomains only: okta.com itself is Okta's own site, not a tile. `target.host` is lower case without trailing dots.
+  return LOGIN_GATEWAYS.some((domain) => target.host.endsWith(`.${domain}`)) ? ["check_login_gateway"] : [];
 }
 
 function warningsOf(groups: string[], icon: string | null | undefined, groupWarnings: EditWarning[]): EditWarning[] {
@@ -434,6 +478,7 @@ export async function createLink({ db }: Author, body: unknown): Promise<Edit<Ad
         icon: input.icon ?? null,
         keywords: JSON.stringify(input.keywords ?? []),
         active: input.active ?? true,
+        check: input.check ?? false,
         position: nextLinkPosition(input.categoryId),
       }),
       ...linkGroupRows(db, id, input.groups),
@@ -448,7 +493,7 @@ export async function createLink({ db }: Author, body: unknown): Promise<Edit<Ad
       if ((await linksIn(db, input.categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
       return null;
     },
-    warnings: warningsOf(input.groups, input.icon, groups.warnings),
+    warnings: [...warningsOf(input.groups, input.icon, groups.warnings), ...checkWarnings(input.url, input.check ?? false)],
   };
 }
 
@@ -472,6 +517,8 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
   const groups = refs ? await checkGroups(db, refs) : { unknown: false, warnings: [] };
   if (groups.unknown) return invalid({ groups: "unknown_group" });
   if (moves && (await linksIn(db, categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
+  // `before` is the stored link: the revision guard fails the batch otherwise, and a check result never bumps it.
+  const resets = (fields.url ?? before.url) !== before.url || !(fields.check ?? before.check);
 
   return {
     statements: [
@@ -489,6 +536,7 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
           updatedAt: new Date(),
         })
         .where(eq(link.id, id)),
+      ...(resets ? [db.delete(linkStatus).where(and(eq(linkStatus.linkId, id), eq(linkStatus.source, "yasad")))] : []),
       ...(refs ? [db.delete(linkGroup).where(eq(linkGroup.linkId, id)), ...linkGroupRows(db, id, refs)] : []),
       ...(moves ? [placeLinks(db, before.categoryId)] : []),
     ],
@@ -503,7 +551,10 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
       if (moves && (await linksIn(db, categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
       return null;
     },
-    warnings: warningsOf(refs ?? before.groups, fields.icon === undefined ? before.icon : fields.icon, groups.warnings),
+    warnings: [
+      ...warningsOf(refs ?? before.groups, fields.icon === undefined ? before.icon : fields.icon, groups.warnings),
+      ...checkWarnings(fields.url ?? before.url, fields.check ?? before.check),
+    ],
   };
 }
 
