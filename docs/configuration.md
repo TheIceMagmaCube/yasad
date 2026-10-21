@@ -90,7 +90,7 @@ YASAD checks the links marked for it (`check: true` in the catalog file, or **Ch
 
 On Docker, batches follow one another for up to 50 seconds in each minute. On Workers, each minute runs one batch, and the Free plan allows 50 subrequests per run: 3 per link plus the database, so about 15 links per run. A higher `STATUS_CHECK_BATCH` changes nothing there, and YASAD logs a warning when the checked links exceed what the interval allows. The Free plan also allows 5 cron triggers per account, shared by all its Workers; YASAD uses one.
 
-Only public addresses are checked: a link that points to a private or reserved address, or to a name that resolves to one, gets an unknown status and is never contacted. Requests send `User-Agent: YASAD-status/<version>`, no cookie and no credential. On Workers, Cloudflare may add `Accept-Encoding` and `CF-Worker: <zone>`.
+Only public addresses are checked: a link that points to a private or reserved address, or to a name that resolves to one, gets an unknown status and is never contacted. Requests send `User-Agent: YASAD-status/<version> (+https://github.com/TheIceMagmaCube/yasad)` and `Accept: */*`, no cookie and no credential. On Workers, Cloudflare may add `Accept-Encoding` and `CF-Worker: <zone>`.
 
 ## Sign-in with OIDC
 
