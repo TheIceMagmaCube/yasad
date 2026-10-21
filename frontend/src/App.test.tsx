@@ -949,6 +949,18 @@ describe("App, temporary password and account", () => {
     expect(within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-current") === "page")).toHaveLength(1);
   });
 
+  it("opens the person's groups from the empty home, focused once loaded", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...signedIn({ ...BOB, id: "bob" }), "GET /api/account": accountOf("Night shift") });
+    renderAt("/");
+    await screen.findByRole("heading", { level: 2, name: "Nothing to show yet" });
+    await user.click(screen.getByRole("link", { name: "See my groups" }));
+    expect(location.pathname).toBe("/account");
+    expect(location.hash).toBe("#groups");
+    expect(await screen.findByText("Night shift")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "My groups" })).toHaveFocus());
+  });
+
   it("shows the saved name everywhere once the profile is changed", async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi({

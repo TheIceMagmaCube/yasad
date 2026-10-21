@@ -13,11 +13,17 @@ const stepLink =
 
 /**
  * Explain why the home page shows no link, from the code the API sends. An admin with an empty catalog gets the
- * three setup steps; nobody else is pointed at the administration pages. An unknown or missing code reads as
- * "nothing visible".
+ * three setup steps; nobody else is pointed at the administration pages. `no_groups` and `nothing_visible` link to
+ * the person's groups on the account page. An unknown or missing code (an anonymous visitor included) reads as
+ * "nothing visible", without that link.
  */
 export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
   const m = useStrings().home.empty;
+  const seeGroups = (
+    <Link href="/account#groups" className={buttonVariants({ variant: "outline" })}>
+      {m.seeGroups}
+    </Link>
+  );
   switch (empty) {
     case "catalog_empty":
       return (
@@ -71,8 +77,14 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
       );
     case "no_groups":
       return (
-        <EmptyState icon={UserRoundX} titleAs="h2" title={m.noGroups.title}>
+        <EmptyState icon={UserRoundX} titleAs="h2" title={m.noGroups.title} actions={seeGroups}>
           {m.noGroups.body}
+        </EmptyState>
+      );
+    case "nothing_visible":
+      return (
+        <EmptyState icon={Layers} titleAs="h2" title={m.nothingVisible.title} actions={seeGroups}>
+          {m.nothingVisible.body}
         </EmptyState>
       );
     default:

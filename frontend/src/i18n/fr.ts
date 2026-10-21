@@ -686,8 +686,9 @@ export const fr = {
       },
       noGroups: {
         title: "Pas encore d'accès",
-        body: "Votre compte n'est dans aucun groupe. Contactez votre administrateur.",
+        body: "Vous n'avez aucun groupe en dehors des groupes intégrés. Contactez votre administrateur.",
       },
+      seeGroups: "Voir mes groupes",
       nothingVisible: {
         title: "Rien à afficher pour l'instant",
         body: "Vos groupes n'ouvrent encore aucun lien. Si vous en attendiez, contactez votre administrateur.",

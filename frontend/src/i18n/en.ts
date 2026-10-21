@@ -674,8 +674,9 @@ export const en = {
       },
       noGroups: {
         title: "No access yet",
-        body: "Your account is in no group. Contact your administrator.",
+        body: "You hold no group besides the built-in ones. Contact your administrator.",
       },
+      seeGroups: "See my groups",
       nothingVisible: {
         title: "Nothing to show yet",
         body: "Your groups do not open any link yet. If you expected some, contact your administrator.",
