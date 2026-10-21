@@ -6,6 +6,7 @@ import { onStaleSession } from "../../api";
 import { primeHome, useHomeEntry } from "../../lib/home-store";
 import { mockApi, renderWithProviders, type Routes, sentBody } from "../../test-utils";
 import { AdminCatalog } from "./AdminCatalog";
+import { CHECKS } from "./links/testing";
 
 // jsdom has no object URLs; the export creates one for the file it downloads.
 for (const name of ["createObjectURL", "revokeObjectURL"] as const) {
@@ -20,7 +21,7 @@ afterEach(() => {
 
 const YAML = "version: 1\ncategories: []\n";
 const NONE = { categories: [], links: [] };
-const STATE = { managedByFile: false, categories: 4, links: 23, groups: 6 };
+const STATE = { managedByFile: false, categories: 4, links: 23, groups: 6, checks: CHECKS };
 const diffOf = (diff: object) => ({ added: NONE, updated: NONE, removed: NONE, groupsCreated: [], warnings: [], labels: { categories: {}, links: {} }, ...diff });
 const preview = (diff: object) => ({ status: 200, body: { applied: false, baseVersion: "v1", diff: diffOf(diff) } });
 

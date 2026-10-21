@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminCategory, AdminLink } from "../../api";
 import type { Routes } from "../../test-utils";
+import { CHECKS } from "./links/testing";
 import { group, groupsAnswer, pageHeading, person, renderAdmin, usersAnswer } from "./people/testing";
 
 afterEach(() => {
@@ -58,7 +59,7 @@ type Answer = Routes[string];
 const routes = (fields: { users?: Answer; groups?: Answer; categories?: AdminCategory[] } = {}): Routes => ({
   "GET /api/admin/users": fields.users ?? usersAnswer(ADA, DAN, EVE, HELENE),
   "GET /api/admin/groups": fields.groups ?? groupsAnswer(EVERYONE, AUTHENTICATED, FINANCE, REVIEWERS, AUDITORS, STAFF, IDLE, DEVS),
-  "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 2, links: 3, groups: 4 } },
+  "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 2, links: 3, groups: 4, checks: CHECKS } },
   "GET /api/admin/categories": { status: 200, body: { categories: fields.categories ?? CATALOG } },
 });
 

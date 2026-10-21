@@ -419,13 +419,13 @@ categories:
     const app = await adminApp();
     const empty = await app.request("/api/admin/catalog/state");
     expect(empty.headers.get("cache-control")).toBe("no-store");
-    expect(await empty.json()).toStrictEqual({ managedByFile: false, categories: 0, links: 0, groups: 0 });
+    expect(await empty.json()).toMatchObject({ managedByFile: false, categories: 0, links: 0, groups: 0 });
 
     await importFile(app, CATALOG);
     // @everyone is on a category and a link; oidc:Developers is on two links.
     const res = await app.request("/api/admin/catalog/state");
     expect(res.status).toBe(200);
-    expect(await res.json()).toStrictEqual({ managedByFile: false, categories: 2, links: 3, groups: 4 });
+    expect(await res.json()).toMatchObject({ managedByFile: false, categories: 2, links: 3, groups: 4 });
   });
 
   it("reports a catalog managed by CATALOG_FILE", async () => {

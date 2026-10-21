@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminCategory, CatalogState } from "../../../api";
 import { expectFocused, getAnnouncer } from "../../../test-utils";
+import { CHECKS } from "../links/testing";
 import { apiError, group, groupsAnswer, person, renderAdmin, usersAnswer } from "./testing";
 
 afterEach(() => {
@@ -17,7 +18,7 @@ const FINANCE = group({ id: "g1", name: "Finance", memberIds: ["bob"], categorie
 const DEVELOPERS = group({ id: "o1", name: "developers", source: "oidc", memberIds: ["carol"], seenAt: "2026-10-01T00:00:00.000Z" });
 const TYPED = group({ id: "o2", name: "auditors", source: "oidc", seenAt: null });
 const EVERYONE = group({ id: "system:everyone", name: "everyone", source: "system" });
-const STATE: CatalogState = { managedByFile: false, categories: 1, links: 2, groups: 2 };
+const STATE: CatalogState = { managedByFile: false, categories: 1, links: 2, groups: 2, checks: CHECKS };
 const link = (id: string, title: string, groups: string[]) => ({
   id,
   categoryId: "tools",

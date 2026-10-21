@@ -47,8 +47,13 @@ export type CatalogDiff = {
   labels: { categories: Record<string, string>; links: Record<string, { title: string; categoryId: string }> };
 };
 export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
-/** What the catalog holds, and whether CATALOG_FILE manages it (import refused, groups it uses locked). */
-export type CatalogState = { managedByFile: boolean; categories: number; links: number; groups: number };
+/**
+ * How links are checked: the interval, the age after which a result reads unknown, the active checked links, and
+ * how many a Worker can check per interval (null on Docker).
+ */
+export type CheckSettings = { intervalMinutes: number; staleAfterMinutes: number; checked: number; capacity: number | null };
+/** What the catalog holds, whether CATALOG_FILE manages it (import refused, groups it uses locked), and how links are checked. */
+export type CatalogState = { managedByFile: boolean; categories: number; links: number; groups: number; checks: CheckSettings };
 
 export type Role = "admin" | "user";
 export type GroupSource = "oidc" | "local" | "system";

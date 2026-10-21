@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { navigate } from "./lib/router";
+import { CHECKS } from "./pages/admin/links/testing";
 import { leavePage } from "./lib/sign-in";
 import { expectFocused, mockApi, type Routes } from "./test-utils";
 
@@ -45,7 +46,7 @@ function signedIn(user: object): Routes {
     "GET /api/home": { status: 200, body: { signedIn: true, categories: [], empty: "nothing_visible", pins: [] } },
     "GET /api/admin/users": { status: 200, body: { users: [] } },
     "GET /api/admin/groups": { status: 200, body: { groups: [] } },
-    "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } },
+    "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0, checks: CHECKS } },
     "GET /api/admin/categories": { status: 200, body: { categories: [] } },
   };
 }
@@ -744,7 +745,7 @@ describe("App, views and focus", () => {
       ],
       "GET /api/admin/users": [unauthenticated, { status: 200, body: { users: [] } }],
       "GET /api/admin/groups": [unauthenticated, { status: 200, body: { groups: [] } }],
-      "GET /api/admin/catalog/state": [unauthenticated, { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } }],
+      "GET /api/admin/catalog/state": [unauthenticated, { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0, checks: CHECKS } }],
       "GET /api/admin/categories": [unauthenticated, { status: 200, body: { categories: [] } }],
       "POST /api/auth/sign-in/email": { status: 200, body: {} },
     });
