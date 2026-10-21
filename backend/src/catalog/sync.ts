@@ -4,6 +4,7 @@ import { type AuditEntry, type Auditor, auditStatements } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, linkStatus, setting } from "../schema";
+import { type CheckWarning, checkWarnings } from "./check-warnings";
 import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 
@@ -11,6 +12,7 @@ import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./g
 export type CatalogWarning =
   | { code: "no_group"; kind: "category" | "link"; id: string }
   | { code: "unknown_icon"; kind: "link"; id: string }
+  | { code: CheckWarning; kind: "link"; id: string }
   | { code: "groups_differ_by_case"; groups: string[] };
 
 export type CatalogDiff = {
@@ -187,6 +189,8 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
       if (lnk.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "link", id: lnk.id });
       // Kept as written: the file may target another icon version.
       if (lnk.icon && !resolveIcon(lnk.icon)) diff.warnings.push({ code: "unknown_icon", kind: "link", id: lnk.id });
+      // Static, as on an edit: the import is never refused for them.
+      for (const code of checkWarnings(lnk.url, lnk.check ?? false)) diff.warnings.push({ code, kind: "link", id: lnk.id });
     }
   }
   for (const groups of caseVariants(new Set([...refs, ...existing]))) diff.warnings.push({ code: "groups_differ_by_case", groups });

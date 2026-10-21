@@ -380,6 +380,10 @@ function WarningText({ warning, diff }: { warning: CatalogWarning; diff: Catalog
       return <>{s.noGroup(warning.kind, warning.kind === "category" ? (own(labels.categories, warning.id) ?? warning.id) : (own(labels.links, warning.id)?.title ?? warning.id))}</>;
     case "unknown_icon":
       return <>{s.unknownIcon(own(labels.links, warning.id)?.title ?? warning.id)}</>;
+    case "check_blocked_address":
+    case "check_blocked_port":
+    case "check_login_gateway":
+      return <>{s.checkWarning(own(labels.links, warning.id)?.title ?? warning.id, m.links.warnings[warning.code])}</>;
     case "groups_differ_by_case":
       return (
         <div className="flex flex-col gap-1.5">

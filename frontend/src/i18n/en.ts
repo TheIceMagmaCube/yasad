@@ -199,6 +199,7 @@ export const en = {
     noGroup: (kind: "category" | "link", title: string) => `${kind === "category" ? "Category" : "Link"} "${title}" has no group: nobody can see it.`,
     unknownIcon: (title: string) => `Link "${title}" has an icon this version does not know: it shows its first letter instead.`,
     groupsDifferByCase: "These groups differ only by case:",
+    checkWarning: (title: string, text: string) => `${title}: ${text}`,
     errors: {
       invalid_id: () => "Use lower-case letters, digits and dashes.",
       invalid_group_ref: () => "Use @everyone, @authenticated, oidc:<name> or local:<name>.",

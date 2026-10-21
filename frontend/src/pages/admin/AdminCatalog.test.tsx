@@ -120,6 +120,44 @@ describe("AdminCatalog", () => {
     expect(await screen.findByText('Category "constructor" has no group: nobody can see it.')).toBeInTheDocument();
   });
 
+  it("warns about a checked link, citing its title", async () => {
+    const { userEv } = await renderPage(
+      routes({
+        "POST /api/admin/catalog": preview({
+          added: { categories: [], links: ["okta"] },
+          labels: { categories: { tools: "Tools" }, links: { okta: { title: "Wiki", categoryId: "tools" } } },
+          warnings: [{ code: "check_login_gateway", kind: "link", id: "okta" }],
+        }),
+      }),
+    );
+    await choose(userEv);
+    const section = await screen.findByRole("region", { name: "Import preview" });
+    expect(within(section).getByText("Wiki: Availability check: sign-in page. The status measures it, not the tool.")).toBeInTheDocument();
+  });
+
+  it("warns about a checked link in French", async () => {
+    localStorage.setItem("yasad.language", "fr");
+    try {
+      const fetchMock = mockApi(
+        routes({
+          "POST /api/admin/catalog": preview({
+            added: { categories: [], links: ["nas"] },
+            labels: { categories: { tools: "Outils" }, links: { nas: { title: "NAS", categoryId: "tools" } } },
+            warnings: [{ code: "check_blocked_address", kind: "link", id: "nas" }],
+          }),
+        }),
+      );
+      renderWithProviders(<AdminCatalog />);
+      const userEv = userEvent.setup();
+      await screen.findByText(/4 catégories/);
+      await userEv.upload(screen.getByLabelText("Choisir un fichier"), new File([YAML], "catalog.yaml", { type: "application/yaml" }));
+      expect(await screen.findByText("NAS : Vérification de disponibilité : adresse privée ou locale, jamais contactée.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalled();
+    } finally {
+      localStorage.removeItem("yasad.language");
+    }
+  });
+
   it("imports, shows the focused result, and drops the cached home", async () => {
     const { fetchMock, userEv } = await renderPage(
       routes({

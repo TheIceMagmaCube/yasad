@@ -33,6 +33,7 @@ function retryAfterOf(res: Response): number | null {
 export type CatalogWarning =
   | { code: "no_group"; kind: "category" | "link"; id: string }
   | { code: "unknown_icon"; kind: "link"; id: string }
+  | { code: "check_blocked_address" | "check_blocked_port" | "check_login_gateway"; kind: "link"; id: string }
   | { code: "groups_differ_by_case"; groups: string[] };
 export type CatalogErrorParams = { id?: string; key?: string; fields?: string[]; max?: number; line?: number };
 export type CatalogError = { path: string; code: string; params: CatalogErrorParams };

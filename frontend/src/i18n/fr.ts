@@ -203,6 +203,7 @@ export const fr = {
     noGroup: (kind, title) => `${kind === "category" ? "La catégorie" : "Le lien"} « ${title} » n'a aucun groupe : personne ne peut le voir.`,
     unknownIcon: (title) => `Le lien « ${title} » a une icône que cette version ne connaît pas : sa première lettre s'affiche à la place.`,
     groupsDifferByCase: "Ces groupes ne diffèrent que par la casse :",
+    checkWarning: (title, text) => `${title} : ${text}`,
     errors: {
       invalid_id: () => "Utilisez des minuscules, des chiffres et des tirets.",
       invalid_group_ref: () => "Utilisez @everyone, @authenticated, oidc:<nom> ou local:<nom>.",

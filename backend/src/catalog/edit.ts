@@ -4,10 +4,10 @@ import { z } from "zod";
 import { type AuditAction, type AuditEntry, type Auditor, auditStatements, readSnapshot, snapshot, unchangedSince } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
-import { checkTarget } from "../net/policy";
 import { category, categoryGroup, group, link, linkGroup, linkStatus } from "../schema";
 import { categoryFields, errorOf, ICON, ID, linkSchema, MAX_CATEGORIES, MAX_LINKS_PER_CATEGORY, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
+import { type CheckWarning, checkWarnings } from "./check-warnings";
 import { bumpRevision, categoryGroupRows, guard, linkGroupRows } from "./sync";
 
 /** A link as the admin screen shows it: everything stored, inactive links and links without a group included. */
@@ -40,9 +40,7 @@ export type EditWarning =
   | "unknown_icon"
   | "groups_differ_by_case"
   | "new_oidc_group"
-  | "check_blocked_address"
-  | "check_blocked_port"
-  | "check_login_gateway";
+  | CheckWarning;
 
 /** A refused edit, answered as `{ error: { code, ...details } }` with `status`. */
 export type EditFailure = { status: 404 | 409 | 422; code: string; details?: Record<string, unknown> };
@@ -256,22 +254,6 @@ function groupStatements(db: DB, refs: string[]): unknown[] {
 /** Return the statement failing the batch unless the item still exists with this revision. */
 function revisionGuard(db: DB, table: typeof category | typeof link, id: string, revision: number) {
   return guard(db, notExists(db.select({ one: sql`1` }).from(table).where(and(eq(table.id, id), eq(table.revision, revision)))));
-}
-
-/** Okta domains: a link on a subdomain is a sign-in tile, so its status measures the sign-in page. A closed list. */
-const LOGIN_GATEWAYS = ["okta.com", "oktapreview.com", "okta-emea.com"];
-
-/**
- * Return what a checked link's address means for its status, from the address alone (no DNS): never contacted
- * (`check_blocked_address`, `check_blocked_port`, as the outbound policy will refuse it) or a sign-in page.
- */
-export function checkWarnings(url: string, check: boolean): EditWarning[] {
-  if (!check) return [];
-  const target = checkTarget(url);
-  // `invalid_target` (credentials in the URL) is refused as a blocked address by both outbound implementations.
-  if (!target.ok) return [target.code === "blocked_port" ? "check_blocked_port" : "check_blocked_address"];
-  // Subdomains only: okta.com itself is Okta's own site, not a tile. `target.host` is lower case without trailing dots.
-  return LOGIN_GATEWAYS.some((domain) => target.host.endsWith(`.${domain}`)) ? ["check_login_gateway"] : [];
 }
 
 function warningsOf(groups: string[], icon: string | null | undefined, groupWarnings: EditWarning[]): EditWarning[] {

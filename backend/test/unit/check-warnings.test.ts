@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkWarnings } from "../../src/catalog/edit";
+import { checkWarnings } from "../../src/catalog/check-warnings";
 
 describe("checkWarnings", () => {
   it("says nothing about a link that is not checked", () => {
