@@ -2,7 +2,7 @@ import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAnnouncer, mockApi, renderWithProviders, sentBody } from "../test-utils";
+import { expectFocused, getAnnouncer, mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { Account } from "./Account";
 
 const ADA = { id: "ada", name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
@@ -330,6 +330,6 @@ describe("Account, profile fields", () => {
     const { user } = await edit("Name");
     await user.type(screen.getByRole("textbox", { name: "Name" }), " King");
     await act(() => user.click(screen.getByRole("button", { name: "Save profile" })));
-    expect(await screen.findByRole("group", { name: /come from your identity provider/ })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: /come from your identity provider/ }));
   });
 });

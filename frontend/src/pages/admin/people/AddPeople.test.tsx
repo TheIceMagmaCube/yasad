@@ -1,7 +1,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sentBody } from "../../../test-utils";
+import { expectFocused, sentBody } from "../../../test-utils";
 import { apiError, group, groupsAnswer, person, renderAdmin, usersAnswer } from "./testing";
 
 afterEach(() => {
@@ -41,7 +41,7 @@ describe("AddPeople", () => {
     await screen.findByRole("table");
     await user.click(screen.getByRole("link", { name: "Add" }));
     expect(location.pathname).toBe("/admin/users/new");
-    expect(await screen.findByRole("heading", { level: 1, name: "Add" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "Add" }));
     expect(stepHeading()).toHaveTextContent("What do you want to add?");
     expect(screen.getByRole("radio", { name: /Person/ })).toBeChecked();
     expect(currentStep()).toHaveTextContent("Step 1 of 5: Type");
@@ -57,7 +57,7 @@ describe("AddPeople", () => {
     expect(screen.getByRole("list", { name: "Steps" })).toHaveTextContent("Type, done");
 
     await next(user);
-    expect(await screen.findByRole("group", { name: "Check the highlighted fields." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Check the highlighted fields." }));
     expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("E-mail")).toHaveAttribute("aria-invalid", "true");
     expect(stepHeading()).toHaveTextContent("Identity");
@@ -157,7 +157,7 @@ describe("AddPeople", () => {
     await next(user);
     await next(user);
     await user.click(screen.getByRole("button", { name: "Create the account" }));
-    expect(await screen.findByRole("group", { name: "Check the highlighted fields." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Check the highlighted fields." }));
     expect(stepHeading()).toHaveTextContent("Identity");
     expect(screen.getByLabelText("E-mail")).toHaveAttribute("aria-invalid", "true");
   });

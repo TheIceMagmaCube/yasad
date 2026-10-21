@@ -1,7 +1,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAnnouncer, sentBody } from "../../../test-utils";
+import { expectFocused, getAnnouncer, sentBody } from "../../../test-utils";
 import { apiError, renderAdmin } from "../people/testing";
 import { category, link, linksRoutes, primeHomeCache, STATE } from "./testing";
 
@@ -176,7 +176,7 @@ describe("AddLinks", () => {
     await user.click(next());
     await user.click(next());
     await user.click(screen.getByRole("button", { name: "Create" }));
-    expect(await screen.findByRole("group", { name: "Check the highlighted fields." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Check the highlighted fields." }));
     expect(stepTitle()).toHaveTextContent("Title");
     expect(screen.getByLabelText("Identifier")).toHaveAccessibleDescription(/This identifier is already used\./);
   });

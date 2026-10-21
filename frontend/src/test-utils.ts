@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import { LocaleProvider } from "./i18n/LocaleProvider";
 import { AnnouncerProvider } from "./lib/announcer";
@@ -63,4 +63,18 @@ export function findStatus(): Promise<HTMLElement> {
 /** Return the app's announcer region. */
 export function getAnnouncer(): HTMLElement {
   return document.querySelector<HTMLElement>('[data-slot="announcer"]')!;
+}
+
+/**
+ * Wait for the element `get` returns to hold the focus, and return it.
+ *
+ * `findBy*` resolves as soon as the element is in the DOM, which may be before the effect that focuses it has run
+ * (an autofocused alert, the page heading after a view change): wait for the focus itself.
+ */
+export function expectFocused(get: () => HTMLElement): Promise<HTMLElement> {
+  return waitFor(() => {
+    const element = get();
+    expect(element).toHaveFocus();
+    return element;
+  });
 }

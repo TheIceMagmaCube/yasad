@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { navigate } from "./lib/router";
 import { leavePage } from "./lib/sign-in";
-import { mockApi, type Routes } from "./test-utils";
+import { expectFocused, mockApi, type Routes } from "./test-utils";
 
 const ADA = { name: "Ada Lovelace", email: "ada@example.invalid", role: "admin" };
 const BOB = { name: "Bob", email: "bob@example.invalid", role: "user" };
@@ -188,7 +188,7 @@ describe("App", () => {
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
     await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
     await user.click(screen.getByRole("button", { name: "Save password" }));
-    expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { name: "My links", level: 1 }));
     expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
     const call = fetchMock.mock.calls.find(([path]) => path === "/api/account/password")!;
     expect(JSON.parse(String(call[1]!.body))).toEqual({ currentPassword: "temporary password", newPassword: "a brand new passphrase" });
@@ -209,7 +209,7 @@ describe("App", () => {
     const adminLink = screen.getByRole("link", { name: "Administrator? Sign in with a password" });
     expect(adminLink).toHaveAttribute("href", "/sign-in/local");
     await userEvent.setup().click(adminLink);
-    expect(await screen.findByRole("heading", { name: "Administrator sign-in" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { name: "Administrator sign-in" }));
     expect(location.pathname).toBe("/sign-in/local");
     cleanup();
 
@@ -402,7 +402,7 @@ describe("App", () => {
       await waitFor(() => expect(document.title).toBe("Page not found - YASAD"));
       await user.click(screen.getByRole("link", { name: "Back to my links" }));
       expect(location.pathname).toBe("/");
-      expect(await screen.findByRole("heading", { name: "My links", level: 1 })).toHaveFocus();
+      await expectFocused(() => screen.getByRole("heading", { name: "My links", level: 1 }));
     });
 
     it("shows an unknown administration page as not found to an admin", async () => {
@@ -425,7 +425,7 @@ describe("App", () => {
       renderAt("/admin/users");
       expect(await screen.findByRole("heading", { name: "Réservé aux administrateurs" })).toBeInTheDocument();
       act(() => navigate("/nulle-part"));
-      expect(await screen.findByRole("heading", { name: "Page introuvable" })).toHaveFocus();
+      await expectFocused(() => screen.getByRole("heading", { name: "Page introuvable" }));
       expect(screen.getByRole("link", { name: "Retour à mes liens" })).toBeInTheDocument();
     });
 
@@ -492,7 +492,7 @@ describe("App", () => {
       const forbidden = { status: 403, body: { error: { code: "forbidden", message: "" } } };
       mockApi({ ...signedIn({ ...ADA, role: "user" }), "GET /api/admin/users": forbidden, "GET /api/admin/groups": forbidden, "GET /api/admin/catalog/state": forbidden, "GET /api/admin/categories": forbidden });
       await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
-      expect(await screen.findByRole("heading", { name: "Admins only" })).toHaveFocus();
+      await expectFocused(() => screen.getByRole("heading", { name: "Admins only" }));
       expect(within(await openAccountMenu(user, ADA.name)).queryByRole("menuitem", { name: "Administration" })).toBeNull();
     });
 
@@ -723,11 +723,11 @@ describe("App, views and focus", () => {
     await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
     await user.type(screen.getByLabelText("Password"), "a long enough password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "My links" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "My links" }));
 
     await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
     await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Sign out" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "Sign in" }));
   });
 
   it("says the session ended on the sign-in screen, then brings the person back to the same page", async () => {
@@ -756,7 +756,7 @@ describe("App, views and focus", () => {
     await user.type(screen.getByLabelText("E-mail"), "ada@example.invalid");
     await user.type(screen.getByLabelText("Password"), "a long enough password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Links" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "Links" }));
     expect(location.pathname).toBe("/admin/links");
     expect(screen.queryByText("Your session has ended. Sign in again to continue.")).toBeNull();
   });
@@ -844,9 +844,9 @@ describe("App, views and focus", () => {
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.type(screen.getByLabelText("Confirm password"), "correct horse battery");
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "YASAD is ready" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "YASAD is ready" }));
     await user.click(screen.getByRole("button", { name: "Go to YASAD" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "My links" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "My links" }));
   });
 
   it("focuses the heading when an admin tab is opened while the list is still loading", async () => {
@@ -885,7 +885,7 @@ describe("App, temporary password and account", () => {
     await user.type(screen.getByLabelText("New password"), "a brand new passphrase");
     await user.type(screen.getByLabelText("Confirm new password"), "a brand new passphrase");
     await user.click(screen.getByRole("button", { name: "Save password" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "People" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "People" }));
     expect(location.pathname).toBe("/admin/users");
     expect(screen.getByRole("note")).toHaveTextContent("Password saved.");
     await waitFor(() => expect(document.querySelector('[data-slot="announcer"]')).toHaveTextContent("Password saved."));
@@ -908,7 +908,7 @@ describe("App, temporary password and account", () => {
     });
     renderAt("/");
     await user.click(await screen.findByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Sign in" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "Sign in" }));
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/auth/sign-out")).toBe(true);
   });
 
@@ -920,7 +920,7 @@ describe("App, temporary password and account", () => {
     await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
     await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "My account" }));
     expect(location.pathname).toBe("/account");
-    expect(await screen.findByRole("heading", { level: 1, name: "Ada Lovelace" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "Ada Lovelace" }));
     await waitFor(() => expect(document.title).toBe("My account - YASAD"));
     const menu = await openAccountMenu(user, ADA.name);
     expect(within(menu).getByRole("menuitem", { name: "My account" })).toHaveAttribute("aria-current", "page");
@@ -942,7 +942,7 @@ describe("App, temporary password and account", () => {
     await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
     await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "About" }));
     expect(location.pathname).toBe("/about");
-    expect(await screen.findByRole("heading", { level: 1, name: "About" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "About" }));
     await waitFor(() => expect(document.title).toBe("About - YASAD"));
     const menu = await openAccountMenu(user, ADA.name);
     expect(within(menu).getByRole("menuitem", { name: "About" })).toHaveAttribute("aria-current", "page");
@@ -1088,7 +1088,7 @@ describe("App, OIDC sign-in", () => {
   it("shows the error of the address focused, removes it from the address and does not go to the provider", async () => {
     const fetchMock = mockApi(anonymous());
     renderAt("/sign-in?error=access_denied");
-    expect(await screen.findByRole("group", { name: "Your account does not have access to this portal." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Your account does not have access to this portal." }));
     expect(location.pathname).toBe("/sign-in");
     expect(location.search).toBe("");
     expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
@@ -1098,7 +1098,7 @@ describe("App, OIDC sign-in", () => {
   it("offers Try again after an unknown error, and starts only when asked", async () => {
     const fetchMock = mockApi(anonymous());
     renderAt("/sign-in?error=state_mismatch");
-    expect(await screen.findByRole("group", { name: "Sign-in failed. Try again." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Sign-in failed. Try again." }));
     expect(starts(fetchMock)).toHaveLength(0);
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith(AUTHORIZE));
@@ -1127,7 +1127,7 @@ describe("App, OIDC sign-in", () => {
       "GET /api/admin/categories": unauthenticated,
     });
     await user.click(within(screen.getByRole("navigation", { name: "Administration" })).getByRole("link", { name: "Links" }));
-    expect(await screen.findByRole("group", { name: "Your session has ended. Sign in again to continue." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Your session has ended. Sign in again to continue." }));
     expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
     expect(starts(fetchMock)).toHaveLength(0);
 

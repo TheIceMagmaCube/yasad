@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { leavePage } from "../lib/sign-in";
-import { getStatus, mockApi, renderWithProviders, sentBody } from "../test-utils";
+import { expectFocused, getStatus, mockApi, renderWithProviders, sentBody } from "../test-utils";
 import { ProviderSignIn } from "./ProviderSignIn";
 
 const OKTA = { name: "Okta" };
@@ -147,7 +147,7 @@ describe("ProviderSignIn", () => {
     const button = screen.getByRole("button", { name: "Sign in with Okta" });
     await user.click(button);
     const name = "Okta is not responding. Try again in a moment.";
-    expect(await screen.findByRole("group", { name })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name }));
     await user.click(screen.getByRole("button", { name: "Sign in with Okta" }));
     await waitFor(() => expect(screen.getByRole("group", { name })).toHaveFocus());
   });

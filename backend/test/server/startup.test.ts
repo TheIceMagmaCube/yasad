@@ -2,6 +2,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import http from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -157,6 +158,26 @@ describe("server startup", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("content-security-policy")).toContain("default-src 'self'");
       expect(res.headers.get("x-frame-options")).toBe("DENY");
+    }
+  }, 20_000);
+
+  it("keeps an idle connection open longer than reverse proxies keep theirs", async () => {
+    const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${await tmpDb()}` });
+    await waitForHealth(server);
+    const agent = new http.Agent({ keepAlive: true });
+    try {
+      // Node announces its keepAliveTimeout in this header; the default, 5 s, reset reused connections.
+      const keepAlive = await new Promise<string | string[] | undefined>((resolve, reject) => {
+        http
+          .get(`${server.url}/api/health`, { agent }, (res) => {
+            res.resume();
+            resolve(res.headers["keep-alive"]);
+          })
+          .on("error", reject);
+      });
+      expect(keepAlive).toBe("timeout=125");
+    } finally {
+      agent.destroy();
     }
   }, 20_000);
 
