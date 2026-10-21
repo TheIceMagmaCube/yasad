@@ -1,9 +1,9 @@
-import { and, asc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, ne, or, type SQL, sql } from "drizzle-orm";
 
 import { type AuditEntry, type Auditor, auditStatements } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
-import { category, categoryGroup, group, link, linkGroup, setting } from "../schema";
+import { category, categoryGroup, group, link, linkGroup, linkStatus, setting } from "../schema";
 import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 
@@ -101,6 +101,7 @@ export async function readCatalog(db: DB): Promise<Catalog> {
           keywords: parseKeywords(lnk.keywords).length ? parseKeywords(lnk.keywords) : undefined,
           groups: lnkGroups.get(lnk.id) ?? [],
           active: lnk.active ? undefined : false,
+          check: lnk.check ? true : undefined,
         })),
     })),
   };
@@ -122,6 +123,7 @@ function normalize(catalog: Catalog): Catalog {
         keywords: lnk.keywords ?? [],
         groups: [...new Set(lnk.groups)].sort(),
         active: lnk.active ?? true,
+        check: lnk.check ?? false,
       })) as CatalogLink[],
     })),
   };
@@ -259,6 +261,7 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, rev
       ...categoryGroupRows(db, id, cat.groups),
     );
   }
+  const updated = new Set(diff.updated.links);
   for (const id of [...diff.added.links, ...diff.updated.links]) {
     const lnk = lnks.get(id)!;
     const values = {
@@ -270,9 +273,29 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, rev
       keywords: JSON.stringify(lnk.keywords ?? []),
       position: lnk.position,
       active: lnk.active ?? true,
+      check: lnk.check ?? false,
       updatedAt: now,
     };
     statements.push(
+      // Before the upsert: it compares the stored link with the file. An old result says nothing about a new address.
+      ...(updated.has(id)
+        ? [
+            db
+              .delete(linkStatus)
+              .where(
+                and(
+                  eq(linkStatus.linkId, id),
+                  eq(linkStatus.source, "yasad"),
+                  exists(
+                    db
+                      .select({ one: sql`1` })
+                      .from(link)
+                      .where(and(eq(link.id, id), or(ne(link.url, lnk.url), ne(link.check, lnk.check ?? false)))),
+                  ),
+                ),
+              ),
+          ]
+        : []),
       db
         .insert(link)
         .values({ id, ...values, createdAt: now })

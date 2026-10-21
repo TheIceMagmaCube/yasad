@@ -167,6 +167,7 @@ export function formatCatalog(catalog: Catalog): string {
         ...(lnk.keywords?.length ? { keywords: lnk.keywords } : {}),
         groups: lnk.groups,
         ...(lnk.active === false ? { active: false } : {}),
+        ...(lnk.check ? { check: true } : {}),
       })),
     })),
   };

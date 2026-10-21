@@ -33,6 +33,8 @@ categories:
         url: https://acme.atlassian.net
         icon: si:jira
         groups: ["oidc:Developers", "local:Contractors"]
+        check: true         # Optional: the server checks that the address answers. Public addresses only;
+                            # a sign-in page counts as up. Default false.
       - id: grafana
         title: Grafana
         url: https://grafana.example.org

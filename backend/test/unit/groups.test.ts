@@ -6,5 +6,7 @@ describe("docs/catalog.example.yaml", () => {
     const { parseCatalog } = await import("../../src/catalog/format");
     const parsed = parseCatalog(await readFile(new URL("../../../docs/catalog.example.yaml", import.meta.url), "utf8"));
     expect(parsed.ok ? [] : parsed.errors).toEqual([]);
+    const links = parsed.ok ? parsed.catalog.categories.flatMap((cat) => cat.links) : [];
+    expect(links.some((lnk) => lnk.check === true)).toBe(true);
   });
 });

@@ -1,8 +1,10 @@
 import type { TestApp } from "#harness";
 import { describe, expect, it } from "vitest";
 
-import { adminApp, adminCatalog, errorOf, type Link, newCategory, newLink } from "./catalog-items";
-import { send } from "./users";
+import { parse } from "yaml";
+
+import { adminApp, adminCatalog, errorOf, importFile, type Link, newCategory, newLink } from "./catalog-items";
+import { post, send } from "./users";
 
 async function linkOf(res: Response) {
   return ((await res.json()) as { link: Link }).link;
@@ -152,6 +154,115 @@ describe("link checks: stored result", () => {
   it("drops the result with the category of the link", async () => {
     const { admin } = await checkedLink();
     expect((await send(admin, "DELETE", "/api/admin/categories/tools", { revision: 1, linkCount: 1 })).status).toBe(204);
+    expect(await statusRows(admin)).toEqual([]);
+  });
+});
+
+/** A catalog file with a checked link `wiki` and an unchecked link `mail`. */
+const fileWith = ({ url = "https://wiki.example.org", title = "Wiki", check = true } = {}) => `version: 1
+categories:
+  - id: tools
+    title: Tools
+    groups: ["@everyone"]
+    links:
+      - id: wiki
+        title: ${title}
+        url: ${url}
+        groups: ["@everyone"]
+${check ? "        check: true\n" : ""}      - id: mail
+        title: Mail
+        url: https://mail.example.org
+        groups: ["@everyone"]
+`;
+
+type Preview = { diff: { added: { links: string[] }; updated: { categories: string[]; links: string[] }; removed: { links: string[] } } };
+async function preview(app: TestApp, yaml: string) {
+  const res = await post(app, "/api/admin/catalog", { yaml, dryRun: true });
+  expect(res.status).toBe(200);
+  return ((await res.json()) as Preview).diff;
+}
+
+describe("link checks: catalog file", () => {
+  it("imports check into the column", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    expect(await admin.query("select id, check_enabled from link order by id")).toEqual([
+      { id: "mail", check_enabled: 0 },
+      { id: "wiki", check_enabled: 1 },
+    ]);
+    const links = (await adminCatalog(admin))[0]!.links;
+    expect(Object.fromEntries(links.map((l) => [l.id, l.check]))).toEqual({ wiki: true, mail: false });
+  });
+
+  it("exports check only when true, and re-importing the export changes nothing", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    const exported = await (await admin.request("/api/admin/catalog")).text();
+    const links = (parse(exported) as { categories: { links: Record<string, unknown>[] }[] }).categories[0]!.links;
+    expect(links.find((l) => l.id === "wiki")!.check).toBe(true);
+    expect("check" in links.find((l) => l.id === "mail")!).toBe(false);
+    const diff = await preview(admin, exported);
+    expect(diff.added.links).toEqual([]);
+    expect(diff.updated).toEqual({ categories: [], links: [] });
+    expect(diff.removed.links).toEqual([]);
+  });
+
+  it("updates a link whose check alone changes", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    const before = await admin.query("select revision from link where id = 'wiki'");
+    expect((await preview(admin, fileWith({ check: false }))).updated.links).toEqual(["wiki"]);
+    await importFile(admin, fileWith({ check: false }));
+    expect(await admin.query("select check_enabled, revision from link where id = 'wiki'")).toEqual([
+      { check_enabled: 0, revision: Number(before[0]!.revision) + 1 },
+    ]);
+  });
+
+  it("keeps the result when the import changes anything but the address", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    await storeStatus(admin, "wiki");
+    await importFile(admin, fileWith({ title: "Docs" }));
+    expect(await admin.query("select title from link where id = 'wiki'")).toEqual([{ title: "Docs" }]);
+    expect(await statusRows(admin)).toEqual([{ link_id: "wiki" }]);
+  });
+
+  it("forgets the result when the import changes the address", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    await storeStatus(admin, "wiki");
+    await importFile(admin, fileWith({ url: "https://docs.example.org" }));
+    expect(await statusRows(admin)).toEqual([]);
+  });
+
+  it("forgets the result when the import no longer checks the link", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    await storeStatus(admin, "wiki");
+    await importFile(admin, fileWith({ check: false }));
+    expect(await statusRows(admin)).toEqual([]);
+  });
+
+  it("drops the result when the import removes the link", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    await storeStatus(admin, "wiki");
+    const yaml = fileWith();
+    await importFile(admin, yaml.slice(0, yaml.indexOf("      - id: wiki")) + yaml.slice(yaml.indexOf("      - id: mail")));
+    expect(await statusRows(admin)).toEqual([]);
+  });
+
+  it("drops the result when the import removes the category of the link", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    await storeStatus(admin, "wiki");
+    await importFile(admin, `version: 1
+categories:
+  - id: other
+    title: Other
+    groups: ["@everyone"]
+    links: []
+`);
     expect(await statusRows(admin)).toEqual([]);
   });
 });
