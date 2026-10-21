@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import https from "node:https";
-import type { AddressInfo, LookupFunction, Server as NetServer } from "node:net";
+import { type AddressInfo, connect, type LookupFunction, type Server as NetServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -245,8 +245,18 @@ describe("nodeOutbound transport (injected policy)", () => {
     const saved = { HTTP_PROXY: process.env.HTTP_PROXY, NODE_USE_ENV_PROXY: process.env.NODE_USE_ENV_PROXY };
     process.env.HTTP_PROXY = `http://127.0.0.1:${proxy.port}`;
     process.env.NODE_USE_ENV_PROXY = "1";
-    restores.push(http.setGlobalProxyFromEnv({ HTTP_PROXY: process.env.HTTP_PROXY }));
+    // What NODE_USE_ENV_PROXY does at startup, whatever the Node 24 minor: a global agent sending every connection to
+    // the proxy.
+    class ProxyAgent extends http.Agent {
+      override createConnection(): Socket {
+        return connect(proxy.port, "127.0.0.1");
+      }
+    }
+    const globalAgent = http.globalAgent;
+    http.globalAgent = new ProxyAgent();
     restores.push(() => {
+      http.globalAgent.destroy();
+      http.globalAgent = globalAgent;
       for (const [name, value] of Object.entries(saved)) {
         if (value === undefined) delete process.env[name];
         else process.env[name] = value;
@@ -265,6 +275,25 @@ describe("nodeOutbound transport (injected policy)", () => {
     expect(proxy.connections()).toBe(1);
     expect(target.requests).toHaveLength(1);
   });
+
+  it.each([
+    ["a name with a space", { "bad name": "x" }],
+    ["a value with a line break", { "X-Ok": "a\nb" }],
+  ])(
+    "rejects invalid headers (%s) with not_attempted, before any resolution or connection",
+    async (_label, headers) => {
+      const local = await httpServer();
+      const resolver = stubResolver({ "ok.test": ["127.0.0.1"] });
+      const outbound = nodeOutbound({ resolver, isAllowed: allowAll });
+      const error: unknown = await outbound
+        .request(`http://ok.test:${local.port}/`, { ...OPTIONS, headers })
+        .catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(OutboundError);
+      expect((error as OutboundError).code).toBe("not_attempted");
+      expect(resolver.names).toEqual([]);
+      expect(local.connections()).toBe(0);
+    },
+  );
 });
 
 describe("pinnedLookup", () => {

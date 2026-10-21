@@ -210,4 +210,42 @@ describe("server startup", () => {
     expect(await third.exited).toBe(1);
     expect(third.output()).toContain("categories[0].id");
   }, 30_000);
+
+  it("checks a checked link at startup", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "yasad-catalog-"));
+    tmpDirs.push(dir);
+    const file = join(dir, "catalog.yaml");
+    const dbFile = await tmpDb();
+    // A private literal is refused before any connection. A public literal on a port nothing answers is contacted by
+    // the Node client only (the portable client cannot pin an address): it ends down, whatever the network.
+    const entry = (id: string, url: string) =>
+      `      - id: ${id}\n        title: ${id}\n        url: ${url}\n        check: true\n        groups: ['@everyone']\n`;
+    await writeFile(
+      file,
+      "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n" +
+        entry("local", "http://127.0.0.1:8080/") +
+        entry("public", "http://8.8.8.8:8081/"),
+    );
+    const server = await start({
+      ...BASE_ENV,
+      DATABASE_URL: `file:${dbFile}`,
+      CATALOG_FILE: file,
+      STATUS_CHECK_TIMEOUT_SECONDS: "2",
+    });
+    await waitForHealth(server);
+    // Well before the first minute has passed: the first run starts with the server.
+    let rows: Record<string, unknown>[] = [];
+    for (let i = 0; i < 100 && !(rows.length === 2 && rows.every((row) => row.state)); i++) {
+      const read = new DatabaseSync(dbFile);
+      try {
+        rows = read.prepare("select link_id, state, reason from link_status order by link_id").all();
+      } finally {
+        read.close();
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(rows[0]).toEqual({ link_id: "local", state: "unknown", reason: "blocked_address" });
+    expect(rows[1]).toMatchObject({ link_id: "public", state: "down" });
+    expect(["connect_failed", "timeout"]).toContain(rows[1]?.reason);
+  }, 20_000);
 });

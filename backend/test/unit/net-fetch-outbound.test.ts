@@ -299,6 +299,60 @@ describe("fetchOutbound", () => {
     expect(await codeOf(outbound.request("https://example.com/", OPTIONS))).toBe("not_attempted");
   });
 
+  it("gives not_attempted when the DoH query hits the subrequest limit", async () => {
+    const calls: string[] = [];
+    const fetch: typeof globalThis.fetch = (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.startsWith("https://cloudflare-dns.com/")) return Promise.reject(new Error("Too many subrequests."));
+      return Promise.resolve(new Response("ok"));
+    };
+    const outbound = fetchOutbound({ fetch });
+
+    expect(await codeOf(outbound.request("https://example.com/", OPTIONS))).toBe("not_attempted");
+    expect(calls.every((url) => url.startsWith("https://cloudflare-dns.com/"))).toBe(true);
+  });
+
+  it("gives not_attempted for a TypeError naming the subrequest limit", async () => {
+    const outbound = fetchOutbound({
+      fetch: () => Promise.reject(new TypeError("Too many subrequests.")),
+      resolve: stubResolve().resolve,
+    });
+
+    expect(await codeOf(outbound.request("https://example.com/", OPTIONS))).toBe("not_attempted");
+  });
+
+  it("keeps not_attempted for a platform error raised after the deadline", async () => {
+    const outbound = fetchOutbound({
+      fetch: (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("Too many subrequests.")), { once: true });
+        }),
+      resolve: stubResolve().resolve,
+    });
+
+    expect(await codeOf(outbound.request("https://example.com/", { ...OPTIONS, deadlineMs: 30 }))).toBe(
+      "not_attempted",
+    );
+  });
+
+  it.each([
+    ["a name with a space", { "bad name": "x" }],
+    ["a value with a line break", { "X-Ok": "a\nb" }],
+  ])("rejects invalid headers (%s) with not_attempted, without any call", async (_label, headers) => {
+    const stub = stubFetch();
+    const resolver = stubResolve();
+    const outbound = fetchOutbound({ fetch: stub.fetch, resolve: resolver.resolve });
+
+    const error: unknown = await outbound
+      .request("https://example.com/", { ...OPTIONS, headers })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(OutboundError);
+    expect((error as OutboundError).code).toBe("not_attempted");
+    expect(stub.calls).toEqual([]);
+    expect(resolver.names).toEqual([]);
+  });
+
   it("resolves through DoH with the given fetch by default", async () => {
     const stub = stubFetch({
       "https://cloudflare-dns.com/dns-query?name=example.com&type=A": new Response(

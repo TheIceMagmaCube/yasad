@@ -14,6 +14,18 @@ export type Config = {
   catalogFile: string | null;
   /** Sign-in through an OpenID Connect provider, or null when it is not configured. */
   oidc: OidcConfig | null;
+  statusChecks: StatusCheckConfig;
+};
+
+export type StatusCheckConfig = {
+  /** Minutes between two checks of a link, 1 to 1440. */
+  intervalMinutes: number;
+  /** Deadline of one whole check, DNS included, 2 to 30 s. */
+  timeoutSeconds: number;
+  /** Links claimed per batch, 1 to 200 (Workers Free: the budget caps it at 15). */
+  batch: number;
+  /** Checks in flight at once, 1 to 6. */
+  concurrency: number;
 };
 
 export type OidcConfig = {
@@ -50,11 +62,50 @@ export const MIN_AUDIT_RETENTION_DAYS = 30;
 export const MAX_AUDIT_RETENTION_DAYS = 3650;
 /** Prefix of the values in .env.example and .dev.vars.example. */
 const EXAMPLE_PREFIX = "dev-only-";
+export const STATUS_CHECK_LIMITS = {
+  intervalMinutes: { min: 1, max: 1440, default: 5 },
+  timeoutSeconds: { min: 2, max: 30, default: 10 },
+  batch: { min: 1, max: 200, default: 10 },
+  concurrency: { min: 1, max: 6, default: 4 },
+} as const;
+/** Longest a batch may last: ceil(batch / concurrency) × timeoutSeconds must not exceed it. */
+export const MAX_RUN_SECONDS = 600;
 const OIDC_REQUIRED = ["OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"] as const;
 
 /** Return the comma-separated values, trimmed, without empty ones or duplicates. */
 function list(value: string | undefined): string[] {
   return [...new Set((value ?? "").split(",").map((v) => v.trim()).filter(Boolean))];
+}
+
+type Limits = { readonly min: number; readonly max: number; readonly default: number };
+
+/** Return a whole number within `limits`, the default when unset, or null (with a problem) when invalid. */
+function wholeInRange(raw: string | undefined, name: string, limits: Limits, unit: string, problems: string[]): number | null {
+  const value = raw?.trim();
+  if (!value) return limits.default;
+  const n = Number(value);
+  if (/^\d+$/.test(value) && n >= limits.min && n <= limits.max) return n;
+  problems.push(`${name} must be a whole number${unit} from ${limits.min} to ${limits.max}.`);
+  return null;
+}
+
+/** Return the status check settings, or null when one of them is invalid. */
+function loadStatusChecks(raw: RawConfig, problems: string[]): StatusCheckConfig | null {
+  const l = STATUS_CHECK_LIMITS;
+  const intervalMinutes = wholeInRange(raw.STATUS_CHECK_INTERVAL_MINUTES, "STATUS_CHECK_INTERVAL_MINUTES", l.intervalMinutes, " of minutes", problems);
+  const timeoutSeconds = wholeInRange(raw.STATUS_CHECK_TIMEOUT_SECONDS, "STATUS_CHECK_TIMEOUT_SECONDS", l.timeoutSeconds, " of seconds", problems);
+  const batch = wholeInRange(raw.STATUS_CHECK_BATCH, "STATUS_CHECK_BATCH", l.batch, "", problems);
+  const concurrency = wholeInRange(raw.STATUS_CHECK_CONCURRENCY, "STATUS_CHECK_CONCURRENCY", l.concurrency, "", problems);
+  if (timeoutSeconds === null || batch === null || concurrency === null) return null;
+  const seconds = Math.ceil(batch / concurrency) * timeoutSeconds;
+  if (seconds > MAX_RUN_SECONDS) {
+    problems.push(
+      `STATUS_CHECK_BATCH, STATUS_CHECK_CONCURRENCY and STATUS_CHECK_TIMEOUT_SECONDS give a batch of up to ${seconds} s (ceil(BATCH / CONCURRENCY) × TIMEOUT); keep it at most ${MAX_RUN_SECONDS} s.`,
+    );
+    return null;
+  }
+  if (intervalMinutes === null) return null;
+  return { intervalMinutes, timeoutSeconds, batch, concurrency };
 }
 
 /** Return the OIDC settings, or null when none of the required ones is set. */
@@ -144,6 +195,7 @@ export function loadConfig(raw: RawConfig): Config {
   }
 
   const oidc = loadOidc(raw, publicUrl, problems);
+  const statusChecks = loadStatusChecks(raw, problems);
 
   if (problems.length > 0) throw new ConfigError(problems);
   return {
@@ -157,5 +209,6 @@ export function loadConfig(raw: RawConfig): Config {
     passwordSignIn,
     catalogFile: raw.CATALOG_FILE?.trim() || null,
     oidc,
+    statusChecks: statusChecks!,
   };
 }

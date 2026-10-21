@@ -27,6 +27,14 @@ export class OutboundError extends Error {
   }
 }
 
+/**
+ * True for an error the platform raises on its own limits, not the network: Workers' subrequest limit ("Too many
+ * subrequests") and D1's query limit ("Too many API requests"). Such an error says nothing about the target.
+ */
+export function isPlatformError(error: unknown): boolean {
+  return error instanceof Error && /too many (subrequests|api requests)/i.test(error.message);
+}
+
 /** Status and headers of the first response; `body` only when it was read (`maxBytes` above 0). */
 export type OutboundResponse = { status: number; headers: Headers; body?: Uint8Array };
 

@@ -247,6 +247,47 @@ describe("resolveDoh", () => {
     expect(order).toEqual(["A", "AAAA", "A", "AAAA"]);
   });
 
+  it("gives not_attempted when fetch fails with a platform error", async () => {
+    for (const error of [new Error("Too many subrequests."), new TypeError("Too many API requests by single worker")]) {
+      const fetch: typeof globalThis.fetch = () => Promise.reject(error);
+      const promise = resolveDoh("x.test", { fetch, signal: new AbortController().signal });
+      expect(await codeOf(promise)).toBe("not_attempted");
+    }
+  });
+
+  it("gives not_attempted for a platform error raised once the signal has aborted", async () => {
+    const controller = new AbortController();
+    const fetch: typeof globalThis.fetch = () => {
+      controller.abort();
+      return Promise.reject(new Error("Too many subrequests."));
+    };
+    const promise = resolveDoh("x.test", { fetch, signal: controller.signal });
+    expect(await codeOf(promise)).toBe("not_attempted");
+  });
+
+  it("gives not_attempted for any other non-network error of fetch", async () => {
+    const fetch: typeof globalThis.fetch = () => Promise.reject(new RangeError("internal"));
+    const promise = resolveDoh("x.test", { fetch, signal: new AbortController().signal });
+    expect(await codeOf(promise)).toBe("not_attempted");
+  });
+
+  it("passes an OutboundError of fetch through, even once the signal has aborted", async () => {
+    const controller = new AbortController();
+    const fetch: typeof globalThis.fetch = () => {
+      controller.abort();
+      return Promise.reject(new OutboundError("not_attempted"));
+    };
+    const promise = resolveDoh("x.test", { fetch, signal: controller.signal });
+    expect(await codeOf(promise)).toBe("not_attempted");
+  });
+
+  it("keeps resolver_failed for a TypeError (network) and invalid JSON", async () => {
+    expect(await codeOf(resolve("x.test", { "x.test A": "reject" }).promise)).toBe("resolver_failed");
+    expect(await codeOf(resolve("x.test", { "x.test A": { status: 200, body: "{not json" } }).promise)).toBe(
+      "resolver_failed",
+    );
+  });
+
   it("does not send the AAAA query when the A query fails", async () => {
     const { promise, requests } = resolve("x.test", { "x.test A": answer([], { Status: 2 }) });
     expect(await codeOf(promise)).toBe("resolver_failed");

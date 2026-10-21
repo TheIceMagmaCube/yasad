@@ -3,10 +3,13 @@ import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
 import { sessionFor } from "./auth";
+import type { RunBudget } from "./checks/budget";
+import { runChecks, type RunSummary } from "./checks/run";
 import { type Config, loadConfig, type RawConfig } from "./config";
 import type { AppEnv, Runtime } from "./context";
 import type { DB } from "./db";
 import { apiError } from "./errors";
+import type { Outbound } from "./net/outbound";
 import { about } from "./routes/about";
 import { accountRoutes } from "./routes/account";
 import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
@@ -41,6 +44,33 @@ export type AppDeps = {
   /** The target this entry runs on: "docker" for server.ts (dev included), "workers" for worker.ts. */
   runtime: Runtime;
 };
+
+/** What a scheduled run needs from its entry: the database and configuration, the outbound client and the budget. */
+export type ScheduledDeps = Pick<AppDeps, "getDb" | "getRawConfig"> & {
+  /** Builds the run's client from the run's counted `fetch`. */
+  outbound: (fetch: typeof globalThis.fetch) => Outbound;
+  budget: RunBudget;
+};
+
+/**
+ * One scheduled run, the only scheduled work both entries trigger: loads the configuration and the database from
+ * `env`, then runs the link checks at `now`. Logs and returns null on any error; never rejects.
+ */
+export async function runScheduled(env: unknown, now: number, deps: ScheduledDeps): Promise<RunSummary | null> {
+  try {
+    const config = loadConfig(deps.getRawConfig(env));
+    return await runChecks({
+      db: deps.getDb(env),
+      config: config.statusChecks,
+      outbound: deps.outbound,
+      now,
+      budget: deps.budget,
+    });
+  } catch (error) {
+    console.error(`Status checks failed: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
 
 // Runtime-agnostic application.
 export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps) {

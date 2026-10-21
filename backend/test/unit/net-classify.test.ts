@@ -16,6 +16,19 @@ describe("classify", () => {
     expect(classify(response(status))).toEqual({ state: "down", reason: "http_error", httpStatus: status });
   });
 
+  it.each([0, 100, 199, 600, 999])("%i is outside 200..599: unknown with http_error, the status kept", (status) => {
+    expect(classify(response(status))).toEqual({ state: "unknown", reason: "http_error", httpStatus: status });
+  });
+
+  it.each([1000, 2.5, -1])("%s is unknown with http_error and no status", (status) => {
+    expect(classify(response(status))).toEqual({ state: "unknown", reason: "http_error", httpStatus: null });
+  });
+
+  it("keeps 200 up and 599 down", () => {
+    expect(classify(response(200))).toEqual({ state: "up", reason: null, httpStatus: 200 });
+    expect(classify(response(599))).toEqual({ state: "down", reason: "http_error", httpStatus: 599 });
+  });
+
   it.each<[OutboundErrorCode, "down" | "unknown"]>([
     ["connect_failed", "down"],
     ["dns_not_found", "down"],

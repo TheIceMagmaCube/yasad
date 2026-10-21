@@ -3,8 +3,10 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 
-import { createApp } from "../../src/app";
+import { createApp, runScheduled } from "../../src/app";
+import { WORKERS_BUDGET } from "../../src/checks/budget";
 import type { DB } from "../../src/db";
+import { fetchOutbound } from "../../src/net/fetch-outbound";
 import * as schema from "../../src/schema";
 import { BASE_ENV, client, type TestApp, type TestEnv } from "./shared";
 
@@ -17,12 +19,8 @@ export async function testApp(env: TestEnv = {}): Promise<TestApp> {
   const db = drizzle(libsql, { schema });
   await migrate(db, { migrationsFolder: "drizzle" });
   const raw = { ...BASE_ENV, ...env };
-  const app = createApp({
-    getDb: () => db as unknown as DB,
-    getRawConfig: () => raw,
-    getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown",
-    runtime: "docker",
-  });
+  const deps = { getDb: () => db as unknown as DB, getRawConfig: () => raw };
+  const app = createApp({ ...deps, getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown", runtime: "docker" });
   return client(
     async (req) => app.fetch(req),
     async (sql) => {
@@ -31,6 +29,10 @@ export async function testApp(env: TestEnv = {}): Promise<TestApp> {
     async (sql) => (await libsql.execute(sql)).rows.map((row) => ({ ...row })),
     async (sqls) => {
       await libsql.batch(sqls, "write");
+    },
+    // The portable client and the Workers budget, as on Workers, so both targets give the same results.
+    async ({ now }) => {
+      await runScheduled(raw, now, { ...deps, outbound: (fetch) => fetchOutbound({ fetch }), budget: WORKERS_BUDGET });
     },
   );
 }
