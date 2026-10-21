@@ -93,7 +93,14 @@ export type AdminLink = {
 };
 export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
 /** A point to know after a write that went through. */
-export type EditWarning = "no_group" | "unknown_icon" | "groups_differ_by_case" | "new_oidc_group";
+export type EditWarning =
+  | "no_group"
+  | "unknown_icon"
+  | "groups_differ_by_case"
+  | "new_oidc_group"
+  | "check_blocked_address"
+  | "check_blocked_port"
+  | "check_login_gateway";
 export type LinkInput = {
   id?: string;
   categoryId: string;

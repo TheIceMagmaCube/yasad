@@ -302,3 +302,35 @@ describe("link checks: history", () => {
     expect(log).not.toContain('\\"state\\"');
   });
 });
+
+describe("link checks: warnings", () => {
+  async function created(admin: TestApp, body: Record<string, unknown>) {
+    const res = await post(admin, "/api/admin/links", { groups: ["@everyone"], categoryId: "tools", ...body });
+    expect(res.status).toBe(201);
+    return (await res.json()) as { link: Link; warnings: string[] };
+  }
+
+  it("warns when a checked link has a private address, on every edit while it stays checked", async () => {
+    const admin = await adminApp();
+    await newCategory(admin, { id: "tools", title: "Tools" });
+    const { link, warnings } = await created(admin, { id: "nas", title: "NAS", url: "http://10.0.0.5", check: true });
+    expect(warnings).toContain("check_blocked_address");
+    expect(await admin.query("select id, check_enabled from link")).toEqual([{ id: "nas", check_enabled: 1 }]);
+
+    const renamed = await send(admin, "PATCH", "/api/admin/links/nas", { revision: link.revision, title: "Storage" });
+    expect(renamed.status).toBe(200);
+    const after = (await renamed.json()) as { link: Link; warnings: string[] };
+    expect(after.warnings).toContain("check_blocked_address");
+
+    const off = await send(admin, "PATCH", "/api/admin/links/nas", { revision: after.link.revision, check: false });
+    expect(off.status).toBe(200);
+    expect(((await off.json()) as { warnings: string[] }).warnings).not.toContain("check_blocked_address");
+  });
+
+  it("warns when a checked link is a sign-in tile", async () => {
+    const admin = await adminApp();
+    await newCategory(admin, { id: "tools", title: "Tools" });
+    const { warnings } = await created(admin, { id: "okta", title: "Okta app", url: "https://acme.okta.com/home/app", check: true });
+    expect(warnings).toEqual(["check_login_gateway"]);
+  });
+});
