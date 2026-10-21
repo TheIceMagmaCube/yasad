@@ -4,9 +4,10 @@ import { bodyLimit } from "hono/body-limit";
 
 import { sessionFor } from "./auth";
 import { type Config, loadConfig, type RawConfig } from "./config";
-import type { AppEnv } from "./context";
+import type { AppEnv, Runtime } from "./context";
 import type { DB } from "./db";
 import { apiError } from "./errors";
+import { about } from "./routes/about";
 import { accountRoutes } from "./routes/account";
 import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { adminGroups } from "./routes/admin-groups";
@@ -37,10 +38,12 @@ export type AppDeps = {
   getDb: (env: unknown) => DB;
   getRawConfig: (env: unknown) => RawConfig;
   getClientIp: (c: Context<AppEnv>) => string;
+  /** The target this entry runs on: "docker" for server.ts (dev included), "workers" for worker.ts. */
+  runtime: Runtime;
 };
 
 // Runtime-agnostic application.
-export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
+export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps) {
   const app = new Hono<AppEnv>().basePath("/api");
 
   app.use("*", withSecurityHeaders<AppEnv>((c) => c.get("config")?.publicUrl.startsWith("https://") ?? false));
@@ -56,6 +59,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
     c.set("config", config);
     c.set("db", getDb(c.env));
     c.set("clientIp", getClientIp(c));
+    c.set("runtime", runtime);
     await next();
   });
 
@@ -93,6 +97,7 @@ export function createApp({ getDb, getRawConfig, getClientIp }: AppDeps) {
 
   app.route("/home", home);
   app.route("/instance", instance);
+  app.route("/about", about);
   app.route("/setup", setup);
   app.route("/account", accountRoutes);
   app.route("/pins", pins);

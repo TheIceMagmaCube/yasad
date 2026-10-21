@@ -11,4 +11,5 @@ export default createApp({
   getDb: (env) => drizzle((env as WorkerEnv).DB, { schema }) as unknown as DB,
   getRawConfig: (env) => env as RawConfig,
   getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown",
+  runtime: "workers",
 });

@@ -87,7 +87,7 @@ const server = new Hono();
 server.use("*", withSecurityHeaders(() => config.publicUrl.startsWith("https://")));
 server.route(
   "/",
-  createApp({ getDb: () => db as unknown as DB, getRawConfig: () => process.env, getClientIp: clientIp }),
+  createApp({ getDb: () => db as unknown as DB, getRawConfig: () => process.env, getClientIp: clientIp, runtime: "docker" }),
 );
 server.use(
   "/*",
