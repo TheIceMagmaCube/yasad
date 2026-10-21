@@ -2,6 +2,7 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectFocused, sentBody } from "../../../test-utils";
+import { CHECKS } from "../links/testing";
 import { apiError, group, groupsAnswer, person, renderAdmin, usersAnswer } from "./testing";
 
 afterEach(() => {
@@ -19,7 +20,7 @@ const routes = (extra = {}) => ({
   "GET /api/admin/users": usersAnswer(ADA, BOB),
   "GET /api/admin/groups": groupsAnswer(FINANCE, STAFF),
   "GET /api/admin/categories": { status: 200, body: { categories: [] } },
-  "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0 } },
+  "GET /api/admin/catalog/state": { status: 200, body: { managedByFile: false, categories: 0, links: 0, groups: 0, checks: CHECKS } },
   ...extra,
 });
 

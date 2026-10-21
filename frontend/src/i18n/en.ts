@@ -1,4 +1,4 @@
-import type { CatalogErrorParams } from "../api";
+import type { CatalogErrorParams, StatusReason } from "../api";
 
 export const en = {
   tagline: "One clean screen with the links each person is allowed to see.",
@@ -199,6 +199,7 @@ export const en = {
     noGroup: (kind: "category" | "link", title: string) => `${kind === "category" ? "Category" : "Link"} "${title}" has no group: nobody can see it.`,
     unknownIcon: (title: string) => `Link "${title}" has an icon this version does not know: it shows its first letter instead.`,
     groupsDifferByCase: "These groups differ only by case:",
+    checkWarning: (title: string, text: string) => `${title}: ${text}`,
     errors: {
       invalid_id: () => "Use lower-case letters, digits and dashes.",
       invalid_group_ref: () => "Use @everyone, @authenticated, oidc:<name> or local:<name>.",
@@ -390,7 +391,11 @@ export const en = {
     fileTitle: "YAML file",
     columns: { icon: "Icon", title: "Title", address: "Address", groups: "Groups", state: "State" },
     noGroups: "(none)",
-    states: { inactive: "Inactive", noGroup: "No group: nobody sees it", unknownIcon: "Unknown icon", neverReceived: "Typed group, never received" },
+    states: { inactive: "Inactive", noGroup: "No group: nobody sees it", unknownIcon: "Unknown icon", neverReceived: "Typed group, never received", down: "Down", statusUnknown: "Status unknown" },
+    checks: {
+      overloaded: (checked: number, capacity: number) =>
+        `${checked} links are checked, but this instance can check ${capacity} per interval. Some statuses will turn unknown. Check fewer links or raise STATUS_CHECK_INTERVAL_MINUTES.`,
+    },
     unknownMembers: "typed, never received",
     emptyTitle: "No category yet",
     emptyBody: "Add a category, then its links, or import a YAML file.",
@@ -423,6 +428,34 @@ export const en = {
       category: "Category",
       active: "Active",
       activeHint: "An inactive link is hidden from everyone, and kept here.",
+      check: "Check availability",
+    },
+    check: {
+      hint: (n: number | null) => `${n === null ? "" : `The server requests this address every ${n} min. `}Only public addresses are checked. A sign-in page counts as up.`,
+      off: "Not checked",
+      inactive: "Inactive links are not checked.",
+    },
+    status: {
+      title: "Last check",
+      state: "State",
+      detail: "Detail",
+      checked: "Checked",
+      states: { up: "Up", down: "Down", unknown: "Status unknown" },
+      httpStatus: (n: number) => `HTTP ${n}`,
+      reasons: {
+        http_error: "HTTP error",
+        connect_failed: "Connection refused or cut",
+        dns_not_found: "Name not found",
+        timeout: "No answer in time",
+        tls_error: "Invalid certificate",
+        blocked_address: "Private or local address, not contacted",
+        blocked_port: "Port refused, not contacted",
+        unsupported_on_target: "IP address not supported on Cloudflare Workers",
+        resolver_failed: "Name resolution failed",
+        not_checked_yet: "Not checked yet",
+        stale: "Last result too old",
+        other: "Other reason",
+      } satisfies Record<StatusReason | "other", string>,
     },
     groupSections: { system: "Built-in", local: "Local", oidc: "Identity provider" },
     create: "Create",
@@ -448,7 +481,7 @@ export const en = {
     managedByFile: "Managed by CATALOG_FILE: read only.",
     types: { link: "Link", category: "Category" },
     typeHints: { link: "In an existing category", category: "Holds links" },
-    steps: { type: "Type", address: "Address", category: "Category", groups: "Groups", extras: "Icon and keywords", recap: "Summary", title: "Title" },
+    steps: { type: "Type", address: "Address", category: "Category", groups: "Groups", extras: "Icon, keywords and check", recap: "Summary", title: "Title" },
   },
   history: {
     title: "History",

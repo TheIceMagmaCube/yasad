@@ -1,8 +1,10 @@
-import { count } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { Hono, type MiddlewareHandler } from "hono";
 
 import { formatCatalog } from "../catalog/format";
 import { importCatalog, readCatalog } from "../catalog/sync";
+import { checkCapacity, WORKERS_BUDGET } from "../checks/budget";
+import { staleAfterMinutes } from "../checks/status";
 import type { AppEnv } from "../context";
 import { apiError } from "../errors";
 import { category, categoryGroup, link, linkGroup } from "../schema";
@@ -29,7 +31,11 @@ adminCatalog.get("/", async (c) => {
   return c.body(formatCatalog(await readCatalog(c.var.db)), 200, { "Content-Type": "application/yaml; charset=utf-8" });
 });
 
-/** Return whether CATALOG_FILE manages the catalog, and how many categories, links and distinct groups it uses. */
+/**
+ * Return whether CATALOG_FILE manages the catalog, how many categories, links and distinct groups it uses, and how
+ * links are checked: `checked` counts the active checked links (the ones the scheduler claims); `capacity` is the
+ * number a Worker can check per interval, null on Docker, which has no fixed capacity.
+ */
 adminCatalog.get("/state", async (c) => {
   const db = c.var.db;
   const usedGroups = db
@@ -37,13 +43,26 @@ adminCatalog.get("/state", async (c) => {
     .from(categoryGroup)
     .union(db.select({ groupId: linkGroup.groupId }).from(linkGroup))
     .as("used_group");
-  const [categories, links, groups] = await Promise.all([
+  const [categories, links, groups, checked] = await Promise.all([
     db.select({ n: count() }).from(category).get(),
     db.select({ n: count() }).from(link).get(),
     db.select({ n: count() }).from(usedGroups).get(),
+    db.select({ n: count() }).from(link).where(and(eq(link.check, true), eq(link.active, true))).get(),
   ]);
+  const settings = c.var.config.statusChecks;
   c.header("Cache-Control", "no-store");
-  return c.json({ managedByFile: c.var.config.catalogFile !== null, categories: categories!.n, links: links!.n, groups: groups!.n });
+  return c.json({
+    managedByFile: c.var.config.catalogFile !== null,
+    categories: categories!.n,
+    links: links!.n,
+    groups: groups!.n,
+    checks: {
+      intervalMinutes: settings.intervalMinutes,
+      staleAfterMinutes: staleAfterMinutes(settings.intervalMinutes),
+      checked: checked!.n,
+      capacity: c.var.runtime === "workers" ? checkCapacity(settings, WORKERS_BUDGET) : null,
+    },
+  });
 });
 
 /** Import a catalog file: `dryRun` previews the changes, otherwise they are applied after checking `baseVersion`. */

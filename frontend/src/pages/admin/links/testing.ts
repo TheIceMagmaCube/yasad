@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 
-import type { AdminCategory, AdminLink, CatalogState } from "../../../api";
+import type { AdminCategory, AdminLink, CatalogState, CheckSettings } from "../../../api";
 import { primeHome, useHomeEntry } from "../../../lib/home-store";
 import type { Routes } from "../../../test-utils";
 import { group, groupsAnswer } from "../people/testing";
@@ -43,7 +43,9 @@ export const GROUPS = [
   group({ id: "o2", name: "auditors", source: "oidc", seenAt: null }),
 ];
 
-export const STATE: CatalogState = { managedByFile: false, categories: 3, links: 4, groups: 3 };
+/** Check settings of a Docker instance with the default interval and no checked link. */
+export const CHECKS: CheckSettings = { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null };
+export const STATE: CatalogState = { managedByFile: false, categories: 3, links: 4, groups: 3, checks: CHECKS };
 
 /** The answers the links section loads, `extra` added or replacing them. */
 export const linksRoutes = (extra: Routes = {}, { categories = [TOOLS, DEV, EMPTY], state = STATE } = {}): Routes => ({

@@ -30,7 +30,7 @@ describe("AddLinks", () => {
       "Step 2 of 6: Address",
       "Step 3 of 6: Category",
       "Step 4 of 6: Groups",
-      "Step 5 of 6: Icon and keywords",
+      "Step 5 of 6: Icon, keywords and check",
       "Step 6 of 6: Summary",
     ]);
 
@@ -51,7 +51,7 @@ describe("AddLinks", () => {
     expect(stepTitle()).toHaveTextContent("Groups");
     await user.click(screen.getByRole("checkbox", { name: "Finance" }));
     await user.click(next());
-    expect(stepTitle()).toHaveTextContent("Icon and keywords");
+    expect(stepTitle()).toHaveTextContent("Icon, keywords and check");
     await user.type(screen.getByLabelText("Icon"), "si:statuspage");
     await user.type(screen.getByLabelText("Keywords"), "uptime, , incidents");
     await user.click(next());
@@ -117,6 +117,62 @@ describe("AddLinks", () => {
     const sent = sentBody(fetchMock, fetchMock.mock.calls.findIndex(([path, init]) => path === "/api/admin/links" && init?.method === "POST")) as Record<string, unknown>;
     expect(sent.icon).toBeUndefined();
     expect(sent.keywords).toEqual([]);
+  });
+
+  /** Fill the first steps of a link and stop on the icon, keywords and check step. */
+  async function toExtras(user: ReturnType<typeof renderAdmin>["user"]) {
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await user.clear(screen.getByRole("textbox", { name: "Address" }));
+    await user.type(screen.getByRole("textbox", { name: "Address" }), "http://nas.home.arpa");
+    await user.type(screen.getByRole("textbox", { name: "Title" }), "NAS");
+    await user.click(next());
+    await user.click(next());
+    await user.click(next());
+    expect(stepTitle()).toHaveTextContent("Icon, keywords and check");
+  }
+  const postedLink = (fetchMock: ReturnType<typeof renderAdmin>["fetchMock"]) =>
+    sentBody(fetchMock, fetchMock.mock.calls.findIndex(([path, init]) => path === "/api/admin/links" && init?.method === "POST")) as Record<string, unknown>;
+  const createdNas = { "POST /api/admin/links": { status: 201, body: { link: link({ id: "nas", title: "NAS", check: true }), warnings: ["check_blocked_address"] } } };
+
+  it("offers the availability check, unchecked, sends it when ticked and lists it in the summary", async () => {
+    const { user, fetchMock } = renderAdmin("/admin/links/new", linksRoutes(createdNas));
+    await toExtras(user);
+    const box = screen.getByRole("checkbox", { name: "Check availability" });
+    expect(box).not.toBeChecked();
+    expect(box).toHaveAccessibleDescription(/every 5 min/);
+    await user.click(box);
+    await user.click(next());
+    expect(stepTitle()).toHaveTextContent("Summary");
+    const row = screen.getByText("Check availability", { selector: "dt" });
+    expect(row.nextElementSibling).toHaveTextContent("Yes");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(location.pathname).toBe("/admin/links"));
+    expect(postedLink(fetchMock).check).toBe(true);
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Availability check: private or local address, never contacted."));
+  });
+
+  it("sends no check and lists none in the summary when the box is left alone", async () => {
+    const { user, fetchMock } = renderAdmin("/admin/links/new", linksRoutes(createdNas));
+    await toExtras(user);
+    await user.click(next());
+    expect(screen.queryByText("Check availability")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(location.pathname).toBe("/admin/links"));
+    expect(postedLink(fetchMock)).not.toHaveProperty("check");
+  });
+
+  it("drops the check when the step is skipped", async () => {
+    const { user, fetchMock } = renderAdmin("/admin/links/new", linksRoutes(createdNas));
+    await toExtras(user);
+    await user.click(screen.getByRole("checkbox", { name: "Check availability" }));
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    expect(screen.queryByText("Check availability")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("checkbox", { name: "Check availability" })).not.toBeChecked();
+    await user.click(next());
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(location.pathname).toBe("/admin/links"));
+    expect(postedLink(fetchMock)).not.toHaveProperty("check");
   });
 
   it("adds a category in three steps from /admin/links/categories/new, then lists it", async () => {

@@ -1,4 +1,4 @@
-import type { TestApp } from "#harness";
+import { type TestApp, target } from "#harness";
 import { describe, expect, it } from "vitest";
 
 import { parse } from "yaml";
@@ -342,5 +342,108 @@ describe("link checks: warnings", () => {
     await newCategory(admin, { id: "tools", title: "Tools" });
     const { warnings } = await created(admin, { id: "okta", title: "Okta app", url: "https://acme.okta.com/home/app", check: true });
     expect(warnings).toEqual(["check_login_gateway"]);
+  });
+});
+
+describe("link checks: catalog preview warnings", () => {
+  const YAML = `version: 1
+categories:
+  - id: tools
+    title: Tools
+    groups: ["@everyone"]
+    links:
+      - id: nas
+        title: NAS
+        url: http://10.0.0.5
+        groups: ["@everyone"]
+        check: true
+      - id: cache
+        title: Cache
+        url: https://example.org:6379
+        groups: ["@everyone"]
+        check: true
+      - id: okta
+        title: Okta app
+        url: https://acme.okta.com/home/x
+        groups: ["@everyone"]
+        check: true
+      - id: router
+        title: Router
+        url: http://192.168.1.1
+        groups: ["@everyone"]
+`;
+  const EXPECTED = [
+    { code: "check_blocked_address", kind: "link", id: "nas" },
+    { code: "check_blocked_port", kind: "link", id: "cache" },
+    { code: "check_login_gateway", kind: "link", id: "okta" },
+  ];
+  type Answer = { applied: boolean; baseVersion: string; diff: { warnings: unknown[]; labels: { links: Record<string, { title: string; categoryId: string }> } } };
+
+  it("warns about checked links in the preview and the applied answer, and imports them", async () => {
+    const admin = await adminApp();
+    await importFile(admin, YAML);
+    // Nothing changes on the second import, so the labels come from the warnings alone.
+    const res = await post(admin, "/api/admin/catalog", { yaml: YAML, dryRun: true });
+    expect(res.status).toBe(200);
+    const preview = (await res.json()) as Answer;
+    expect(preview.diff.warnings).toEqual(EXPECTED);
+    expect(preview.diff.labels.links).toEqual({
+      nas: { title: "NAS", categoryId: "tools" },
+      cache: { title: "Cache", categoryId: "tools" },
+      okta: { title: "Okta app", categoryId: "tools" },
+    });
+
+    const applied = await post(admin, "/api/admin/catalog", { yaml: YAML, dryRun: false, baseVersion: preview.baseVersion });
+    expect(applied.status).toBe(200);
+    expect(((await applied.json()) as Answer).diff.warnings).toEqual(EXPECTED);
+  });
+
+  it("returns the same warnings when the import creates the links", async () => {
+    const admin = await adminApp();
+    const res = await post(admin, "/api/admin/catalog", { yaml: YAML, dryRun: true });
+    const { baseVersion, diff } = (await res.json()) as Answer;
+    expect(diff.warnings).toEqual(EXPECTED);
+    const applied = await post(admin, "/api/admin/catalog", { yaml: YAML, dryRun: false, baseVersion });
+    expect(applied.status).toBe(200);
+    expect(((await applied.json()) as Answer).diff.warnings).toEqual(EXPECTED);
+    expect(await admin.query("select id, check_enabled from link order by id")).toEqual([
+      { id: "cache", check_enabled: 1 },
+      { id: "nas", check_enabled: 1 },
+      { id: "okta", check_enabled: 1 },
+      { id: "router", check_enabled: 0 },
+    ]);
+  });
+});
+
+describe("link checks: catalog state", () => {
+  type Checks = { intervalMinutes: number; staleAfterMinutes: number; checked: number; capacity: number | null };
+  const checksOf = async (app: TestApp) => {
+    const res = await app.request("/api/admin/catalog/state");
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { checks: Checks }).checks;
+  };
+
+  it("counts the active checked links and gives the default settings", async () => {
+    const admin = await adminApp();
+    await newCategory(admin, { id: "tools", title: "Tools" });
+    await newLink(admin, { id: "wiki", title: "Wiki", categoryId: "tools", check: true });
+    await newLink(admin, { id: "mail", title: "Mail", categoryId: "tools", check: true, active: false });
+    await newLink(admin, { id: "chat", title: "Chat", categoryId: "tools" });
+    expect(await checksOf(admin)).toStrictEqual({
+      intervalMinutes: 5,
+      staleAfterMinutes: 15,
+      checked: 1,
+      capacity: target === "workers" ? 50 : null,
+    });
+  });
+
+  it("follows the configured interval and caps the capacity by the Workers budget", async () => {
+    const admin = await adminApp({ STATUS_CHECK_INTERVAL_MINUTES: "2", STATUS_CHECK_BATCH: "200" });
+    expect(await checksOf(admin)).toStrictEqual({
+      intervalMinutes: 2,
+      staleAfterMinutes: 6,
+      checked: 0,
+      capacity: target === "workers" ? 30 : null,
+    });
   });
 });

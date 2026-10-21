@@ -33,6 +33,7 @@ function retryAfterOf(res: Response): number | null {
 export type CatalogWarning =
   | { code: "no_group"; kind: "category" | "link"; id: string }
   | { code: "unknown_icon"; kind: "link"; id: string }
+  | { code: "check_blocked_address" | "check_blocked_port" | "check_login_gateway"; kind: "link"; id: string }
   | { code: "groups_differ_by_case"; groups: string[] };
 export type CatalogErrorParams = { id?: string; key?: string; fields?: string[]; max?: number; line?: number };
 export type CatalogError = { path: string; code: string; params: CatalogErrorParams };
@@ -47,8 +48,13 @@ export type CatalogDiff = {
   labels: { categories: Record<string, string>; links: Record<string, { title: string; categoryId: string }> };
 };
 export type CatalogImport = { applied: boolean; diff: CatalogDiff; baseVersion: string };
-/** What the catalog holds, and whether CATALOG_FILE manages it (import refused, groups it uses locked). */
-export type CatalogState = { managedByFile: boolean; categories: number; links: number; groups: number };
+/**
+ * How links are checked: the interval, the age after which a result reads unknown, the active checked links, and
+ * how many a Worker can check per interval (null on Docker).
+ */
+export type CheckSettings = { intervalMinutes: number; staleAfterMinutes: number; checked: number; capacity: number | null };
+/** What the catalog holds, whether CATALOG_FILE manages it (import refused, groups it uses locked), and how links are checked. */
+export type CatalogState = { managedByFile: boolean; categories: number; links: number; groups: number; checks: CheckSettings };
 
 export type Role = "admin" | "user";
 export type GroupSource = "oidc" | "local" | "system";
@@ -76,6 +82,19 @@ export type AdminGroup = {
   /** When a provider group last came in a sign-in token; null for one only typed (catalog, import) and never received. */
   seenAt: string | null;
 };
+/** Why a check gave its state: the reasons the server stores, then the two the screens compute. */
+export type StatusReason =
+  | "http_error"
+  | "connect_failed"
+  | "dns_not_found"
+  | "timeout"
+  | "tls_error"
+  | "blocked_address"
+  | "blocked_port"
+  | "unsupported_on_target"
+  | "resolver_failed"
+  | "not_checked_yet"
+  | "stale";
 /** The last built-in check of a link, as admins see it. */
 export type AdminLinkStatus = { state: "up" | "down" | "unknown"; reason: string | null; httpStatus: number | null; checkedAt: string | null };
 /** A link as the catalog stores it: inactive links and links without a group included. */

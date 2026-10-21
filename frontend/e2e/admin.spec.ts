@@ -12,6 +12,7 @@ import {
   expectNoHorizontalScroll,
   MODES,
   open,
+  setLinkStatus,
   signInAsAdmin,
   THEMES,
   watchCsp,
@@ -29,7 +30,51 @@ const KEN = { id: "adm-ken", name: "Ken Thompson", email: "ken@example.invalid" 
 // Holds a temporary password, so the dashboard has something to do and the people table a state to filter on.
 const BARBARA = { id: "adm-barbara", name: "Barbara Liskov", email: "barbara@example.invalid", password: "barbara's temporary one", mustChangePassword: true };
 
-const CATALOG = readFileSync("../docs/catalog.example.yaml", "utf8");
+const EXAMPLE = readFileSync("../docs/catalog.example.yaml", "utf8");
+
+/** Drop the `check:` lines of a catalog file. */
+function withoutChecks(yaml: string): string {
+  return yaml.replace(/^[ \t]*check:.*\n/gm, "");
+}
+
+// The example checks a real host (Jira): imported as is, the server's scheduler would contact it within a minute.
+// The tests import it unchecked, and only preview it untouched.
+const CATALOG = withoutChecks(EXAMPLE);
+const CHECKS = readFileSync("e2e/fixtures/checks.yaml", "utf8");
+const HOUR = 60 * 60_000;
+/** A catalog checking a private address: its preview warns, and the tests never import it. */
+const CHECKED_LAB = `version: 1
+categories:
+  - id: lab
+    title: Lab
+    groups: ["@authenticated"]
+    links:
+      - id: nas
+        title: NAS
+        url: http://10.0.0.5
+        groups: ["@authenticated"]
+        check: true
+`;
+
+/**
+ * Replace the catalog with the links of `checks.yaml` and give them stored results: up, down, up but too old
+ * (status unknown) and checked but never run (status unknown). Later imports of the example replace it again.
+ */
+async function importStatusLinks(request: APIRequestContext): Promise<void> {
+  await importCatalog(request, CHECKS);
+  const now = Date.now();
+  setLinkStatus([
+    { linkId: "status-up", state: "up", httpStatus: 200, checkedAt: now },
+    { linkId: "status-down", state: "down", reason: "http_error", httpStatus: 502, checkedAt: now },
+    { linkId: "status-old", state: "up", httpStatus: 200, checkedAt: now - 48 * HOUR },
+    { linkId: "status-new", state: null, checkedAt: null },
+  ]);
+}
+
+/** The table row of the link titled `title`. */
+function rowOf(page: Page, title: string) {
+  return page.getByRole("link", { name: title, exact: true }).locator("xpath=ancestor::tr");
+}
 
 /** Import a catalog through the admin API: preview, then apply with the preview's base version. */
 async function importCatalog(request: APIRequestContext, yaml: string): Promise<void> {
@@ -61,6 +106,9 @@ test.beforeAll(async () => {
 test("the dashboard is accessible, and its items open the list filtered on them, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
+  // The example as shipped, `check:` included, still parses: a preview only, nothing stored.
+  const preview = await page.request.post("/api/admin/catalog", { data: { yaml: EXAMPLE, dryRun: true } });
+  expect(preview.ok(), await preview.text()).toBe(true);
   await importCatalog(page.request, CATALOG);
   for (const theme of THEMES) {
     for (const mode of MODES) {
@@ -210,7 +258,7 @@ test("the links pages are accessible in each of their states, in every theme, mo
         await expectClean(page, `${label}, category page`);
 
         await page.route("**/api/admin/catalog/state", (route) =>
-          route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3 }, headers: { "cache-control": "no-store" } }),
+          route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3, checks: { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null } }, headers: { "cache-control": "no-store" } }),
         );
         await open(page, "/admin/links", theme, mode, width);
         await expect(page.getByText("Managed by CATALOG_FILE: read only.")).toBeVisible();
@@ -218,6 +266,57 @@ test("the links pages are accessible in each of their states, in every theme, mo
         await open(page, "/admin/links/mail", theme, mode, width);
         await expect(page.getByLabel("Title", { exact: true })).toBeDisabled();
         await expectClean(page, `${label}, read-only link page`);
+        await page.unroute("**/api/admin/catalog/state");
+        expect(csp).toEqual([]);
+      }
+    }
+  }
+});
+
+test("the link checks are accessible in every theme, mode and width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInAsAdmin(page);
+  await importStatusLinks(page.request);
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      for (const width of WIDTHS) {
+        const label = `link checks (${theme}, ${mode}, ${width}px)`;
+        const csp = watchCsp(page);
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByRole("table", { name: "Links of Status checks" })).toBeVisible();
+        await expect(rowOf(page, "Status down")).toContainText("Down");
+        await expect(rowOf(page, "Status old")).toContainText("Status unknown");
+        await expect(rowOf(page, "Status new")).toContainText("Status unknown");
+        await expect(rowOf(page, "Status up")).not.toContainText(/Down|Status unknown/);
+        await expectClean(page, label);
+
+        await open(page, "/admin/links?state=down", theme, mode, width);
+        await expect(page.getByText("Filter: Down")).toBeVisible();
+        await expect(page.getByRole("table", { name: "Links of Status checks" }).getByRole("link")).toHaveText(["Status down"]);
+        await expectClean(page, `${label}, narrowed to down`);
+        await open(page, "/admin/links?state=statusUnknown", theme, mode, width);
+        await expect(page.getByText("Filter: Status unknown")).toBeVisible();
+        await expect(page.getByRole("table", { name: "Links of Status checks" }).getByRole("link")).toHaveText(["Status old", "Status new"]);
+        await expectClean(page, `${label}, narrowed to status unknown`);
+
+        await open(page, "/admin/links/status-down", theme, mode, width);
+        const block = page.getByRole("region", { name: "Last check" });
+        await expect(block).toContainText("Down");
+        await expect(block).toContainText("HTTP error, HTTP 502");
+        await expect(page.getByRole("checkbox", { name: "Check availability" })).toBeChecked();
+        await expectClean(page, `${label}, down link page`);
+        await open(page, "/admin/links/status-new", theme, mode, width);
+        await expect(page.getByRole("region", { name: "Last check" })).toContainText("Not checked yet");
+        await expectClean(page, `${label}, never checked link page`);
+
+        // Docker has no static capacity, so the overload warning only shows from a mocked Workers state.
+        await page.route("**/api/admin/catalog/state", async (route) => {
+          const real = await (await route.fetch()).json();
+          await route.fulfill({ json: { ...real, checks: { ...real.checks, checked: 51, capacity: 50 } }, headers: { "cache-control": "no-store" } });
+        });
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByRole("note")).toContainText("51 links are checked, but this instance can check 50 per interval.");
+        await expectClean(page, `${label}, overloaded`);
         await page.unroute("**/api/admin/catalog/state");
         expect(csp).toEqual([]);
       }
@@ -294,8 +393,16 @@ test("the YAML file page is accessible in each of its states, in every theme, mo
         await expect(page.getByRole("group", { name: /This file is not a valid catalog/ })).toBeFocused();
         await expectClean(page, `${label}, invalid file`);
 
+        // A preview only: the private address is never imported, so never checked.
+        await page.getByLabel("Choose a file").setInputFiles({ name: "lab.yaml", mimeType: "application/yaml", buffer: Buffer.from(CHECKED_LAB) });
+        await expect(page.getByRole("heading", { level: 2, name: "Import preview" })).toBeFocused();
+        await expect(page.getByText("NAS: Availability check: private or local address, never contacted.")).toBeVisible();
+        await expectClean(page, `${label}, preview with a check warning`);
+        await page.getByRole("button", { name: "Cancel" }).click();
+        await expect(page.getByLabel("Choose a file")).toBeFocused();
+
         await page.route("**/api/admin/catalog/state", (route) =>
-          route.fulfill({ json: { managedByFile: true, categories: 4, links: 4, groups: 5 }, headers: { "cache-control": "no-store" } }),
+          route.fulfill({ json: { managedByFile: true, categories: 4, links: 4, groups: 5, checks: { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null } }, headers: { "cache-control": "no-store" } }),
         );
         await page.reload();
         await expect(page.getByText("The catalog comes from a file")).toBeVisible();
@@ -332,6 +439,19 @@ test("the administration pages fit a 320 px screen in French", async ({ page }) 
   await page.getByRole("button", { name: "Suivant" }).click();
   await expect(page.getByRole("group", { name: "Vérifiez les champs signalés." })).toBeFocused();
   await expectNoHorizontalScroll(page, "add wizard with errors in French");
+
+  await importStatusLinks(page.request);
+  for (const [path, title] of [
+    ["/admin/links?state=down", "Liens"],
+    ["/admin/links/status-down", "Status down"],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    await expect(page.getByText("En panne").first()).toBeVisible();
+    await expectNoHorizontalScroll(page, `${path} in French`);
+  }
+  // The tests after this one open the example's links.
+  await importCatalog(page.request, CATALOG);
 });
 
 test("on a wide screen, the header lines up with the content, lists use the wide column and item and account pages keep their former width", async ({ page }) => {
@@ -533,6 +653,64 @@ test.describe("keyboard and focus", () => {
     await expect(announcer(page)).toHaveText("Saved: First door.");
     await page.goto("/");
     await expect(shelf.getByRole("link")).toHaveText([/Second door/]);
+  });
+
+  test("opens a down link from the list narrowed on down links, reads its last check and comes back to its row", async ({ page }) => {
+    await importStatusLinks(page.request);
+    await page.goto("/admin/links?state=down");
+    const row = page.getByRole("link", { name: "Status down", exact: true });
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { level: 1, name: "Status down" })).toBeFocused();
+    await expect(page.getByRole("region", { name: "Last check" })).toContainText("HTTP error, HTTP 502");
+    await page.getByRole("link", { name: "Back to Links" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/admin\/links\?state=down$/);
+    await expect(row).toBeFocused();
+  });
+
+  test("checks a new link from the wizard with the keyboard, then stops checking it on its page", async ({ page }) => {
+    // A *.home.arpa name: the outbound policy refuses it before any lookup, so the scheduler contacts nothing.
+    await importCatalog(page.request, CATALOG);
+    await page.goto("/admin/links/new");
+    const next = page.getByRole("button", { name: "Next" });
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("textbox", { name: "Address" }).fill("http://nas.home.arpa");
+    await page.getByRole("textbox", { name: "Title" }).fill("Home NAS");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("combobox", { name: "Category" }).selectOption({ label: "Everyday" });
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("checkbox", { name: "@authenticated" }).focus();
+    await page.keyboard.press("Space");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    const check = page.getByRole("checkbox", { name: "Check availability" });
+    await check.focus();
+    await page.keyboard.press("Space");
+    await expect(check).toBeChecked();
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { level: 2, name: "Summary" })).toBeFocused();
+    await expect(page.locator("dt", { hasText: "Check availability" }).locator("xpath=following-sibling::dd[1]")).toHaveText("Yes");
+    await page.getByRole("button", { name: "Create" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(announcer(page)).toHaveText("Created: Home NAS. Availability check: private or local address, never contacted.");
+    const row = page.getByRole("link", { name: "Home NAS", exact: true });
+    await expect(row).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { level: 1, name: "Home NAS" })).toBeFocused();
+    await expect(check).toBeChecked();
+    await check.focus();
+    await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Save" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(announcer(page)).toHaveText("Saved: Home NAS.");
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Check availability" })).not.toBeChecked();
   });
 
   test("lists every account as a check box on a group page, narrowed by its filter, with 300 accounts", async ({ page }) => {
