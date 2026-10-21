@@ -4,7 +4,7 @@ import { z } from "zod";
 import { type AuditAction, type AuditEntry, type Auditor, auditStatements, readSnapshot, snapshot, unchangedSince } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
-import { category, categoryGroup, group, link, linkGroup } from "../schema";
+import { category, categoryGroup, group, link, linkGroup, linkStatus } from "../schema";
 import { categoryFields, errorOf, ICON, ID, linkSchema, MAX_CATEGORIES, MAX_LINKS_PER_CATEGORY, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 import { bumpRevision, categoryGroupRows, guard, linkGroupRows } from "./sync";
@@ -23,9 +23,14 @@ export type AdminLink = {
   active: boolean;
   /** Whether the server checks the link's address. */
   check: boolean;
+  /** The last built-in check, null while unchecked or never checked; read only. */
+  status: AdminLinkStatus | null;
   groups: string[];
   revision: number;
 };
+
+/** The last built-in check of a link, for admins: reason and HTTP status included. */
+export type AdminLinkStatus = { state: "up" | "down" | "unknown"; reason: string | null; httpStatus: number | null; checkedAt: string | null };
 export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
 
 /** A point the admin should know after a write that went through, as a code the interface translates. */
@@ -135,7 +140,10 @@ function refsBy(rows: GroupRow[]): Map<string, string[]> {
   return map;
 }
 
-function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink {
+/** The join condition of a link's built-in status row. */
+const ownStatus = and(eq(linkStatus.linkId, link.id), eq(linkStatus.source, "yasad"));
+
+function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: typeof linkStatus.$inferSelect | null): AdminLink {
   return {
     id: row.id,
     categoryId: row.categoryId,
@@ -147,6 +155,10 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink
     keywords: parseKeywords(row.keywords),
     active: row.active,
     check: row.check,
+    status:
+      row.check && status?.state
+        ? { state: status.state, reason: status.reason, httpStatus: status.httpStatus, checkedAt: status.checkedAt?.toISOString() ?? null }
+        : null,
     groups,
     revision: row.revision,
   };
@@ -156,7 +168,12 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink
 export async function readCategories(db: DB, id?: string): Promise<AdminCategory[]> {
   const [categories, links, categoryGroups, linkGroups] = await Promise.all([
     db.select().from(category).where(id === undefined ? undefined : eq(category.id, id)).orderBy(asc(category.position), asc(category.id)),
-    db.select().from(link).where(id === undefined ? undefined : eq(link.categoryId, id)).orderBy(asc(link.position), asc(link.id)),
+    db
+      .select()
+      .from(link)
+      .leftJoin(linkStatus, ownStatus)
+      .where(id === undefined ? undefined : eq(link.categoryId, id))
+      .orderBy(asc(link.position), asc(link.id)),
     db
       .select({ id: categoryGroup.categoryId, source: group.source, name: group.name })
       .from(categoryGroup)
@@ -176,7 +193,7 @@ export async function readCategories(db: DB, id?: string): Promise<AdminCategory
     title: cat.title,
     groups: catGroups.get(cat.id) ?? [],
     revision: cat.revision,
-    links: links.filter((lnk) => lnk.categoryId === cat.id).map((lnk) => toAdminLink(lnk, lnkGroups.get(lnk.id) ?? [])),
+    links: links.filter((r) => r.link.categoryId === cat.id).map((r) => toAdminLink(r.link, lnkGroups.get(r.link.id) ?? [], r.link_status)),
   }));
 }
 
@@ -186,10 +203,10 @@ export async function readCategory(db: DB, id: string): Promise<AdminCategory | 
 
 export async function readLink(db: DB, id: string): Promise<AdminLink | null> {
   const [row, groups] = await Promise.all([
-    db.select().from(link).where(eq(link.id, id)).get(),
+    db.select().from(link).leftJoin(linkStatus, ownStatus).where(eq(link.id, id)).get(),
     db.select({ id: linkGroup.linkId, source: group.source, name: group.name }).from(linkGroup).innerJoin(group, eq(group.id, linkGroup.groupId)).where(eq(linkGroup.linkId, id)),
   ]);
-  return row ? toAdminLink(row, refsBy(groups).get(id) ?? []) : null;
+  return row ? toAdminLink(row.link, refsBy(groups).get(id) ?? [], row.link_status) : null;
 }
 
 /**
@@ -476,6 +493,8 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
   const groups = refs ? await checkGroups(db, refs) : { unknown: false, warnings: [] };
   if (groups.unknown) return invalid({ groups: "unknown_group" });
   if (moves && (await linksIn(db, categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
+  // `before` is the stored link: the revision guard fails the batch otherwise, and a check result never bumps it.
+  const resets = (fields.url ?? before.url) !== before.url || !(fields.check ?? before.check);
 
   return {
     statements: [
@@ -493,6 +512,7 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
           updatedAt: new Date(),
         })
         .where(eq(link.id, id)),
+      ...(resets ? [db.delete(linkStatus).where(and(eq(linkStatus.linkId, id), eq(linkStatus.source, "yasad")))] : []),
       ...(refs ? [db.delete(linkGroup).where(eq(linkGroup.linkId, id)), ...linkGroupRows(db, id, refs)] : []),
       ...(moves ? [placeLinks(db, before.categoryId)] : []),
     ],

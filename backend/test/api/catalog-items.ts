@@ -14,6 +14,7 @@ export type Link = {
   keywords: string[];
   active: boolean;
   check: boolean;
+  status: Record<string, unknown> | null;
   groups: string[];
   revision: number;
 };

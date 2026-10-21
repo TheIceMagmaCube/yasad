@@ -281,6 +281,7 @@ describe("catalog edits: links", () => {
       keywords: ["doc", "notes"],
       active: false,
       check: false,
+      status: null,
       groups: ["@authenticated"],
       revision: 1,
     });
