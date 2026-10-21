@@ -126,8 +126,10 @@ The same code runs on Cloudflare Workers, with a D1 database. You need a Cloudfl
 6. Deploy, from `backend/`. It prints the address of the Worker, `https://yasad.<your-subdomain>.workers.dev`. The first upload of the static files can take a minute.
 
    ```sh
-   npx wrangler deploy
+   npm run deploy:worker
    ```
+
+   It sets the version from `git describe --tags --always`, like the Docker image, then runs `wrangler deploy`. Arguments after `--` go to `wrangler deploy`, for example `npm run deploy:worker -- --config <file>`.
 
 7. Set the secrets. Each command asks for the value.
 
@@ -141,7 +143,7 @@ The same code runs on Cloudflare Workers, with a D1 database. You need a Cloudfl
 
    Set any other variable the same way, for example `PASSWORD_SIGN_IN` or the `OIDC_*` ones. Do not set `CATALOG_FILE` or `TRUST_PROXY` on Workers: `CATALOG_FILE` would block catalog imports and edits without loading any file, and the client IP always comes from `CF-Connecting-IP`.
 
-8. Check that it answers: `https://<your-worker>/api/health` returns `{"ok":true,"version":"dev","database":true}`, and `/api/setup` returns `{"open":true}`.
+8. Check that it answers: `https://<your-worker>/api/health` returns `{"ok":true,"version":"0.2.0-6-gac6136b","database":true}` (the version from step 6; `dev` only when deployed without git), and `/api/setup` returns `{"open":true}`.
 9. Open `PUBLIC_URL` and follow the first install from the [README](../README.md#quick-start).
 10. Once setup is done, delete the setup code:
 

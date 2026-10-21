@@ -1,4 +1,4 @@
-// Replaced at build time (esbuild for Docker, `wrangler deploy --define` for Workers).
+// Replaced at build time (esbuild for Docker, `npm run deploy:worker`, i.e. `wrangler deploy --define`, for Workers).
 // The released version lives in git tags, not in package.json.
 declare const __APP_VERSION__: string | undefined;
 

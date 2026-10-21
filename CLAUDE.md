@@ -49,6 +49,7 @@ The repository is public: never put the wiki's address, a link to one of its pag
 - `node scripts/generate-icons.mjs`: regenerates the icons (runs on the frontend `predev` and `prebuild`). Commit `backend/src/icons/names.ts` and `frontend/src/icons-base.ts` after bumping simple-icons or lucide-static; CI runs it with `--check`. lucide-static must stay on the version of lucide-react (a test checks it).
 - `npm run db:generate --workspace backend` after any change to `backend/src/schema.ts`; commit the migration (CI fails otherwise).
 - `npm run build:worker --workspace backend`: Worker bundle dry run.
+- `npm run deploy:worker --workspace backend`: deploys the Worker with the version from `git describe --tags --always` (`backend/scripts/deploy-worker.mjs`, wrangler run without a shell; arguments after `--` go to `wrangler deploy`). Never run it from a test.
 - `npm run test:e2e --workspace frontend`: builds the frontend, starts `server.ts` on :3199 with a fresh database and runs the browser tests (`npx playwright install chromium` once).
 - `AUTH_SECRET=... SETUP_CODE=... docker compose up --build`: production image on :3000.
 
