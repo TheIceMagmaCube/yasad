@@ -1,4 +1,4 @@
-import { type TestApp, testApp } from "#harness";
+import { type TestApp, target, testApp } from "#harness";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
@@ -416,16 +416,17 @@ categories:
   });
 
   it("counts stored categories and links, and each group they use once", async () => {
+    const checks = { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: target === "workers" ? 50 : null };
     const app = await adminApp();
     const empty = await app.request("/api/admin/catalog/state");
     expect(empty.headers.get("cache-control")).toBe("no-store");
-    expect(await empty.json()).toMatchObject({ managedByFile: false, categories: 0, links: 0, groups: 0 });
+    expect(await empty.json()).toStrictEqual({ managedByFile: false, categories: 0, links: 0, groups: 0, checks });
 
     await importFile(app, CATALOG);
     // @everyone is on a category and a link; oidc:Developers is on two links.
     const res = await app.request("/api/admin/catalog/state");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ managedByFile: false, categories: 2, links: 3, groups: 4 });
+    expect(await res.json()).toStrictEqual({ managedByFile: false, categories: 2, links: 3, groups: 4, checks });
   });
 
   it("reports a catalog managed by CATALOG_FILE", async () => {
