@@ -94,10 +94,10 @@ function unseenOidc(groups: AdminGroup[] | null): Set<string> {
 }
 
 /**
- * Read the catalog state with the instant it was read. Every write reloads it, so statuses that went stale while the
- * page stayed open are caught, and staleness is never measured against the mount time.
+ * Read the catalog with the instant it was read. Staleness is measured against that instant: the statuses shown are
+ * the ones read then, and a link replaced from a write answer is newer than it, so it never looks falsely stale.
  */
-const loadState = async () => ({ ...(await api.catalogState()), readAt: Date.now() });
+const loadCatalog = async () => ({ categories: await api.categories(), readAt: Date.now() });
 
 /**
  * Admin section of the catalog: one table per category in the stored order, a reorder mode, the pages of a link or
@@ -107,9 +107,9 @@ const loadState = async () => ({ ...(await api.catalogState()), readAt: Date.now
 export function LinksPage({ open }: { open: LinksRoute }) {
   const m = useStrings();
   const s = m.links;
-  const catalog = useAdminCollection(api.categories);
+  const catalog = useAdminCollection(loadCatalog);
   const groups = useAdminCollection(api.groups);
-  const state = useAdminCollection(loadState);
+  const state = useAdminCollection(api.catalogState);
   const feedback = useListFeedback();
   const [query, setQuery] = useQueryState("q");
   const [stateParam, setStateParam] = useQueryState("state");
@@ -119,11 +119,13 @@ export function LinksPage({ open }: { open: LinksRoute }) {
   const [createdWarnings, setCreatedWarnings] = useState<Record<string, EditWarning[]>>({});
   const managed = state.data?.managedByFile ?? false;
   const checks = state.data?.checks ?? null;
-  // Every row and the filter judge staleness at the same instant, read again with each reload of the state.
-  const now = state.data?.readAt ?? 0;
+  // Every row and the filter judge staleness at the instant the statuses were read.
+  const now = catalog.data?.readAt ?? 0;
   const statusOf = (l: AdminLink) => effectiveStatus(l, checks, now);
 
-  const categories = catalog.data;
+  const categories = catalog.data?.categories ?? null;
+  const setCategories = (update: (all: AdminCategory[]) => AdminCategory[]) =>
+    catalog.setData((data) => ({ ...data, categories: update(data.categories) }));
   const allLinks = useMemo(() => (categories ?? []).flatMap((c) => c.links), [categories]);
   const unseen = useMemo(() => unseenOidc(groups.data), [groups.data]);
   const linkFilter = useMemo(() => prepareFilter(allLinks, (l) => [l.title, l.url, ...l.keywords]), [allLinks]);
@@ -167,7 +169,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
   };
   const onManaged = () => void state.refresh();
   const replaceLink = (link: AdminLink) =>
-    catalog.setData((all) =>
+    setCategories((all) =>
       all.map((c) => {
         if (c.id !== link.categoryId) return { ...c, links: c.links.filter((l) => l.id !== link.id) };
         return { ...c, links: c.links.some((l) => l.id === link.id) ? c.links.map((l) => (l.id === link.id ? link : l)) : [...c.links, link] };
@@ -217,7 +219,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
               backToList(linkIdOf(link.id));
             }}
             onCategoryCreated={(category, warnings) => {
-              catalog.setData((all) => [...all, category]);
+              setCategories((all) => [...all, category]);
               setCreatedWarnings((prev) => ({ ...prev, [category.id]: warnings }));
               saved(s.created(category.title), warnings);
               backToList(categoryLinkIdOf(category.id));
@@ -248,7 +250,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
         onDeleted={(deleted) => {
           const index = categories.find((c) => c.id === deleted.categoryId)?.links.findIndex((l) => l.id === deleted.id) ?? 0;
           feedback.bury({ id: deleted.id, text: s.deleted(deleted.title), variant: "success", index: Math.max(0, index), section: deleted.categoryId });
-          catalog.setData((all) => all.map((c) => ({ ...c, links: c.links.filter((l) => l.id !== deleted.id) })));
+          setCategories((all) => all.map((c) => ({ ...c, links: c.links.filter((l) => l.id !== deleted.id) })));
           invalidateHome();
           void groups.refresh();
           // The number of checked links may have changed.
@@ -270,11 +272,11 @@ export function LinksPage({ open }: { open: LinksRoute }) {
         onManaged={onManaged}
         warnings={createdWarnings[category.id]}
         onSaved={(updated) => {
-          catalog.setData((all) => all.map((c) => (c.id === updated.id ? updated : c)));
+          setCategories((all) => all.map((c) => (c.id === updated.id ? updated : c)));
           saved(s.saved(updated.title), []);
         }}
         onDeleted={(deleted) => {
-          catalog.setData((all) => all.filter((c) => c.id !== deleted.id));
+          setCategories((all) => all.filter((c) => c.id !== deleted.id));
           feedback.say(s.deleted(deleted.title));
           invalidateHome();
           void groups.refresh();
@@ -345,7 +347,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
       ) : reordering && categories && !managed ? (
         <Reorder
           categories={categories}
-          onOrder={(update) => catalog.setData(update)}
+          onOrder={setCategories}
           onRefused={(err) => {
             void catalog.refresh();
             if (isManagedByFile(err)) onManaged();

@@ -99,9 +99,10 @@ describe("Link status in the list", () => {
   const NEW = link({ id: "new", title: "New", check: true });
   const STALE = link({ id: "stale", title: "Stale", check: true, status: status("up", ago(16), null, 200) });
   const OFF = link({ id: "off", title: "Off", check: true, active: false, status: status("down", ago(1), "timeout") });
-  const CHECKED = category({ id: "tools", title: "Tools", links: [UP, DOWN, NEW, STALE, OFF] });
+  const IDLE = link({ id: "idle", title: "Idle", check: true, active: false });
+  const CHECKED = category({ id: "tools", title: "Tools", links: [UP, DOWN, NEW, STALE, OFF, IDLE] });
   const routes = (state = STATE) => linksRoutes({}, { categories: [CHECKED], state });
-  const titles = () => screen.queryAllByRole("link", { name: /^(Up|Down|New|Stale|Off)$/ }).map((a) => a.textContent);
+  const titles = () => screen.queryAllByRole("link", { name: /^(Up|Down|New|Stale|Off|Idle)$/ }).map((a) => a.textContent);
   const rowOf = (title: string) => within(table("Tools")).getByRole("link", { name: title }).closest("tr")!;
 
   it("marks a down link, an unchecked or stale one as status unknown, and an inactive one as inactive only", async () => {
@@ -112,6 +113,7 @@ describe("Link status in the list", () => {
     expect(rowOf("New")).toHaveTextContent("Status unknown");
     expect(rowOf("Stale")).toHaveTextContent("Status unknown");
     expect(rowOf("Off").querySelector("td:last-child")).toHaveTextContent(/^Inactive$/);
+    expect(rowOf("Idle").querySelector("td:last-child")).toHaveTextContent(/^Inactive$/);
   });
 
   it("ranks a missing group above a down status", async () => {
@@ -119,6 +121,15 @@ describe("Link status in the list", () => {
     renderAdmin("/admin/links", linksRoutes({}, { categories: [category({ id: "tools", title: "Tools", links: [orphan] })] }));
     await screen.findByRole("table", { name: "Links of Tools" });
     expect(rowOf("Down").querySelector("td:last-child")).toHaveTextContent(/^No group: nobody sees it$/);
+  });
+
+  it("ranks a down status above an unknown icon, and an unknown icon above an unknown status", async () => {
+    const broken = link({ id: "down", title: "Down", icon: "lucide:nope", iconKnown: false, check: true, status: status("down", ago(1), "http_error", 502) });
+    const unseen = link({ id: "new", title: "New", icon: "lucide:nope", iconKnown: false, check: true });
+    renderAdmin("/admin/links", linksRoutes({}, { categories: [category({ id: "tools", title: "Tools", links: [broken, unseen] })] }));
+    await screen.findByRole("table", { name: "Links of Tools" });
+    expect(rowOf("Down").querySelector("td:last-child")).toHaveTextContent(/^Down$/);
+    expect(rowOf("New").querySelector("td:last-child")).toHaveTextContent(/^Unknown icon$/);
   });
 
   it.each([
@@ -179,30 +190,58 @@ describe("Link status in the list", () => {
     await screen.findByText(/per interval/);
     await user.click(screen.getByRole("link", { name: "Tools" }));
     await user.click(await screen.findByRole("button", { name: "Delete Tools" }));
-    await user.click(within(screen.getByRole("group", { name: "Delete Tools and its 5 links?" })).getByRole("button", { name: "Delete for good" }));
+    await user.click(within(screen.getByRole("group", { name: "Delete Tools and its 6 links?" })).getByRole("button", { name: "Delete for good" }));
     await waitFor(() => expect(screen.queryByText(/per interval/)).toBeNull());
   });
 
-  it("judges staleness again when the state is read again, not against the time the page opened", async () => {
+  it("judges staleness against the instant the statuses were read, not a later read of the state", async () => {
     const opened = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(opened);
     try {
       const unseen = link({ id: "unseen", title: "New", check: true });
-      const aging = link({ id: "aging", title: "Up", check: true, status: status("up", new Date(opened - 14 * 60_000).toISOString(), null, 200) });
-      const { user } = renderAdmin(
+      const fresh = link({ id: "fresh", title: "Up", check: true, status: status("up", new Date(opened - 60_000).toISOString(), null, 200) });
+      const { user, fetchMock } = renderAdmin(
         "/admin/links",
-        linksRoutes({ "DELETE /api/admin/links/unseen": { status: 204 } }, { categories: [category({ id: "tools", title: "Tools", links: [aging, unseen] })] }),
+        linksRoutes({ "DELETE /api/admin/links/unseen": { status: 204 } }, { categories: [category({ id: "tools", title: "Tools", links: [fresh, unseen] })] }),
       );
       await screen.findByRole("table", { name: "Links of Tools" });
       expect(rowOf("Up")).not.toHaveTextContent("Status unknown");
-      clock.mockReturnValue(opened + 2 * 60_000);
+      const stateReads = () => fetchMock.mock.calls.filter(([path]) => path === "/api/admin/catalog/state").length;
+      const before = stateReads();
+      // The page stays open 20 minutes, then a write reads the state again but not the catalog.
+      clock.mockReturnValue(opened + 20 * 60_000);
       await user.click(screen.getByRole("link", { name: "New" }));
       await user.click(await screen.findByRole("button", { name: "Delete New" }));
       await user.click(within(screen.getByRole("group", { name: "Delete the link New?" })).getByRole("button", { name: "Delete for good" }));
-      await waitFor(() => expect(rowOf("Up")).toHaveTextContent("Status unknown"));
+      await waitFor(() => expect(stateReads()).toBe(before + 1));
+      await screen.findByRole("table", { name: "Links of Tools" });
+      expect(rowOf("Up").querySelector("td:last-child")).toHaveTextContent(/^$/);
     } finally {
       clock.mockRestore();
     }
+  });
+
+  it("reads the checked count again after a save that unticks the check, so the warning goes", async () => {
+    const overloaded = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 51, capacity: 50 } } };
+    const fits = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 50, capacity: 50 } } };
+    const { user } = renderAdmin(
+      "/admin/links",
+      linksRoutes(
+        {
+          "GET /api/admin/catalog/state": [overloaded, fits],
+          "PATCH /api/admin/links/up": { status: 200, body: { link: { ...UP, check: false, status: null, revision: 2 }, warnings: [] } },
+        },
+        { categories: [CHECKED] },
+      ),
+    );
+    await screen.findByText(/per interval/);
+    await user.click(screen.getByRole("link", { name: "Up" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Check availability" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Saved: Up."));
+    await user.click(screen.getByRole("link", { name: "Back to Links" }));
+    await screen.findByRole("table", { name: "Links of Tools" });
+    await waitFor(() => expect(screen.queryByText(/per interval/)).toBeNull());
   });
 
   it("reads the marks and the warning in French", async () => {
