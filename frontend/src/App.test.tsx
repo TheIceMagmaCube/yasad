@@ -1088,7 +1088,8 @@ describe("App, OIDC sign-in", () => {
   it("shows the error of the address focused, removes it from the address and does not go to the provider", async () => {
     const fetchMock = mockApi(anonymous());
     renderAt("/sign-in?error=access_denied");
-    expect(await screen.findByRole("group", { name: "Your account does not have access to this portal." })).toHaveFocus();
+    // The alert takes the focus in an effect, which may run after findBy* saw it: wait for the focus itself.
+    await waitFor(() => expect(screen.getByRole("group", { name: "Your account does not have access to this portal." })).toHaveFocus());
     expect(location.pathname).toBe("/sign-in");
     expect(location.search).toBe("");
     expect(screen.getByRole("button", { name: "Sign in with Okta" })).toBeInTheDocument();
@@ -1098,7 +1099,7 @@ describe("App, OIDC sign-in", () => {
   it("offers Try again after an unknown error, and starts only when asked", async () => {
     const fetchMock = mockApi(anonymous());
     renderAt("/sign-in?error=state_mismatch");
-    expect(await screen.findByRole("group", { name: "Sign-in failed. Try again." })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Sign-in failed. Try again." })).toHaveFocus());
     expect(starts(fetchMock)).toHaveLength(0);
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith(AUTHORIZE));
