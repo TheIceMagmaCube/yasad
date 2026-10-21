@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 
 import { BASE_URL } from "../playwright.config";
 import { addLocalUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, focused, MODES, open, setInstanceTheme, signInAsAdmin, THEMES, watchCsp, WIDTHS } from "./helpers";
@@ -106,8 +106,41 @@ test("the account page fits a 320 px screen in French", async ({ page }) => {
   }
 });
 
-test("a person without groups is led from the empty home to their groups, in every theme, mode and width", async ({ page }) => {
+/** Import the catalog `yaml` through the admin API signed in on `request`: preview, then apply. */
+async function applyCatalog(request: APIRequestContext, yaml: string): Promise<void> {
+  const preview = await request.post("/api/admin/catalog", { data: { yaml, dryRun: true } });
+  expect(preview.ok(), await preview.text()).toBe(true);
+  const { baseVersion } = (await preview.json()) as { baseVersion: string };
+  const applied = await request.post("/api/admin/catalog", { data: { yaml, dryRun: false, baseVersion } });
+  expect(applied.ok(), await applied.text()).toBe(true);
+}
+
+/**
+ * Empty the catalog as the administrator, through the API, so that a person without groups gets the empty home
+ * whichever project ran before (the shell project imports a catalog open to every signed-in person).
+ * Return the cleanup, which imports the previous catalog again.
+ */
+async function emptyCatalog(request: APIRequestContext): Promise<() => Promise<void>> {
+  const signedIn = await request.post("/api/auth/sign-in/email", { data: { email: ADMIN.email, password: ADMIN.password } });
+  expect(signedIn.ok(), await signedIn.text()).toBe(true);
+  const exported = await request.get("/api/admin/catalog");
+  expect(exported.ok(), await exported.text()).toBe(true);
+  const previous = await exported.text();
+  await applyCatalog(request, "version: 1\ncategories: []\n");
+  return () => applyCatalog(request, previous);
+}
+
+test("a person without groups is led from the empty home to their groups, in every theme, mode and width", async ({ page, request }) => {
   test.setTimeout(120_000);
+  const restore = await emptyCatalog(request);
+  try {
+    await checkEmptyHome(page);
+  } finally {
+    await restore();
+  }
+});
+
+async function checkEmptyHome(page: Page): Promise<void> {
   await signInAs(page, CAROL.email, CAROL.password);
   for (const theme of THEMES) {
     for (const mode of MODES) {
@@ -131,7 +164,7 @@ test("a person without groups is led from the empty home to their groups, in eve
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/account#groups$/);
   await expect(page.getByRole("heading", { level: 2, name: "My groups" })).toBeFocused();
-});
+}
 
 test("the account menu opens the account page with the focus on its heading", async ({ page }) => {
   setInstanceTheme("default");
