@@ -524,6 +524,7 @@ export const fr = {
         icon: "Icône",
         keywords: "Mots-clés",
         active: "Actif",
+        check: "Vérifier la disponibilité",
         position: "Position",
         groups: "Groupes",
       },

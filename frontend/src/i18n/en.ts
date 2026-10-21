@@ -515,6 +515,7 @@ export const en = {
         icon: "Icon",
         keywords: "Keywords",
         active: "Active",
+        check: "Check availability",
         position: "Position",
         groups: "Groups",
       },

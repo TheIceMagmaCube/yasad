@@ -81,7 +81,7 @@ const FIELD_ORDER: Record<HistoryObjectType, string[]> = {
   user: ["name", "email", "origin", "role", "roleOverride", "disabled", "mustChangePassword", "groups"],
   group: ["name", "source", "members", "categories", "links"],
   category: ["title", "position", "groups", "links"],
-  link: ["title", "url", "description", "categoryId", "icon", "keywords", "active", "position", "groups"],
+  link: ["title", "url", "description", "categoryId", "icon", "keywords", "active", "check", "position", "groups"],
   catalog: [],
 };
 

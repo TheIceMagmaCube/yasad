@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { parse } from "yaml";
 
+import { auditCount, history } from "./audit";
 import { adminApp, adminCatalog, errorOf, importFile, type Link, newCategory, newLink } from "./catalog-items";
 import { post, send } from "./users";
 
@@ -264,5 +265,40 @@ categories:
     links: []
 `);
     expect(await statusRows(admin)).toEqual([]);
+  });
+});
+
+describe("link checks: history", () => {
+  it("logs check when a link is created and when it changes", async () => {
+    const admin = await adminApp();
+    await newCategory(admin, { id: "tools", title: "Tools" });
+    const created = await newLink(admin, { id: "wiki", title: "Wiki", categoryId: "tools" });
+    expect((await history(admin))[0]).toMatchObject({ action: "create", object: { type: "link", id: "wiki" }, after: { check: false } });
+
+    const res = await send(admin, "PATCH", "/api/admin/links/wiki", { revision: created.revision, check: true });
+    expect(res.status).toBe(200);
+    expect((await history(admin))[0]).toMatchObject({ action: "update", before: { check: false }, after: { check: true } });
+  });
+
+  it("logs check when an import sets it", async () => {
+    const admin = await adminApp();
+    await importFile(admin, fileWith());
+    const [entry] = await history(admin);
+    expect(entry).toMatchObject({ action: "import", after: { links: { wiki: { check: true }, mail: { check: false } } } });
+  });
+
+  it("never logs the stored result", async () => {
+    const admin = await adminApp();
+    await newCategory(admin, { id: "tools", title: "Tools" });
+    const created = await newLink(admin, { id: "wiki", title: "Wiki", categoryId: "tools", check: true });
+    const count = await auditCount(admin);
+    await storeStatus(admin, "wiki");
+    expect(await auditCount(admin)).toBe(count);
+    const res = await send(admin, "PATCH", "/api/admin/links/wiki", { revision: created.revision, title: "Docs" });
+    expect(res.status).toBe(200);
+    expect(await auditCount(admin)).toBe(count + 1);
+    const log = JSON.stringify(await admin.query("select * from audit_log"));
+    expect(log).not.toContain("http_error");
+    expect(log).not.toContain('\\"state\\"');
   });
 });

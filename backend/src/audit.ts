@@ -45,7 +45,7 @@ export const snapshot = {
   deletedCategory: (id: string) =>
     sql`(select json_object('title', c.title, 'position', c.position, 'groups', ${groupsOf("category_group", "category_id", "c.id")}, 'links', json((select json_group_array(json_object('id', id, 'title', title)) from (select id, title from link where category_id = c.id order by position, id)))) from category c where c.id = ${id})`,
   link: (id: string) =>
-    sql`(select json_object('categoryId', l.category_id, 'title', l.title, 'url', l.url, 'description', l.description, 'icon', l.icon, 'keywords', json(l.keywords), 'active', ${bool("l.active")}, 'position', l.position, 'groups', ${groupsOf("link_group", "link_id", "l.id")}) from link l where l.id = ${id})`,
+    sql`(select json_object('categoryId', l.category_id, 'title', l.title, 'url', l.url, 'description', l.description, 'icon', l.icon, 'keywords', json(l.keywords), 'active', ${bool("l.active")}, 'check', ${bool("l.check_enabled")}, 'position', l.position, 'groups', ${groupsOf("link_group", "link_id", "l.id")}) from link l where l.id = ${id})`,
 };
 
 /** Return the snapshot as stored now, as JSON text, or null when the object does not exist. */
