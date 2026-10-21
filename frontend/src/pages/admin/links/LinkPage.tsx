@@ -1,7 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
-import { type AdminCategory, type AdminGroup, type AdminLink, api, type EditWarning, type LinkInput } from "../../../api";
+import { type AdminCategory, type AdminGroup, type AdminLink, api, type CheckSettings, type EditWarning, type LinkInput } from "../../../api";
 import { AdminShell } from "../../../components/admin/AdminShell";
 import { ConfirmPanel } from "../../../components/admin/ConfirmPanel";
 import { ITEM_WIDTH, listHref, PaneDanger } from "../../../components/admin/DetailPage";
@@ -19,9 +19,10 @@ import { groupRefLabel } from "../../../lib/group-ref";
 import { RecentChanges } from "../history/RecentChanges";
 import { GroupsChooser, refsWith, sameRefs } from "./GroupsChooser";
 import { Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
+import { LinkStatus } from "./LinkStatus";
 
-type LinkField = "title" | "url" | "description" | "icon" | "keywords" | "groups" | "categoryId" | "active";
-const LINK_FIELDS = ["title", "url", "description", "icon", "keywords", "groups", "categoryId", "active"] as const;
+type LinkField = "title" | "url" | "description" | "icon" | "keywords" | "groups" | "categoryId" | "active" | "check";
+const LINK_FIELDS = ["title", "url", "description", "icon", "keywords", "groups", "categoryId", "active", "check"] as const;
 
 /** Return the keywords typed in the field, comma separated, without empty ones. */
 export function keywordsOf(text: string): string[] {
@@ -36,6 +37,10 @@ type LinkPageProps = {
   categories: AdminCategory[];
   groups: AdminGroup[];
   readOnly: boolean;
+  /** How links are checked; null until the catalog state is read. */
+  checks: CheckSettings | null;
+  /** The instant the list judges staleness at, so the page and the list agree. */
+  now: number;
   onSaved: (link: AdminLink) => void;
   onDeleted: (link: AdminLink) => void;
   /** The server said CATALOG_FILE manages the catalog: the page turns read only. */
@@ -48,7 +53,7 @@ type LinkPageProps = {
  * Page of a link: every field in one form, the warnings of the last save, and after a conflict the stored value under
  * each field that differs. Saving again then replaces the stored version, knowingly. Delete at the bottom.
  */
-export function LinkPage({ link, categories, groups, readOnly, onSaved, onDeleted, onManaged, warnings: initialWarnings = [] }: LinkPageProps) {
+export function LinkPage({ link, categories, groups, readOnly, checks, now, onSaved, onDeleted, onManaged, warnings: initialWarnings = [] }: LinkPageProps) {
   const m = useStrings();
   const s = m.links;
   const formId = `link-${link.id}-form`;
@@ -65,6 +70,7 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
   const [other, setOther] = useState("");
   const [categoryId, setCategoryId] = useState(link.categoryId);
   const [active, setActive] = useState(link.active);
+  const [check, setCheck] = useState(link.check);
   const [pending, setPending] = useState(false);
   const [warnings, setWarnings] = useState<EditWarning[]>(initialWarnings);
   const [confirm, setConfirm] = useState(false);
@@ -82,7 +88,7 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!errors.check({ title: title.trim() === "" && m.fieldErrors.required, url: url.trim() === "" && m.fieldErrors.required })) return;
-    const values = { title, url, description, icon: icon.trim() || null, keywords: keywordsOf(keywords), groups: refsWith(refs, other), categoryId, active };
+    const values = { title, url, description, icon: icon.trim() || null, keywords: keywordsOf(keywords), groups: refsWith(refs, other), categoryId, active, check };
     // Only what changed is sent: a field someone else changed meanwhile, and this form did not touch, stays theirs.
     const changes: Partial<LinkInput> = {};
     if (values.title.trim() !== base.title) changes.title = values.title;
@@ -93,6 +99,7 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
     if (!sameRefs(values.groups, base.groups)) changes.groups = values.groups;
     if (values.categoryId !== base.categoryId) changes.categoryId = values.categoryId;
     if (values.active !== base.active) changes.active = values.active;
+    if (values.check !== base.check) changes.check = values.check;
     if (Object.keys(changes).length === 0) {
       errors.reset();
       setConflict(null);
@@ -126,6 +133,7 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
     groups: s.fields.groups,
     categoryId: s.fields.category,
     active: s.fields.active,
+    check: s.fields.check,
   };
   const categoryTitle = (id: string) => categories.find((c) => c.id === id)?.title ?? id;
 
@@ -180,6 +188,15 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
               />
               <CheckboxField id={errors.fieldId("active")} label={s.fields.active} hint={s.fields.activeHint} disabled={readOnly} checked={active} onChange={(e) => setActive(e.target.checked)} />
               {conflict && conflict.active !== active && <Current value={conflict.active ? s.fields.active : s.states.inactive} mine="" />}
+              <CheckboxField
+                id={errors.fieldId("check")}
+                label={s.fields.check}
+                hint={s.check.hint(checks?.intervalMinutes ?? null)}
+                disabled={readOnly}
+                checked={check}
+                onChange={(e) => setCheck(e.target.checked)}
+              />
+              {conflict && conflict.check !== check && <Current value={conflict.check ? s.fields.check : s.check.off} mine="" />}
             </FormStack>
           </div>
           {!readOnly && (
@@ -190,6 +207,8 @@ export function LinkPage({ link, categories, groups, readOnly, onSaved, onDelete
             </FormActions>
           )}
         </form>
+        {/* The stored link, so a tick not saved yet shows no block, and a save that drops the result shows it gone. */}
+        <LinkStatus link={base} checks={checks} now={now} />
         <RecentChanges type="link" id={link.id} scoped version={link} />
         {!readOnly && (
           <PaneDanger>

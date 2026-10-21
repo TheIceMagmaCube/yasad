@@ -236,6 +236,8 @@ export function LinksPage({ open }: { open: LinksRoute }) {
         categories={categories}
         groups={groups.data}
         readOnly={managed}
+        checks={checks}
+        now={now}
         onManaged={onManaged}
         warnings={createdWarnings[link.id]}
         onSaved={(updated) => {

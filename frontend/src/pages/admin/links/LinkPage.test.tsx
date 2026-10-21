@@ -150,8 +150,58 @@ describe("LinkPage", () => {
     expect(screen.getByLabelText("Title")).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Active" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Active" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Check availability" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("button", { name: `Delete ${OLD.title}` })).toBeNull();
+  });
+
+  it("sends the availability check only when it changed, with the interval in its hint", async () => {
+    const { user, fetchMock } = renderAdmin(
+      "/admin/links/wiki",
+      linksRoutes({ "PATCH /api/admin/links/wiki": { status: 200, body: { link: { ...WIKI, check: true, revision: 2 }, warnings: [] } } }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    const box = screen.getByRole("checkbox", { name: "Check availability" });
+    expect(box).not.toBeChecked();
+    expect(box).toHaveAccessibleDescription(/every 5 min\. Only public addresses are checked\. A sign-in page counts as up\./);
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(lastCall(fetchMock, "PATCH /api/admin/links/wiki")).toBe(-1);
+
+    await user.click(box);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Saved: Wiki."));
+    expect(sentBody(fetchMock, lastCall(fetchMock, "PATCH /api/admin/links/wiki"))).toEqual({ revision: 1, check: true });
+  });
+
+  it("leaves the interval out of the hint when the check settings are unknown", async () => {
+    renderAdmin("/admin/links/wiki", linksRoutes({ "GET /api/admin/catalog/state": apiError(500, "internal") }));
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    expect(screen.getByRole("checkbox", { name: "Check availability" })).toHaveAccessibleDescription(/^Only public addresses are checked\./);
+  });
+
+  it("after a conflict, shows the stored availability check when it differs", async () => {
+    const stored = { ...WIKI, check: true, revision: 3 };
+    const { user } = renderAdmin("/admin/links/wiki", linksRoutes({ "PATCH /api/admin/links/wiki": { status: 409, body: { error: { code: "item_changed", message: "", current: stored } } } }));
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    await user.clear(screen.getByLabelText("Title"));
+    await user.type(screen.getByLabelText("Title"), "Team wiki");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Current: Check availability")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Check availability" }));
+    expect(screen.queryByText("Current: Check availability")).toBeNull();
+  });
+
+  it("shows the last check of a checked link under its form, and none for an unchecked one", async () => {
+    const down = { ...WIKI, check: true, status: { state: "down" as const, reason: "http_error", httpStatus: 502, checkedAt: new Date().toISOString() } };
+    renderAdmin("/admin/links/wiki", linksRoutes({}, { categories: [{ ...TOOLS, links: [down, ...TOOLS.links.slice(1)] }, DEV] }));
+    const region = await screen.findByRole("region", { name: "Last check" });
+    expect(within(region).getByText("Down")).toBeInTheDocument();
+    expect(within(region).getByText("HTTP error, HTTP 502")).toBeInTheDocument();
+    cleanup();
+    renderAdmin("/admin/links/mail", linksRoutes());
+    await screen.findByRole("heading", { level: 1, name: "Mail" });
+    expect(screen.queryByRole("region", { name: "Last check" })).toBeNull();
   });
 
   it("says when the address names a link that no longer exists", async () => {

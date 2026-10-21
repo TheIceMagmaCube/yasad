@@ -1,4 +1,4 @@
-import type { CatalogErrorParams } from "../api";
+import type { CatalogErrorParams, StatusReason } from "../api";
 
 export const en = {
   tagline: "One clean screen with the links each person is allowed to see.",
@@ -428,6 +428,33 @@ export const en = {
       category: "Category",
       active: "Active",
       activeHint: "An inactive link is hidden from everyone, and kept here.",
+      check: "Check availability",
+    },
+    check: {
+      hint: (n: number | null) => `${n === null ? "" : `The server requests this address every ${n} min. `}Only public addresses are checked. A sign-in page counts as up.`,
+      off: "Not checked",
+    },
+    status: {
+      title: "Last check",
+      state: "State",
+      detail: "Detail",
+      checked: "Checked",
+      states: { up: "Up", down: "Down", unknown: "Status unknown" },
+      httpStatus: (n: number) => `HTTP ${n}`,
+      reasons: {
+        http_error: "HTTP error",
+        connect_failed: "Connection refused or cut",
+        dns_not_found: "Name not found",
+        timeout: "No answer in time",
+        tls_error: "Invalid certificate",
+        blocked_address: "Private or local address, not contacted",
+        blocked_port: "Port refused, not contacted",
+        unsupported_on_target: "IP address not supported on Cloudflare Workers",
+        resolver_failed: "Name resolution failed",
+        not_checked_yet: "Not checked yet",
+        stale: "Last result too old",
+        other: "Other reason",
+      } satisfies Record<StatusReason | "other", string>,
     },
     groupSections: { system: "Built-in", local: "Local", oidc: "Identity provider" },
     create: "Create",

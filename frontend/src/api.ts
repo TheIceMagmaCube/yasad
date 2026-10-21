@@ -82,6 +82,19 @@ export type AdminGroup = {
   /** When a provider group last came in a sign-in token; null for one only typed (catalog, import) and never received. */
   seenAt: string | null;
 };
+/** Why a check gave its state: the reasons the server stores, then the two the screens compute. */
+export type StatusReason =
+  | "http_error"
+  | "connect_failed"
+  | "dns_not_found"
+  | "timeout"
+  | "tls_error"
+  | "blocked_address"
+  | "blocked_port"
+  | "unsupported_on_target"
+  | "resolver_failed"
+  | "not_checked_yet"
+  | "stale";
 /** The last built-in check of a link, as admins see it. */
 export type AdminLinkStatus = { state: "up" | "down" | "unknown"; reason: string | null; httpStatus: number | null; checkedAt: string | null };
 /** A link as the catalog stores it: inactive links and links without a group included. */
