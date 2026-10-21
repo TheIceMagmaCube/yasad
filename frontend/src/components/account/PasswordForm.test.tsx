@@ -2,7 +2,7 @@ import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mockApi, renderWithProviders } from "../../test-utils";
+import { expectFocused, mockApi, renderWithProviders } from "../../test-utils";
 import { PasswordForm } from "./PasswordForm";
 
 const BOB = { id: "bob", name: "Bob", email: "bob@example.invalid", role: "user" };
@@ -107,6 +107,6 @@ describe("PasswordForm, account page", () => {
     mockApi({ "POST /api/account/password": { status: 409, body: { error: { code: "no_local_password", message: "" } } } });
     renderWithProviders(<PasswordForm mode="account" onDone={vi.fn()} onCancel={vi.fn()} />);
     await fill("a password here", "a brand new passphrase", undefined, "Current password");
-    expect(await screen.findByRole("group", { name: /signs in through the identity provider/ })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: /signs in through the identity provider/ }));
   });
 });

@@ -2,7 +2,7 @@ import { cleanup, renderHook, screen, waitFor, within } from "@testing-library/r
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { primeHome, useHomeEntry } from "../../../lib/home-store";
-import { getAnnouncer, sentBody } from "../../../test-utils";
+import { expectFocused, getAnnouncer, sentBody } from "../../../test-utils";
 import { apiError, group, groupsAnswer, person, renderAdmin, usersAnswer } from "./testing";
 
 afterEach(() => {
@@ -72,7 +72,7 @@ describe("PersonPage", () => {
     const { user } = renderAdmin("/admin/users/bob", routes({ "PUT /api/admin/groups/g2/members/bob": apiError(500, "internal") }));
     await screen.findByRole("heading", { level: 1, name: "Bob" });
     await user.click(screen.getByRole("checkbox", { name: "Staff" }));
-    expect(await screen.findByRole("group", { name: "The membership of Staff could not be changed." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "The membership of Staff could not be changed." }));
     expect(screen.getByRole("checkbox", { name: "Staff" })).not.toBeChecked();
   });
 
@@ -93,7 +93,7 @@ describe("PersonPage", () => {
     await screen.findByRole("heading", { level: 1, name: "Eve" });
     await user.click(screen.getByRole("checkbox", { name: "Administrator" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("group", { name: /Keep at least one enabled local administrator/ })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: /Keep at least one enabled local administrator/ }));
     const patch = fetchMock.mock.calls.findIndex(([path, init]) => path === "/api/admin/users/eve" && init?.method === "PATCH");
     expect(sentBody(fetchMock, patch)).toEqual({ role: "user" });
   });
@@ -103,7 +103,7 @@ describe("PersonPage", () => {
     await screen.findByRole("heading", { level: 1, name: "Bob" });
     await user.click(screen.getByRole("checkbox", { name: "Disabled" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("group", { name: /You cannot change your own role/ })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: /You cannot change your own role/ }));
   });
 
   it("announces a saved profile without moving the focus", async () => {
@@ -172,7 +172,7 @@ describe("PersonPage", () => {
     const confirm = screen.getByRole("group", { name: "Delete Bob?" });
     expect(confirm).toHaveTextContent("Their sessions and group memberships are deleted too.");
     await user.click(within(confirm).getByRole("button", { name: "Delete for good" }));
-    expect(await screen.findByRole("group", { name: "Bob deleted." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Bob deleted." }));
     expect(location.pathname).toBe("/admin/users");
     expect(screen.queryByRole("link", { name: "Bob" })).toBeNull();
   });

@@ -1,7 +1,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAnnouncer, sentBody } from "../../../test-utils";
+import { expectFocused, getAnnouncer, sentBody } from "../../../test-utils";
 import { apiError, renderAdmin } from "../people/testing";
 import { DEV, GIT, linksRoutes, OLD, primeHomeCache, STATE, TOOLS, WIKI } from "./testing";
 
@@ -57,7 +57,7 @@ describe("LinkPage", () => {
     await user.type(screen.getByLabelText("Title"), "Team wiki");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByRole("group", { name: "Changed by someone else meanwhile. Current values are under each field." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Changed by someone else meanwhile. Current values are under each field." }));
     expect(screen.getByText("Current: Wiki (old)")).toBeInTheDocument();
     expect(screen.getByText("Current: https://elsewhere.example.invalid")).toBeInTheDocument();
     expect(screen.getByText("Current: docs, kb")).toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("LinkPage", () => {
     await user.clear(screen.getByLabelText("Icon"));
     await user.type(screen.getByLabelText("Icon"), "fa:book");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("group", { name: "Check the highlighted fields." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Check the highlighted fields." }));
     expect(screen.getByLabelText("Icon")).toHaveAccessibleDescription(/Use si:<name> or lucide:<name>\./);
   });
 
@@ -117,7 +117,7 @@ describe("LinkPage", () => {
     const isCached = primeHomeCache();
     await user.click(screen.getByRole("button", { name: "Delete Mail" }));
     await user.click(within(screen.getByRole("group", { name: "Delete the link Mail?" })).getByRole("button", { name: "Delete for good" }));
-    expect(await screen.findByRole("group", { name: "Deleted: Mail." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Deleted: Mail." }));
     expect(location.pathname).toBe("/admin/links");
     expect(sentBody(fetchMock, lastCall(fetchMock, "DELETE /api/admin/links/mail"))).toEqual({ revision: 1 });
     expect(isCached()).toBe(false);
@@ -137,7 +137,7 @@ describe("LinkPage", () => {
     await screen.findByRole("heading", { level: 1, name: "Wiki" });
     await user.click(screen.getByRole("checkbox", { name: "Active" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("group", { name: "Managed by CATALOG_FILE: read only." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "Managed by CATALOG_FILE: read only." }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).toBeNull());
     expect(screen.getByLabelText("Title")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Delete Wiki" })).toBeNull();

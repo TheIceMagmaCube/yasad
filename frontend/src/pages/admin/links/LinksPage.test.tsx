@@ -1,7 +1,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getAnnouncer } from "../../../test-utils";
+import { expectFocused, getAnnouncer } from "../../../test-utils";
 import { renderAdmin } from "../people/testing";
 import { linksRoutes, primeHomeCache, STATE, WIKI } from "./testing";
 
@@ -150,7 +150,7 @@ describe("Reorder mode", () => {
     await user.click(screen.getByRole("button", { name: "Reorder" }));
     await user.click(screen.getByRole("button", { name: "Links" }));
     await user.click(screen.getByRole("button", { name: "Move down the link Wiki" }));
-    expect(await screen.findByRole("group", { name: "This link went to another category meanwhile. The list has been read again." })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: "This link went to another category meanwhile. The list has been read again." }));
     await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path === "/api/admin/categories")).toHaveLength(2));
 
     await user.click(screen.getByRole("button", { name: "Done" }));

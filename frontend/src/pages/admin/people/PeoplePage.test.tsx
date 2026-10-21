@@ -1,6 +1,7 @@
 import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { expectFocused } from "../../../test-utils";
 import { group, groupsAnswer, pageHeading, person, renderAdmin, usersAnswer } from "./testing";
 
 afterEach(() => {
@@ -111,7 +112,7 @@ describe("PeoplePage", () => {
     await screen.findByRole("table");
     await user.click(screen.getByRole("link", { name: "Bob" }));
     expect(location.pathname).toBe("/admin/users/bob");
-    expect(await screen.findByRole("heading", { level: 1, name: "Bob" })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("heading", { level: 1, name: "Bob" }));
     await waitFor(() => expect(document.title).toBe("Bob - People - Administration - YASAD"));
 
     await user.click(screen.getByRole("link", { name: "Back to People" }));

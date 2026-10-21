@@ -2,7 +2,7 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminCategory, CatalogState } from "../../../api";
-import { getAnnouncer } from "../../../test-utils";
+import { expectFocused, getAnnouncer } from "../../../test-utils";
 import { apiError, group, groupsAnswer, person, renderAdmin, usersAnswer } from "./testing";
 
 afterEach(() => {
@@ -99,7 +99,7 @@ describe("GroupPage", () => {
     const { user } = renderAdmin("/admin/groups/g1", routes({ "PUT /api/admin/groups/g1/members/ada": apiError(409, "read_only_group") }));
     await screen.findByRole("heading", { level: 1, name: "Finance" });
     await user.click(screen.getByRole("checkbox", { name: "Ada" }));
-    expect(await screen.findByRole("group", { name: /cannot be changed here/ })).toHaveFocus();
+    await expectFocused(() => screen.getByRole("group", { name: /cannot be changed here/ }));
     expect(screen.getByRole("checkbox", { name: "Ada" })).not.toBeChecked();
   });
 
