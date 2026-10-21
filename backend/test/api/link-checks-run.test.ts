@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 
 import { D1_CALLS, fitBatch, WORKERS_BUDGET } from "../../src/checks/budget";
 import { DOH_ENDPOINT } from "../../src/net/doh";
-import { type FakeNet, fakeNet, type SiteAnswer, targetRequests } from "../harness/fake-net";
+import { type DnsEntry, type FakeNet, fakeNet, type SiteAnswer, targetRequests } from "../harness/fake-net";
+import { NON_PUBLIC_ADDRESSES, POLICY_CASES } from "../unit/net-cases";
 import { adminApp, importFile, type Link, newCategory, newLink } from "./catalog-items";
 import { send } from "./users";
 
@@ -429,5 +430,98 @@ categories:
 `,
       ),
     );
+  });
+});
+
+/** Runs checks at `NOW` until every link of `app` has a result (a run claims at most one batch). */
+async function checkAll(app: TestApp, count: number) {
+  for (let run = 0; run < count; run++) {
+    await app.runChecks({ now: NOW });
+    const [row] = await app.query("select count(*) as n from link_status where state is not null");
+    if (Number(row?.n) === count) return;
+  }
+  throw new Error("some links were never checked");
+}
+
+describe("scheduled link checks: SSRF and DNS refusals", () => {
+  it("refuses every non-public literal, reserved name, malformed target and bad port without any request", async () => {
+    const refused = POLICY_CASES.filter((c) => !c.expected.ok);
+    const ids = refused.map((_, i) => `r${String(i).padStart(2, "0")}`);
+    const app = await checkedApp(refused.map((c, i) => ({ id: ids[i] as string, url: c.url })));
+    await checkAll(app, refused.length);
+    expect(await statusRows(app)).toEqual(
+      refused.map((c, i) => {
+        const code = c.expected.ok ? null : c.expected.code;
+        return result(ids[i] as string, "unknown", code === "blocked_port" ? "blocked_port" : "blocked_address", null);
+      }),
+    );
+    // Neither the resolver nor any target was contacted.
+    expect(net.requests).toEqual([]);
+  });
+
+  it("stores a public literal as unsupported on this target without any request", async () => {
+    const app = await checkedApp([{ id: "literal", url: `http://${PUBLIC_A}/` }]);
+    await app.runChecks({ now: NOW });
+    expect(await statusRows(app)).toEqual([result("literal", "unknown", "unsupported_on_target", null)]);
+    expect(net.requests).toEqual([]);
+  });
+
+  it("refuses a name that resolves to any non-public address", async () => {
+    const names: [string, DnsEntry][] = [
+      ...NON_PUBLIC_ADDRESSES.map((address): DnsEntry => (address.includes(":") ? { aaaa: [address] } : { a: [address] })),
+      { a: ["10.0.0.5"] },
+      { a: [PUBLIC_A, "127.0.0.1"] },
+      { a: [PUBLIC_A], aaaa: ["::1"] },
+      { aaaa: ["::ffff:7f00:1"] },
+      { aaaa: ["::7f00:1"] },
+      { cname: "db.internal" },
+    ].map((entry, i) => [`n${String(i).padStart(2, "0")}.example`, entry]);
+    net.dns["db.internal"] = { a: ["10.0.0.7"] };
+    for (const [name, entry] of names) {
+      net.dns[name] = entry;
+      net.sites[`https://${name}`] = 200;
+    }
+    const app = await checkedApp(names.map(([name]) => ({ id: name.split(".")[0] as string, url: `https://${name}/` })));
+    await checkAll(app, names.length);
+    expect(await statusRows(app)).toEqual(
+      names.map(([name]) => result(name.split(".")[0] as string, "unknown", "blocked_address", null)),
+    );
+    for (const [name] of names) expect(targetRequests(net, `https://${name}`), name).toEqual([]);
+    expect(targetRequests(net, "https://db.internal")).toEqual([]);
+  });
+
+  const chain = (prefix: string, hops: number): Record<string, DnsEntry> =>
+    Object.fromEntries(
+      Array.from({ length: hops + 1 }, (_, i): [string, DnsEntry] => [
+        i === 0 ? `${prefix}.example` : `${prefix}-${i}.example`,
+        i === hops ? { a: [PUBLIC_A] } : { cname: `${prefix}-${i + 1}.example` },
+      ]),
+    );
+
+  it.each<[string, Record<string, DnsEntry>, string, string]>([
+    ["a CNAME loop", { "dns.example": { cname: "loop.example" }, "loop.example": { cname: "dns.example" } }, "unknown", "resolver_failed"],
+    ["more than 8 CNAME hops", chain("dns", 9), "unknown", "resolver_failed"],
+    ["an unreadable A record", { "dns.example": { a: ["999.1.1.1"] } }, "unknown", "resolver_failed"],
+    ["a SERVFAIL", { "dns.example": { status: 2 } }, "unknown", "resolver_failed"],
+    ["a truncated answer", { "dns.example": { tc: true } }, "unknown", "resolver_failed"],
+    ["an answer that is not JSON", { "dns.example": { raw: "{ not json" } }, "unknown", "resolver_failed"],
+    ["an NXDOMAIN", { "dns.example": { status: 3 } }, "down", "dns_not_found"],
+    ["a CNAME to a name without address", { "dns.example": { cname: "empty.example" }, "empty.example": {} }, "down", "dns_not_found"],
+  ])("stores %s from the resolver", async (_label, dns, state, reason) => {
+    Object.assign(net.dns, dns);
+    net.sites["https://dns.example"] = 200;
+    const app = await checkedApp([{ id: "dns", url: "https://dns.example/" }]);
+    await app.runChecks({ now: NOW });
+    expect(await statusRows(app)).toEqual([result("dns", state, reason, null)]);
+    expect(dohFor("dns.example").length).toBeGreaterThan(0);
+    expect(targetRequests(net, "https://dns.example")).toEqual([]);
+  });
+
+  it("follows 8 CNAME hops to a public address", async () => {
+    Object.assign(net.dns, chain("dns", 8));
+    net.sites["https://dns.example"] = 200;
+    const app = await checkedApp([{ id: "dns", url: "https://dns.example/" }]);
+    await app.runChecks({ now: NOW });
+    expect(await statusRows(app)).toEqual([result("dns", "up", null, 200)]);
   });
 });
