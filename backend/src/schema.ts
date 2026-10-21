@@ -149,6 +149,8 @@ export const link = sqliteTable(
     keywords: text("keywords").notNull().default("[]"),
     position: integer("position").notNull(),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /** Whether the server checks the link's address; the result is in `link_status`, never on this row. */
+    check: integer("check_enabled", { mode: "boolean" }).notNull().default(false),
     /**
      * Increased by every write to the link in the app, its groups and category included, but not by a move in
      * the app; an import increases it whenever the link's content or rank changes. A stale edit is refused.
@@ -184,6 +186,29 @@ export const linkGroup = sqliteTable(
       .references(() => group.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.linkId, t.groupId] })],
+);
+
+/**
+ * Last check result per link and source (`yasad` for the built-in checks). Not catalog content: it changes no
+ * `revision`, never enters the audit log and is left alone by the import's upsert. Dates are ms epoch.
+ */
+export const linkStatus = sqliteTable(
+  "link_status",
+  {
+    linkId: text("link_id")
+      .notNull()
+      .references(() => link.id, { onDelete: "cascade" }),
+    source: text("source", { enum: ["yasad"] }).notNull(),
+    /** Null until the first check. */
+    state: text("state", { enum: ["up", "down", "unknown"] }),
+    reason: text("reason"),
+    httpStatus: integer("http_status"),
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }),
+    dueAt: integer("due_at").notNull().default(0),
+    claimId: text("claim_id"),
+    claimedUntil: integer("claimed_until").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.linkId, t.source] }), index("link_status_source_due_at_idx").on(t.source, t.dueAt)],
 );
 
 /**

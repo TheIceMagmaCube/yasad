@@ -21,6 +21,8 @@ export type AdminLink = {
   iconKnown: boolean;
   keywords: string[];
   active: boolean;
+  /** Whether the server checks the link's address. */
+  check: boolean;
   groups: string[];
   revision: number;
 };
@@ -144,6 +146,7 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[]): AdminLink
     iconKnown: resolveIcon(row.icon) !== null,
     keywords: parseKeywords(row.keywords),
     active: row.active,
+    check: row.check,
     groups,
     revision: row.revision,
   };
@@ -434,6 +437,7 @@ export async function createLink({ db }: Author, body: unknown): Promise<Edit<Ad
         icon: input.icon ?? null,
         keywords: JSON.stringify(input.keywords ?? []),
         active: input.active ?? true,
+        check: input.check ?? false,
         position: nextLinkPosition(input.categoryId),
       }),
       ...linkGroupRows(db, id, input.groups),

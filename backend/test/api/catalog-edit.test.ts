@@ -280,6 +280,7 @@ describe("catalog edits: links", () => {
       iconKnown: true,
       keywords: ["doc", "notes"],
       active: false,
+      check: false,
       groups: ["@authenticated"],
       revision: 1,
     });
