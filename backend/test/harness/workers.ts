@@ -1,4 +1,5 @@
 // Workers harness: the real Worker entry, running in workerd with a local D1 database.
+import { createExecutionContext, createScheduledController, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
 import worker from "../../src/worker";
@@ -7,7 +8,7 @@ import { BASE_ENV, client, type TestApp, type TestEnv } from "./shared";
 export { BASE_ENV, TEST_IP } from "./shared";
 export const target = "workers";
 
-const TABLES = ["user_link_pin", "user_group", "link_group", "category_group", "link", "category", "session", "account", "verification", "user", "setting", "rate_limit"];
+const TABLES = ["link_status", "user_link_pin", "user_group", "link_group", "category_group", "link", "category", "session", "account", "verification", "user", "setting", "rate_limit"];
 
 /** Return a client on the D1 database, emptied first. */
 export async function testApp(overrides: TestEnv = {}): Promise<TestApp> {
@@ -31,6 +32,11 @@ export async function testApp(overrides: TestEnv = {}): Promise<TestApp> {
     async (sql) => (await env.DB.prepare(sql).all<Record<string, unknown>>()).results,
     async (sqls) => {
       await env.DB.batch(sqls.map((sql) => env.DB.prepare(sql)));
+    },
+    async ({ now }) => {
+      const ctx = createExecutionContext();
+      worker.scheduled(createScheduledController({ scheduledTime: now, cron: "* * * * *" }), bindings, ctx);
+      await waitOnExecutionContext(ctx);
     },
   );
 }
