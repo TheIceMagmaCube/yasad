@@ -123,6 +123,10 @@ export type LinkInput = {
 export type CategoryInput = { id?: string; title: string; groups: string[] };
 type Direction = "up" | "down";
 
+export type AccountGroup = { name: string; source: "system" | "local" | "oidc" };
+/** Body of GET /api/account: how the person signs in, the groups they hold, when the provider groups were written. */
+export type AccountInfo = { origin: "local" | "oidc"; groups: AccountGroup[]; providerGroupsAt: string | null };
+
 /** Kinds of objects the change log names; `catalog` stands for a whole import. */
 export type HistoryObjectType = "user" | "group" | "category" | "link" | "catalog";
 export type HistoryAction = "create" | "update" | "delete" | "move" | "password_reset" | "member_add" | "member_remove" | "import";
@@ -249,7 +253,7 @@ export const api = {
   catalogState: () => call<CatalogState>("/api/admin/catalog/state"),
   /** Return the catalog file, as the YAML the import accepts. */
   exportCatalog: async () => (await request("/api/admin/catalog")).blob(),
-  account: () => call<{ origin: "local" | "oidc" }>("/api/account"),
+  account: () => call<AccountInfo>("/api/account"),
   updateProfile: (changes: { name?: string; email?: string; currentPassword?: string }) =>
     call<{ user: { id: string; name: string; email: string } }>("/api/account", send("PATCH", changes)),
   changePassword: (currentPassword: string, newPassword: string) =>
