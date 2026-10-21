@@ -44,6 +44,21 @@ export function viewerGroupIds(db: DB, viewer: Viewer): SQLWrapper {
   return unionAll(systemGroups(db, ["everyone", "authenticated"]), memberships);
 }
 
+/** A group the viewer holds, as shown to them: name and origin, no id. */
+export type ViewerGroup = { name: string; source: "system" | "local" | "oidc" };
+
+/**
+ * Return the groups the viewer holds, by name then id: exactly {@link viewerGroupIds}, so what is shown is what
+ * opens links. A subquery: a few parameters whatever the number of groups.
+ */
+export function viewerGroups(db: DB, viewer: Viewer): Promise<ViewerGroup[]> {
+  return db
+    .select({ name: group.name, source: group.source })
+    .from(group)
+    .where(inArray(group.id, viewerGroupIds(db, viewer)))
+    .orderBy(asc(group.name), asc(group.id));
+}
+
 /**
  * Return the condition under which the viewer may see a link, over the `link` and `category` columns
  * of a query joining both.
