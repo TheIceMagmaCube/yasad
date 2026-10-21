@@ -391,7 +391,11 @@ export const en = {
     fileTitle: "YAML file",
     columns: { icon: "Icon", title: "Title", address: "Address", groups: "Groups", state: "State" },
     noGroups: "(none)",
-    states: { inactive: "Inactive", noGroup: "No group: nobody sees it", unknownIcon: "Unknown icon", neverReceived: "Typed group, never received" },
+    states: { inactive: "Inactive", noGroup: "No group: nobody sees it", unknownIcon: "Unknown icon", neverReceived: "Typed group, never received", down: "Down", statusUnknown: "Status unknown" },
+    checks: {
+      overloaded: (checked: number, capacity: number) =>
+        `${checked} links are checked, but this instance can check ${capacity} per interval. Some statuses will turn unknown. Check fewer links or raise STATUS_CHECK_INTERVAL_MINUTES.`,
+    },
     unknownMembers: "typed, never received",
     emptyTitle: "No category yet",
     emptyBody: "Add a category, then its links, or import a YAML file.",

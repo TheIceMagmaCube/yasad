@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectFocused, getAnnouncer } from "../../../test-utils";
 import { renderAdmin } from "../people/testing";
-import { linksRoutes, primeHomeCache, STATE, WIKI } from "./testing";
+import { CHECKS, category, link, linksRoutes, primeHomeCache, STATE, WIKI } from "./testing";
 
 afterEach(() => {
   cleanup();
@@ -88,6 +88,77 @@ describe("LinksPage", () => {
   it("says when the catalog is empty", async () => {
     renderAdmin("/admin/links", linksRoutes({}, { categories: [] }));
     expect(await screen.findByText("No category yet")).toBeInTheDocument();
+  });
+});
+
+describe("Link status in the list", () => {
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const status = (state: "up" | "down" | "unknown", checkedAt: string, reason: string | null = null, httpStatus: number | null = null) => ({ state, reason, httpStatus, checkedAt });
+  const UP = link({ id: "up", title: "Up", check: true, status: status("up", ago(1), null, 200) });
+  const DOWN = link({ id: "down", title: "Down", check: true, status: status("down", ago(1), "http_error", 502) });
+  const NEW = link({ id: "new", title: "New", check: true });
+  const STALE = link({ id: "stale", title: "Stale", check: true, status: status("up", ago(16), null, 200) });
+  const OFF = link({ id: "off", title: "Off", check: true, active: false, status: status("down", ago(1), "timeout") });
+  const CHECKED = category({ id: "tools", title: "Tools", links: [UP, DOWN, NEW, STALE, OFF] });
+  const routes = (state = STATE) => linksRoutes({}, { categories: [CHECKED], state });
+  const titles = () => screen.queryAllByRole("link", { name: /^(Up|Down|New|Stale|Off)$/ }).map((a) => a.textContent);
+  const rowOf = (title: string) => within(table("Tools")).getByRole("link", { name: title }).closest("tr")!;
+
+  it("marks a down link, an unchecked or stale one as status unknown, and an inactive one as inactive only", async () => {
+    renderAdmin("/admin/links", routes());
+    await screen.findByRole("table", { name: "Links of Tools" });
+    expect(rowOf("Down").querySelector("td:last-child")).toHaveTextContent(/^Down$/);
+    expect(rowOf("Up").querySelector("td:last-child")).toHaveTextContent(/^$/);
+    expect(rowOf("New")).toHaveTextContent("Status unknown");
+    expect(rowOf("Stale")).toHaveTextContent("Status unknown");
+    expect(rowOf("Off").querySelector("td:last-child")).toHaveTextContent(/^Inactive$/);
+  });
+
+  it("ranks a missing group above a down status", async () => {
+    const orphan = link({ id: "down", title: "Down", groups: [], check: true, status: status("down", ago(1), "http_error", 502) });
+    renderAdmin("/admin/links", linksRoutes({}, { categories: [category({ id: "tools", title: "Tools", links: [orphan] })] }));
+    await screen.findByRole("table", { name: "Links of Tools" });
+    expect(rowOf("Down").querySelector("td:last-child")).toHaveTextContent(/^No group: nobody sees it$/);
+  });
+
+  it.each([
+    ["down", "Down", ["Down"]],
+    ["statusUnknown", "Status unknown", ["New", "Stale"]],
+  ])("narrows the list to ?state=%s, active links only", async (state, label, links) => {
+    renderAdmin(`/admin/links?state=${state}`, routes());
+    await screen.findByRole("table", { name: "Links of Tools" });
+    expect(screen.getByText(`Filter: ${label}`)).toBeInTheDocument();
+    expect(titles()).toEqual(links);
+  });
+
+  it("says when nothing is down", async () => {
+    renderAdmin("/admin/links?state=down", linksRoutes());
+    expect(await screen.findByText("Nothing in this state.")).toBeInTheDocument();
+  });
+
+  it.each([
+    [51, 50, true],
+    [50, 50, false],
+    [80, null, false],
+  ])("with %s checked links and a capacity of %s, warns: %s", async (checked, capacity, warns) => {
+    renderAdmin("/admin/links", routes({ ...STATE, checks: { ...CHECKS, checked, capacity } }));
+    await screen.findByRole("table", { name: "Links of Tools" });
+    const text = "51 links are checked, but this instance can check 50 per interval. Some statuses will turn unknown. Check fewer links or raise STATUS_CHECK_INTERVAL_MINUTES.";
+    if (warns) expect(screen.getByText(text)).toBeInTheDocument();
+    else expect(screen.queryByText(/per interval/)).toBeNull();
+  });
+
+  it("reads the marks and the warning in French", async () => {
+    localStorage.setItem("yasad.language", "fr");
+    try {
+      renderAdmin("/admin/links", routes({ ...STATE, checks: { ...CHECKS, checked: 51, capacity: 50 } }));
+      await screen.findByRole("table", { name: "Liens de Tools" });
+      expect(screen.getByText("En panne")).toBeInTheDocument();
+      expect(screen.getAllByText("Statut inconnu")).toHaveLength(2);
+      expect(screen.getByText(/^51 liens sont vérifiés, mais cette instance peut en vérifier 50 par intervalle\./)).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem("yasad.language");
+    }
   });
 });
 

@@ -399,7 +399,11 @@ export const fr = {
     fileTitle: "Fichier YAML",
     columns: { icon: "Icône", title: "Titre", address: "Adresse", groups: "Groupes", state: "État" },
     noGroups: "(aucun)",
-    states: { inactive: "Inactif", noGroup: "Sans groupe : personne ne le voit", unknownIcon: "Icône inconnue", neverReceived: "Groupe saisi, jamais reçu" },
+    states: { inactive: "Inactif", noGroup: "Sans groupe : personne ne le voit", unknownIcon: "Icône inconnue", neverReceived: "Groupe saisi, jamais reçu", down: "En panne", statusUnknown: "Statut inconnu" },
+    checks: {
+      overloaded: (checked, capacity) =>
+        `${checked} liens sont vérifiés, mais cette instance peut en vérifier ${capacity} par intervalle. Certains statuts passeront à inconnu. Vérifiez moins de liens ou augmentez STATUS_CHECK_INTERVAL_MINUTES.`,
+    },
     unknownMembers: "saisi, jamais reçu",
     emptyTitle: "Aucune catégorie pour l'instant",
     emptyBody: "Ajoutez une catégorie, puis ses liens, ou importez un fichier YAML.",

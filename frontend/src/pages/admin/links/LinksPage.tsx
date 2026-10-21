@@ -21,6 +21,7 @@ import { prepareFilter } from "../../../lib/filter";
 import { focusById } from "../../../lib/focus";
 import { groupRefLabel, groupRefOf, neverReceived } from "../../../lib/group-ref";
 import { invalidateHome } from "../../../lib/home-store";
+import { type EffectiveStatus, effectiveStatus } from "../../../lib/link-status";
 import { navigate } from "../../../lib/router";
 import { cn } from "../../../lib/utils";
 import { AdminCatalog } from "../AdminCatalog";
@@ -40,7 +41,7 @@ const categoryLinkIdOf = (id: string) => `category-${id}-link`;
 export type LinksRoute = { kind: "link" | "category"; id: string } | { kind: "new"; type: "link" | "category" } | null;
 
 /** States a list can be narrowed to with `?state=`, as the dashboard links to them. */
-const STATES = ["noGroup", "unknownIcon", "neverReceived", "inactive"] as const;
+const STATES = ["noGroup", "unknownIcon", "neverReceived", "inactive", "down", "statusUnknown"] as const;
 type StateFilter = (typeof STATES)[number];
 
 /** Return the icon of a stored link as the home page draws it; an unknown one draws the first letter. */
@@ -73,12 +74,17 @@ function groupsText(refs: string[], m: Messages) {
   );
 }
 
-/** Return the one mark of an abnormal link: no group first, then a group never received, inactive, unknown icon. */
-function stateOf(link: AdminLink, m: Messages, unseen: ReadonlySet<string>) {
+/**
+ * Return the one mark of an abnormal link: no group first, then a group never received, inactive, down, unknown icon,
+ * status unknown. An inactive link is never checked, so it carries no status mark; an up link carries none either.
+ */
+function stateOf(link: AdminLink, status: EffectiveStatus | null, m: Messages, unseen: ReadonlySet<string>) {
   if (link.groups.length === 0) return <StateMark tone="destructive">{m.links.states.noGroup}</StateMark>;
   if (link.groups.some((g) => unseen.has(g))) return <StateMark tone="warning">{m.links.states.neverReceived}</StateMark>;
   if (!link.active) return <StateMark tone="muted">{m.links.states.inactive}</StateMark>;
+  if (status?.state === "down") return <StateMark tone="destructive">{m.links.states.down}</StateMark>;
   if (link.icon && !link.iconKnown) return <StateMark tone="warning">{m.links.states.unknownIcon}</StateMark>;
+  if (status?.state === "unknown") return <StateMark tone="muted">{m.links.states.statusUnknown}</StateMark>;
   return null;
 }
 
@@ -106,6 +112,10 @@ export function LinksPage({ open }: { open: LinksRoute }) {
   // Warnings of a creation, shown on the page of the new item when it is opened.
   const [createdWarnings, setCreatedWarnings] = useState<Record<string, EditWarning[]>>({});
   const managed = state.data?.managedByFile ?? false;
+  const checks = state.data?.checks ?? null;
+  // Read once, as the people list does, so every row and the filter judge staleness at the same instant.
+  const [now] = useState(() => Date.now());
+  const statusOf = (l: AdminLink) => effectiveStatus(l, checks, now);
 
   const categories = catalog.data;
   const allLinks = useMemo(() => (categories ?? []).flatMap((c) => c.links), [categories]);
@@ -120,12 +130,16 @@ export function LinksPage({ open }: { open: LinksRoute }) {
     unknownIcon: (l) => Boolean(l.icon) && !l.iconKnown,
     neverReceived: (l) => l.groups.some((g) => unseen.has(g)),
     inactive: (l) => !l.active,
+    down: (l) => l.active && statusOf(l)?.state === "down",
+    statusUnknown: (l) => l.active && statusOf(l)?.state === "unknown",
   };
   const categoryState: Record<StateFilter, (c: AdminCategory) => boolean> = {
     noGroup: (c) => c.groups.length === 0,
     unknownIcon: () => false,
     neverReceived: (c) => c.groups.some((g) => unseen.has(g)),
     inactive: () => false,
+    down: () => false,
+    statusUnknown: () => false,
   };
 
   const filtering = query.trim() !== "" || stateFilter !== null;
@@ -159,6 +173,8 @@ export function LinksPage({ open }: { open: LinksRoute }) {
     feedback.say([text, warningsText(warnings)].filter(Boolean).join(" "));
     invalidateHome();
     void groups.refresh();
+    // The number of checked links may have changed.
+    void state.refresh();
   };
 
   /** Go back to the list as it was left, filter kept, the focus on the row `linkId` when it shows. */
@@ -296,7 +312,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
     {
       id: "state",
       header: s.columns.state,
-      cell: (l) => stateOf(l, m, unseen),
+      cell: (l) => stateOf(l, statusOf(l), m, unseen),
       className: "w-[42%] @min-[36rem]/table:w-[30%] @min-[48rem]/table:w-[21%]",
     },
   ];
@@ -359,6 +375,11 @@ export function LinksPage({ open }: { open: LinksRoute }) {
           {managed && (
             <Alert variant="info" className="mb-4">
               {s.managedByFile}
+            </Alert>
+          )}
+          {checks && checks.capacity !== null && checks.checked > checks.capacity && (
+            <Alert variant="warning" className="mb-4">
+              {s.checks.overloaded(checks.checked, checks.capacity)}
             </Alert>
           )}
           {catalog.refreshFailures > 0 && (
