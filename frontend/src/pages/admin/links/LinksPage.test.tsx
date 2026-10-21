@@ -148,6 +148,13 @@ describe("Link status in the list", () => {
     else expect(screen.queryByText(/per interval/)).toBeNull();
   });
 
+  it("shows the overload warning as a note, not a live region that interrupts each visit", async () => {
+    renderAdmin("/admin/links", routes({ ...STATE, checks: { ...CHECKS, checked: 51, capacity: 50 } }));
+    const warning = (await screen.findByText(/per interval/)).closest('[data-slot="alert"]')!;
+    expect(warning).toHaveAttribute("role", "note");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("reads the checked count again after a deletion, so the warning goes", async () => {
     const overloaded = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 51, capacity: 50 } } };
     const fits = { status: 200, body: { ...STATE, checks: { ...CHECKS, checked: 50, capacity: 50 } } };

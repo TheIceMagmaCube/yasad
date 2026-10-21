@@ -382,7 +382,8 @@ export function LinksPage({ open }: { open: LinksRoute }) {
             </Alert>
           )}
           {checks && checks.capacity !== null && checks.checked > checks.capacity && (
-            <Alert variant="warning" className="mb-4">
+            // A note, not a live region: it loads after the list and would interrupt each visit.
+            <Alert variant="warning" role="note" className="mb-4">
               {s.checks.overloaded(checks.checked, checks.capacity)}
             </Alert>
           )}
