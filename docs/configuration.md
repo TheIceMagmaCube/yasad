@@ -77,7 +77,7 @@ Mount the folder, not the file alone: many editors save by replacing the file, a
 
 ## Status checks
 
-YASAD checks the links marked for it (`check: true` in the catalog file, or the `check` field of a link in the administration API) every minute: a cron trigger on Workers, a timer on Docker, which also runs once at startup. Each link is checked at most once per interval, counted from the end of its previous check.
+YASAD checks the links marked for it (**Check availability** on a link's page or in the add wizard under **Links**, or `check: true` in the catalog file) every minute: a cron trigger on Workers, a timer on Docker, which also runs once at startup. Each link is checked at most once per interval, counted from the end of its previous check.
 
 | Variable | Default | Example | Description |
 |---|---|---|---|
@@ -89,6 +89,8 @@ YASAD checks the links marked for it (`check: true` in the catalog file, or the 
 `ceil(STATUS_CHECK_BATCH / STATUS_CHECK_CONCURRENCY) × STATUS_CHECK_TIMEOUT_SECONDS` must stay at most 600 seconds, or the start stops.
 
 On Docker, batches follow one another for up to 50 seconds in each minute. On Workers, each minute runs one batch, and the Free plan allows 50 subrequests per run: 3 per link plus the database, so about 15 links per run. A higher `STATUS_CHECK_BATCH` changes nothing there, and YASAD logs a warning when the checked links exceed what the interval allows. The Free plan also allows 5 cron triggers per account, shared by all its Workers; YASAD uses one.
+
+In the administration, a checked link's page shows its last check: state, reason, HTTP status and when it ran. A result older than three intervals reads unknown. The **Links** list can be filtered on down links and on links whose status is unknown; inactive links are never checked and carry no status. On Workers, the **Links** page warns when more links are checked than the interval allows, the same condition as the log. The catalog file preview and the link edits warn about a checked link that points to a private address, a refused port or a known sign-in page.
 
 Only public addresses are checked: a link that points to a private or reserved address, or to a name that resolves to one, gets an unknown status and is never contacted. Requests send `User-Agent: YASAD-status/<version> (+https://github.com/TheIceMagmaCube/yasad)` and `Accept: */*`, no cookie and no credential. On Workers, Cloudflare may add `Accept-Encoding` and `CF-Worker: <zone>`.
 
