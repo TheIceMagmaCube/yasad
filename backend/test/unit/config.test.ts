@@ -95,6 +95,13 @@ describe("loadConfig", () => {
     }
   });
 
+  it("uses the default for an empty or blank status check setting", () => {
+    const defaults = { intervalMinutes: 5, timeoutSeconds: 10, batch: 10, concurrency: 4 };
+    for (const { name, key } of statusSettings) {
+      for (const value of ["", "  "]) expect(loadConfig({ ...valid, [name]: value }).statusChecks[key]).toBe(defaults[key]);
+    }
+  });
+
   it("rejects status check settings out of range or not whole", () => {
     for (const { name, min, max } of statusSettings) {
       for (const value of ["0", String(max + 1), "-1", "1.5", "abc"]) {

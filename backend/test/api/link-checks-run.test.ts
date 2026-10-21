@@ -54,13 +54,23 @@ const statusRows = (app: TestApp) =>
     "select link_id, state, reason, http_status, checked_at, due_at, claim_id, claimed_until from link_status order by link_id",
   );
 
+/** Longest a check may take in these tests, from the run's time to the end of the check. */
+const SLACK = 15_000;
+
+/** A time from `from` to `from + SLACK`: a result is timed at the end of its check, not at the run's time. */
+const within = (from: number) => ({
+  asymmetricMatch: (value: unknown) => typeof value === "number" && value >= from && value <= from + SLACK,
+  toString: () => `a time from ${from} to ${from + SLACK}`,
+});
+
+/** A result of a check that ended between `now` and `now + SLACK`, due again one interval later. */
 const result = (linkId: string, state: string, reason: string | null, httpStatus: number | null, now = NOW) => ({
   link_id: linkId,
   state,
   reason,
   http_status: httpStatus,
-  checked_at: now,
-  due_at: now + INTERVAL,
+  checked_at: within(now),
+  due_at: within(now + INTERVAL),
   claim_id: null,
   claimed_until: 0,
 });
@@ -161,11 +171,49 @@ describe("scheduled link checks", () => {
 
   it("checks a link at most once per interval", async () => {
     const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
-    for (const at of [NOW, NOW + 30_000, NOW + INTERVAL - 1]) await app.runChecks({ now: at });
+    await app.runChecks({ now: NOW });
+    const [first] = await statusRows(app);
+    const due = Number(first?.due_at);
+    expect(due).toBe(Number(first?.checked_at) + INTERVAL);
+    for (const at of [NOW + 30_000, due - 1]) await app.runChecks({ now: at });
     expect(targetRequests(net, "https://up.example")).toHaveLength(1);
-    await app.runChecks({ now: NOW + INTERVAL });
+    await app.runChecks({ now: due });
     expect(targetRequests(net, "https://up.example")).toHaveLength(2);
-    expect(await statusRows(app)).toEqual([result("up", "up", null, 200, NOW + INTERVAL)]);
+    expect(await statusRows(app)).toEqual([result("up", "up", null, 200, due)]);
+  });
+
+  it("counts the interval from the end of each link's check, not from the run's time", { timeout: 10_000 }, async () => {
+    const app = await checkedApp(
+      [
+        { id: "a", url: site("a.example", "hang") },
+        { id: "b", url: site("b.example", 200) },
+      ],
+      { STATUS_CHECK_INTERVAL_MINUTES: "1", STATUS_CHECK_TIMEOUT_SECONDS: "2", STATUS_CHECK_BATCH: "2", STATUS_CHECK_CONCURRENCY: "1" },
+    );
+    await app.runChecks({ now: NOW });
+    const rows = await statusRows(app);
+    // b is checked after a's 2 s timeout: its next check is due one minute after that, not after the run's time.
+    for (const row of rows) {
+      expect(Number(row.checked_at), String(row.link_id)).toBeGreaterThanOrEqual(NOW + 2000);
+      expect(Number(row.due_at), String(row.link_id)).toBe(Number(row.checked_at) + 60_000);
+    }
+    await app.runChecks({ now: NOW + 60_000 });
+    expect(targetRequests(net, "https://b.example")).toHaveLength(1);
+  });
+
+  it("checks the links due first first", async () => {
+    const app = await checkedApp(
+      ["a", "b", "c"].map((id) => ({ id, url: site(`${id}.example`, 200) })),
+      { STATUS_CHECK_BATCH: "1" },
+    );
+    for (const [id, due] of [["a", NOW - 1000], ["b", NOW - 3000], ["c", NOW - 2000]] as const) {
+      await app.exec(`insert into link_status (link_id, source, due_at) values ('${id}', 'yasad', ${due})`);
+    }
+    const contacted = () => ["a", "b", "c"].map((id) => targetRequests(net, `https://${id}.example`).length);
+    await app.runChecks({ now: NOW });
+    expect(contacted()).toEqual([0, 1, 0]);
+    await app.runChecks({ now: NOW });
+    expect(contacted()).toEqual([0, 1, 1]);
   });
 
   it("keeps one result per link", async () => {
@@ -210,7 +258,14 @@ describe("scheduled link checks", () => {
     const env = { STATUS_CHECK_BATCH: "1", STATUS_CHECK_INTERVAL_MINUTES: "1" };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const one = await checkedApp([{ id: "a", url: site("a.example", 200) }], env);
+    // An inactive link is never checked, so it does not count.
+    const one = await checkedApp(
+      [
+        { id: "a", url: site("a.example", 200) },
+        { id: "asleep", url: site("asleep.example", 200), active: false },
+      ],
+      env,
+    );
     await one.runChecks({ now: NOW });
     expect(warn).not.toHaveBeenCalled();
 
@@ -283,7 +338,7 @@ describe("scheduled link checks: concurrency, leases and budget", () => {
     expect(await statusRows(app)).toEqual([result("up", "up", null, 200)]);
   });
 
-  it("a late run keeps its lease", async () => {
+  it("a late run keeps its lease and times its result by the wall clock", async () => {
     // Scheduled minutes ago: the lease must run from the wall clock, not from the scheduled time.
     const late = Date.now() - 5 * 60_000;
     const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
@@ -292,10 +347,11 @@ describe("scheduled link checks: concurrency, leases and budget", () => {
     await net.seen("https://up.example");
     // Past `late + leaseMs` with the defaults (60 s), while the first run is still in flight.
     await app.runChecks({ now: late + 60_000 });
+    const releasedAt = Date.now();
     releaseGet();
     await first;
     expect(targetRequests(net, "https://up.example")).toHaveLength(1);
-    expect(await statusRows(app)).toEqual([result("up", "up", null, 200, late)]);
+    expect(await statusRows(app)).toEqual([result("up", "up", null, 200, releasedAt)]);
   });
 
   it("a platform error of the request writes nothing and leaves the link due", async () => {
@@ -358,6 +414,18 @@ describe("scheduled link checks: concurrency, leases and budget", () => {
     expect(left.length).toBeGreaterThan(0);
   });
 
+  it("drops the result of a run whose claim was taken over", async () => {
+    const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
+    const releaseGet = net.hold("https://up.example");
+    const first = app.runChecks({ now: NOW });
+    await net.seen("https://up.example");
+    const until = NOW + 10 * 60_000;
+    await app.exec(`update link_status set claim_id = 'other', claimed_until = ${until} where link_id = 'up'`);
+    releaseGet();
+    await first;
+    expect(await statusRows(app)).toEqual([{ ...released("up"), claim_id: "other", claimed_until: until }]);
+  });
+
   it("frees a claim whose run died once its lease ends", async () => {
     const app = await checkedApp([{ id: "up", url: site("up.example", 200) }]);
     await app.exec(
@@ -401,6 +469,22 @@ describe("scheduled link checks: a link edited during its check", () => {
       const res = await send(app, "PATCH", "/api/admin/links/wiki", { revision: created.revision, url: "https://new.example/" });
       expect(res.status).toBe(200);
     });
+  });
+
+  it("keeps the result of the new address over a late result of the old one", async () => {
+    const { app, created } = await editedApp();
+    net.sites["https://new.example"] = 500;
+    const releaseGet = net.hold("https://old.example");
+    const first = app.runChecks({ now: NOW });
+    await net.seen("https://old.example");
+    const res = await send(app, "PATCH", "/api/admin/links/wiki", { revision: created.revision, url: "https://new.example/" });
+    expect(res.status).toBe(200);
+    await app.runChecks({ now: NOW + 20_000 });
+    releaseGet();
+    await first;
+    expect(await statusRows(app)).toEqual([result("wiki", "down", "http_error", 500, NOW + 20_000)]);
+    expect(targetRequests(net, "https://old.example")).toHaveLength(1);
+    expect(targetRequests(net, "https://new.example")).toHaveLength(1);
   });
 
   it("drops the result when the check is turned off", async () => {

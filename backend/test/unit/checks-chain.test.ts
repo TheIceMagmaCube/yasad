@@ -74,6 +74,20 @@ describe("chained batches", () => {
     const { run, rows } = await setup(five);
     expect(await run({ runMs: 0, subrequests: null })).toEqual({ batches: 1, claimed: 2, written: 2, released: 0 });
     expect(await rows()).toHaveLength(2);
+    // One batch is what this budget asks for: nothing to warn about.
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("times a chained batch's results after the batches before it", { timeout: 10_000 }, async () => {
+    const { run, rows } = await setup([
+      { id: "a", answer: "hang" },
+      { id: "b", answer: 200 },
+    ]);
+    const summary = await run(DOCKER_BUDGET, { ...CONFIG, batch: 1, timeoutSeconds: 2 });
+    expect(summary).toMatchObject({ claimed: 2, written: 2, released: 0 });
+    // b goes out in the second batch, after a's 2 s timeout.
+    const b = (await rows()).find((row) => row.link_id === "b");
+    expect(Number(b?.checked_at)).toBeGreaterThanOrEqual(NOW + 2000);
   });
 
   it("stops chaining once a batch released a link", async () => {
@@ -95,5 +109,12 @@ describe("chained batches", () => {
     expect(await run({ runMs: 10_000, subrequests: null })).toMatchObject({ batches: 1, written: 2 });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain("Status checks: a run stopped");
+  });
+
+  it("does not warn when the run is out of time but no link is still due", async () => {
+    const { run } = await setup(five.slice(0, 2));
+    // One batch of 2 lasts up to 10 s and checks every link: nothing is left for a second one.
+    expect(await run({ runMs: 10_000, subrequests: null })).toEqual({ batches: 1, claimed: 2, written: 2, released: 0 });
+    expect(warn).not.toHaveBeenCalled();
   });
 });

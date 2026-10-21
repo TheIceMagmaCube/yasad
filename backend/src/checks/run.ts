@@ -1,4 +1,4 @@
-import { and, count, eq, exists, sql } from "drizzle-orm";
+import { and, count, eq, exists, isNull, lte, or, sql } from "drizzle-orm";
 
 import type { StatusCheckConfig } from "../config";
 import type { DB } from "../db";
@@ -61,9 +61,13 @@ type RunInput = {
  * not attempted (platform error, refused by the counted fetch) is released and stays due. Under a subrequest budget
  * the run's fetches are counted, and a warning is logged when more links are checked than an interval allows.
  *
+ * A result is timed at the end of its check, on the run's clock (`now` plus the time spent, or the wall clock when
+ * later), and the link is due again one interval after that: a link checked late in a long batch is not checked
+ * again less than an interval later.
+ *
  * Without a subrequest budget (Docker), batches are chained while the last one was full, released nothing (a released
  * link stays due and would be claimed again at once) and another one still fits in `budget.runMs`. A run that stops on
- * that time with a full last batch logs a warning: links may be checked later than their interval.
+ * that time while links are still due logs a warning: links may be checked later than their interval.
  */
 export async function runChecks(input: RunInput): Promise<RunSummary> {
   const { config, now, budget } = input;
@@ -71,9 +75,12 @@ export async function runChecks(input: RunInput): Promise<RunSummary> {
   const size = fitBatch(config.batch, budget);
   if (size === 0) return summary;
   const startedAt = Date.now();
+  // The run's clock: `now` plus the time spent so far, or the wall clock when the run started late.
+  const clock = () => Math.max(now + (Date.now() - startedAt), Date.now());
   for (;;) {
-    // The first batch runs at `now` exactly; a chained one at `now` plus the time spent so far.
-    const batch = await runBatch(input, size, summary.batches === 0 ? now : now + (Date.now() - startedAt));
+    // The first batch runs at `now` exactly; a chained one at the run's clock.
+    const t = summary.batches === 0 ? now : clock();
+    const batch = await runBatch(input, size, t, clock);
     summary.batches += 1;
     summary.claimed += batch.claimed;
     summary.written += batch.written;
@@ -81,7 +88,7 @@ export async function runChecks(input: RunInput): Promise<RunSummary> {
     const full = batch.claimed === size && batch.written === size;
     if (budget.subrequests !== null || !full) return summary;
     if (Date.now() - startedAt + batchMs(config, size) > budget.runMs) {
-      if (budget.runMs > 0) {
+      if (budget.runMs > 0 && (await anyDue(input.db, clock()))) {
         console.warn(
           `Status checks: a run stopped after ${Math.round((Date.now() - startedAt) / 1000)} s with links still due; raise STATUS_CHECK_INTERVAL_MINUTES, STATUS_CHECK_BATCH or STATUS_CHECK_CONCURRENCY, or check fewer links.`,
         );
@@ -91,11 +98,28 @@ export async function runChecks(input: RunInput): Promise<RunSummary> {
   }
 }
 
-/** One batch at time `t`: claim, checks, write. */
+/** Whether a checked, active link is due and free at `t`: what a next batch would claim. */
+async function anyDue(db: DB, t: number): Promise<boolean> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(link)
+    .leftJoin(linkStatus, and(eq(linkStatus.linkId, link.id), eq(linkStatus.source, SOURCE)))
+    .where(
+      and(
+        eq(link.check, true),
+        eq(link.active, true),
+        or(isNull(linkStatus.linkId), and(lte(linkStatus.dueAt, t), lte(linkStatus.claimedUntil, t))),
+      ),
+    );
+  return (row?.n ?? 0) > 0;
+}
+
+/** One batch at time `t`: claim, checks, write; each result is timed by `clock` at the end of its check. */
 async function runBatch(
   input: RunInput,
   size: number,
   t: number,
+  clock: () => number,
 ): Promise<{ claimed: number; written: number; released: number }> {
   const { db, config, budget } = input;
   const summary = { claimed: 0, written: 0, released: 0 };
@@ -150,21 +174,21 @@ async function runBatch(
   const outbound = input.outbound(
     budget.subrequests === null ? base : countedFetch(base, budget.subrequests - d1Calls(size)),
   );
-  const found: { id: string; url: string; result: Classification }[] = [];
+  const found: { id: string; url: string; result: Classification; at: number }[] = [];
   await eachLimited(links, config.concurrency, async ({ id, url }) => {
     const result = await check(outbound, url, config);
-    if (result !== null) found.push({ id, url, result });
+    if (result !== null) found.push({ id, url, result, at: clock() });
   });
 
-  const writes = found.map(({ id, url, result }) =>
+  const writes = found.map(({ id, url, result, at }) =>
     db
       .update(linkStatus)
       .set({
         state: result.state,
         reason: result.reason,
         httpStatus: result.httpStatus,
-        checkedAt: new Date(t),
-        dueAt: t + config.intervalMinutes * 60_000,
+        checkedAt: new Date(at),
+        dueAt: at + config.intervalMinutes * 60_000,
         claimId: null,
         claimedUntil: 0,
       })

@@ -77,7 +77,7 @@ Mount the folder, not the file alone: many editors save by replacing the file, a
 
 ## Status checks
 
-YASAD checks the links marked for it (`check: true` in the catalog file, or **Check availability** on the link's page) every minute: a cron trigger on Workers, a timer on Docker, which also runs once at startup. Each link is checked at most once per interval.
+YASAD checks the links marked for it (`check: true` in the catalog file, or the `check` field of a link in the administration API) every minute: a cron trigger on Workers, a timer on Docker, which also runs once at startup. Each link is checked at most once per interval, counted from the end of its previous check.
 
 | Variable | Default | Example | Description |
 |---|---|---|---|

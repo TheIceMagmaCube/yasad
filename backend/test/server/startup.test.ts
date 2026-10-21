@@ -216,24 +216,36 @@ describe("server startup", () => {
     tmpDirs.push(dir);
     const file = join(dir, "catalog.yaml");
     const dbFile = await tmpDb();
-    // A private literal: refused before any connection, so the result does not depend on the network.
+    // A private literal is refused before any connection. A public literal on a port nothing answers is contacted by
+    // the Node client only (the portable client cannot pin an address): it ends down, whatever the network.
+    const entry = (id: string, url: string) =>
+      `      - id: ${id}\n        title: ${id}\n        url: ${url}\n        check: true\n        groups: ['@everyone']\n`;
     await writeFile(
       file,
-      "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n      - id: local\n        title: Local\n        url: http://127.0.0.1:8080/\n        check: true\n        groups: ['@everyone']\n",
+      "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n" +
+        entry("local", "http://127.0.0.1:8080/") +
+        entry("public", "http://8.8.8.8:8081/"),
     );
-    const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${dbFile}`, CATALOG_FILE: file });
+    const server = await start({
+      ...BASE_ENV,
+      DATABASE_URL: `file:${dbFile}`,
+      CATALOG_FILE: file,
+      STATUS_CHECK_TIMEOUT_SECONDS: "2",
+    });
     await waitForHealth(server);
     // Well before the first minute has passed: the first run starts with the server.
-    let row: Record<string, unknown> | undefined;
-    for (let i = 0; i < 100 && !row?.state; i++) {
+    let rows: Record<string, unknown>[] = [];
+    for (let i = 0; i < 100 && !(rows.length === 2 && rows.every((row) => row.state)); i++) {
       const read = new DatabaseSync(dbFile);
       try {
-        row = read.prepare("select state, reason from link_status where link_id = 'local'").get();
+        rows = read.prepare("select link_id, state, reason from link_status order by link_id").all();
       } finally {
         read.close();
       }
-      if (!row?.state) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
-    expect(row).toEqual({ state: "unknown", reason: "blocked_address" });
+    expect(rows[0]).toEqual({ link_id: "local", state: "unknown", reason: "blocked_address" });
+    expect(rows[1]).toMatchObject({ link_id: "public", state: "down" });
+    expect(["connect_failed", "timeout"]).toContain(rows[1]?.reason);
   }, 20_000);
 });
