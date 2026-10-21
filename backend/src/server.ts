@@ -9,13 +9,15 @@ import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { type Context, Hono } from "hono";
 
-import { createApp } from "./app";
+import { createApp, runScheduled } from "./app";
 import { importCatalog } from "./catalog/sync";
+import { DOCKER_BUDGET } from "./checks/budget";
 import { forwardedClientIp } from "./client-ip";
 import { type Config, ConfigError, loadConfig } from "./config";
 import type { DB } from "./db";
 import * as schema from "./schema";
 import { ICONS_CACHE_CONTROL, withSecurityHeaders } from "./security";
+import { nodeOutbound } from "./server-outbound";
 import { hasLocalAdmin, SETUP_CODE_STILL_SET } from "./setup-state";
 
 let config: Config;
@@ -73,6 +75,28 @@ if (config.catalogFile) {
     console.log(`Catalog loaded from ${config.catalogFile}: ${count(added)} added, ${count(updated)} updated, ${count(removed)} removed.`);
   }
 }
+
+// Link checks: one run at startup, then one a minute. A tick is skipped while the previous run is still going.
+const runChecksNow = () =>
+  runScheduled(process.env, Date.now(), {
+    getDb: () => db as unknown as DB,
+    getRawConfig: () => process.env,
+    outbound: () => nodeOutbound(),
+    budget: DOCKER_BUDGET,
+  });
+let running = false;
+async function tick(): Promise<void> {
+  if (running) return;
+  running = true;
+  try {
+    await runChecksNow();
+  } finally {
+    // runScheduled never rejects, but one bad run must not stop every later tick.
+    running = false;
+  }
+}
+void tick();
+setInterval(() => void tick(), 60_000).unref();
 
 /** Return the client IP: from X-Forwarded-For behind TRUST_PROXY proxies, otherwise the socket address. */
 function clientIp(c: Context): string {

@@ -5,7 +5,7 @@ import type { DB } from "../db";
 import { type Classification, classify } from "../net/classify";
 import { type Outbound, OutboundError } from "../net/outbound";
 import { link, linkStatus } from "../schema";
-import { checkCapacity, countedFetch, d1Calls, fitBatch, leaseMs, type RunBudget } from "./budget";
+import { batchMs, checkCapacity, countedFetch, d1Calls, fitBatch, leaseMs, type RunBudget } from "./budget";
 
 /** What a run did: batches claimed, links claimed, results written, links released without a result. */
 export type RunSummary = { batches: number; claimed: number; written: number; released: number };
@@ -44,6 +44,15 @@ async function check(outbound: Outbound, url: string, config: StatusCheckConfig)
   }
 }
 
+type RunInput = {
+  db: DB;
+  config: StatusCheckConfig;
+  /** Builds the run's client; `fetch` is the run's counted fetch (Workers), ignored by the Node client. */
+  outbound: (fetch: typeof globalThis.fetch) => Outbound;
+  now: number;
+  budget: RunBudget;
+};
+
 /**
  * One scheduled run of the link checks at `now`: claims up to `fitBatch(config.batch, budget)` due links in one
  * batch (an upsert on `link_status`, so two runs never claim the same link), checks them with at most
@@ -51,19 +60,45 @@ async function check(outbound: Outbound, url: string, config: StatusCheckConfig)
  * only while the claim is still the run's and the link still has the URL that was checked, with its check on. A link
  * not attempted (platform error, refused by the counted fetch) is released and stays due. Under a subrequest budget
  * the run's fetches are counted, and a warning is logged when more links are checked than an interval allows.
+ *
+ * Without a subrequest budget (Docker), batches are chained while the last one was full, released nothing (a released
+ * link stays due and would be claimed again at once) and another one still fits in `budget.runMs`. A run that stops on
+ * that time with a full last batch logs a warning: links may be checked later than their interval.
  */
-export async function runChecks(input: {
-  db: DB;
-  config: StatusCheckConfig;
-  /** Builds the run's client; `fetch` is the run's counted fetch (Workers), ignored by the Node client. */
-  outbound: (fetch: typeof globalThis.fetch) => Outbound;
-  now: number;
-  budget: RunBudget;
-}): Promise<RunSummary> {
-  const { db, config, now: t, budget } = input;
+export async function runChecks(input: RunInput): Promise<RunSummary> {
+  const { config, now, budget } = input;
   const summary: RunSummary = { batches: 0, claimed: 0, written: 0, released: 0 };
   const size = fitBatch(config.batch, budget);
   if (size === 0) return summary;
+  const startedAt = Date.now();
+  for (;;) {
+    // The first batch runs at `now` exactly; a chained one at `now` plus the time spent so far.
+    const batch = await runBatch(input, size, summary.batches === 0 ? now : now + (Date.now() - startedAt));
+    summary.batches += 1;
+    summary.claimed += batch.claimed;
+    summary.written += batch.written;
+    summary.released += batch.released;
+    const full = batch.claimed === size && batch.written === size;
+    if (budget.subrequests !== null || !full) return summary;
+    if (Date.now() - startedAt + batchMs(config, size) > budget.runMs) {
+      if (budget.runMs > 0) {
+        console.warn(
+          `Status checks: a run stopped after ${Math.round((Date.now() - startedAt) / 1000)} s with links still due; raise STATUS_CHECK_INTERVAL_MINUTES, STATUS_CHECK_BATCH or STATUS_CHECK_CONCURRENCY, or check fewer links.`,
+        );
+      }
+      return summary;
+    }
+  }
+}
+
+/** One batch at time `t`: claim, checks, write. */
+async function runBatch(
+  input: RunInput,
+  size: number,
+  t: number,
+): Promise<{ claimed: number; written: number; released: number }> {
+  const { db, config, budget } = input;
+  const summary = { claimed: 0, written: 0, released: 0 };
   const capacity = checkCapacity(config, budget);
 
   const run = crypto.randomUUID();
@@ -96,7 +131,6 @@ export async function runChecks(input: {
     .from(link)
     .where(and(eq(link.check, true), eq(link.active, true)));
   const results = await (capacity === null ? db.batch([claim, claimed]) : db.batch([claim, claimed, checked]));
-  summary.batches = 1;
 
   if (capacity !== null) {
     const total = (results[2] as { n: number }[])[0]?.n ?? 0;

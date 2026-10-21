@@ -3,7 +3,10 @@
   "name": "yasad",
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public: a link check on the Worker's own zone goes out through the edge, never to the origin.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Link checks, every minute. The Free plan allows 5 cron triggers per account, shared by all its Workers.
+  "triggers": { "crons": ["* * * * *"] },
   "assets": {
     "directory": "../frontend/dist",
     "not_found_handling": "single-page-application",

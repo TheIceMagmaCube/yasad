@@ -210,4 +210,30 @@ describe("server startup", () => {
     expect(await third.exited).toBe(1);
     expect(third.output()).toContain("categories[0].id");
   }, 30_000);
+
+  it("checks a checked link at startup", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "yasad-catalog-"));
+    tmpDirs.push(dir);
+    const file = join(dir, "catalog.yaml");
+    const dbFile = await tmpDb();
+    // A private literal: refused before any connection, so the result does not depend on the network.
+    await writeFile(
+      file,
+      "version: 1\ncategories:\n  - id: tools\n    title: Tools\n    groups: ['@everyone']\n    links:\n      - id: local\n        title: Local\n        url: http://127.0.0.1:8080/\n        check: true\n        groups: ['@everyone']\n",
+    );
+    const server = await start({ ...BASE_ENV, DATABASE_URL: `file:${dbFile}`, CATALOG_FILE: file });
+    await waitForHealth(server);
+    // Well before the first minute has passed: the first run starts with the server.
+    let row: Record<string, unknown> | undefined;
+    for (let i = 0; i < 100 && !row?.state; i++) {
+      const read = new DatabaseSync(dbFile);
+      try {
+        row = read.prepare("select state, reason from link_status where link_id = 'local'").get();
+      } finally {
+        read.close();
+      }
+      if (!row?.state) await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(row).toEqual({ state: "unknown", reason: "blocked_address" });
+  }, 20_000);
 });
