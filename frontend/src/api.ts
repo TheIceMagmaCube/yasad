@@ -179,6 +179,12 @@ export type HomeCategory = { id: string; title: string; links: HomeLink[] };
 export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";
 /** `pins` lists the ids of the viewer's visible pinned links, in their order; empty when nobody is signed in. */
 export type HomeData = { signedIn: boolean; categories: HomeCategory[]; empty: HomeEmpty | null; pins: string[] };
+/** The about page: build version and source links for everyone; `instance` is sent to admins only. */
+export type About = {
+  version: string;
+  source: { repository: string; tree: string; license: string };
+  instance?: { runtime: "docker" | "workers"; catalogManagedByFile: boolean };
+};
 
 /** Error codes saying the session the app holds is out of date: signed out, temporary password set, or no longer an admin. */
 const STALE_SESSION_CODES = new Set(["unauthenticated", "password_change_required", "forbidden"]);
@@ -230,6 +236,7 @@ export const api = {
   verifyCode: (code: string) => call<void>("/api/setup/verify-code", post({ code })),
   completeSetup: (code: string, admin: AdminInput) => call<{ user: User }>("/api/setup", post({ code, ...admin })),
   home: () => call<HomeData>("/api/home"),
+  about: () => call<About>("/api/about"),
   session: async () => (await call<{ user: User } | null>("/api/auth/get-session"))?.user ?? null,
   signIn: (email: string, password: string) => call<unknown>("/api/auth/sign-in/email", post({ email, password })),
   /** Start the sign-in at the identity provider; `url` is its authorization page, `returnTo` the path to land on after. */

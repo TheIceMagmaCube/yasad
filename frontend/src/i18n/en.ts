@@ -74,6 +74,7 @@ export const en = {
     home: "My links",
     account: "My account",
     admin: "Administration",
+    about: "About",
     signOut: "Sign out",
   },
   setup: {
@@ -600,6 +601,33 @@ export const en = {
     appearance: "Appearance",
     signInWith: (method: string) => `Signs in with: ${method.toLowerCase()}`,
     passwordValue: "Set",
+  },
+  about: {
+    title: "About",
+    poweredBy: (title: string) => `${title} runs on YASAD, a free, self-hosted portal.`,
+    poweredBySelf: "YASAD is a free, self-hosted portal.",
+    version: "Version",
+    devBuild: "(build without a version number)",
+    source: "Source code",
+    sourceLink: (repository: string) => `${repository} on GitHub`,
+    license: "Licence",
+    instance: {
+      title: "This instance",
+      runtime: "Platform",
+      runtimes: { docker: "Docker", workers: "Cloudflare Workers" },
+      catalog: "Catalog",
+      catalogStates: { file: "Loaded from CATALOG_FILE at startup", app: "Edited in the administration" },
+    },
+    credits: {
+      title: "Credits",
+      fonts: "Fonts",
+      icons: "Icons",
+      nablaNote: "wordmark, Latin subset",
+      lucideNote: "ISC; MIT for the icons derived from Feather. Interface and catalog icons.",
+      simpleIconsNote:
+        "Data under CC0 1.0. Some logos carry their own licence (CC-BY, CC-BY-SA), given in the detailed licences. The logos are trademarks of their owners; showing one identifies the linked service and implies no endorsement.",
+      notice: "Detailed icon licences (text, in English)",
+    },
   },
   home: {
     title: "My links",
