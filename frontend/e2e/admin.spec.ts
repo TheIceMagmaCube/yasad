@@ -308,6 +308,16 @@ test("the link checks are accessible in every theme, mode and width", async ({ p
         await open(page, "/admin/links/status-new", theme, mode, width);
         await expect(page.getByRole("region", { name: "Last check" })).toContainText("Not checked yet");
         await expectClean(page, `${label}, never checked link page`);
+
+        // Docker has no static capacity, so the overload warning only shows from a mocked Workers state.
+        await page.route("**/api/admin/catalog/state", async (route) => {
+          const real = await (await route.fetch()).json();
+          await route.fulfill({ json: { ...real, checks: { ...real.checks, checked: 51, capacity: 50 } }, headers: { "cache-control": "no-store" } });
+        });
+        await open(page, "/admin/links", theme, mode, width);
+        await expect(page.getByRole("note")).toContainText("51 links are checked, but this instance can check 50 per interval.");
+        await expectClean(page, `${label}, overloaded`);
+        await page.unroute("**/api/admin/catalog/state");
         expect(csp).toEqual([]);
       }
     }
