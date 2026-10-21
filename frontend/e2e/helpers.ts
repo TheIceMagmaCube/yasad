@@ -183,3 +183,39 @@ export async function unpinAllByApi(request: APIRequestContext): Promise<void> {
     expect(res.ok(), `unpin ${linkId}: ${await res.text()}`).toBe(true);
   }
 }
+
+type SeededStatus = {
+  linkId: string;
+  /** Null for a link checked but never run yet. */
+  state: "up" | "down" | "unknown" | null;
+  reason?: string;
+  httpStatus?: number;
+  checkedAt: number | null;
+};
+
+/**
+ * Mark links as checked and give them a stored check result, in one transaction. Each row is due a year from now,
+ * so the server's scheduler never claims it and no request leaves the test run. The raw `check_enabled` write
+ * skips `revision` on purpose: the pages read the link fresh.
+ */
+export function setLinkStatus(rows: SeededStatus[]): void {
+  const dueAt = Date.now() + 365 * 24 * 60 * 60_000;
+  const db = openDb(E2E_DB);
+  try {
+    const check = db.prepare("update link set check_enabled = 1 where id = ?");
+    const upsert = db.prepare(
+      `insert into link_status (link_id, source, state, reason, http_status, checked_at, due_at, claim_id, claimed_until)
+       values (?, 'yasad', ?, ?, ?, ?, ?, null, 0)
+       on conflict (link_id, source) do update set state = excluded.state, reason = excluded.reason, http_status = excluded.http_status,
+         checked_at = excluded.checked_at, due_at = excluded.due_at, claim_id = null, claimed_until = 0`,
+    );
+    db.exec("begin");
+    for (const row of rows) {
+      check.run(row.linkId);
+      upsert.run(row.linkId, row.state, row.reason ?? null, row.httpStatus ?? null, row.checkedAt, dueAt);
+    }
+    db.exec("commit");
+  } finally {
+    db.close();
+  }
+}

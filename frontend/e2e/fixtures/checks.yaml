@@ -1,0 +1,25 @@
+# Links whose check results the admin spec seeds straight into link_status, far from due: the names are reserved
+# (.invalid never resolves) and the file leaves them unchecked, so the server's scheduler never contacts them.
+version: 1
+
+categories:
+  - id: status-checks
+    title: Status checks
+    groups: ["@authenticated"]
+    links:
+      - id: status-up
+        title: Status up
+        url: https://status-up.example.invalid
+        groups: ["@authenticated"]
+      - id: status-down
+        title: Status down
+        url: https://status-down.example.invalid
+        groups: ["@authenticated"]
+      - id: status-old
+        title: Status old
+        url: https://status-old.example.invalid
+        groups: ["@authenticated"]
+      - id: status-new
+        title: Status new
+        url: https://status-new.example.invalid
+        groups: ["@authenticated"]
