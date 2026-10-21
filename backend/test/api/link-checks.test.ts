@@ -88,6 +88,12 @@ async function checkedLink() {
   return { admin, created };
 }
 
+/** Add a second checked link `mail` with its stored result, which edits of `wiki` must leave alone. */
+async function otherCheckedLink(admin: TestApp) {
+  await newLink(admin, { id: "mail", title: "Mail", categoryId: "tools", url: "https://mail.example.org", check: true });
+  await storeStatus(admin, "mail");
+}
+
 describe("link checks: stored result", () => {
   it("shows the last result of a checked link to admins", async () => {
     const { admin, created } = await checkedLink();
@@ -126,17 +132,19 @@ describe("link checks: stored result", () => {
 
   it("forgets the result when the address changes", async () => {
     const { admin, created } = await checkedLink();
+    await otherCheckedLink(admin);
     const res = await send(admin, "PATCH", "/api/admin/links/wiki", { revision: created.revision, url: "https://docs.example.org" });
     expect(res.status).toBe(200);
     expect((await linkOf(res)).status).toBeNull();
-    expect(await statusRows(admin)).toEqual([]);
+    expect(await statusRows(admin)).toEqual([{ link_id: "mail" }]);
   });
 
   it("forgets the result when the link is no longer checked", async () => {
     const { admin, created } = await checkedLink();
+    await otherCheckedLink(admin);
     const res = await send(admin, "PATCH", "/api/admin/links/wiki", { revision: created.revision, check: false });
     expect(res.status).toBe(200);
-    expect(await statusRows(admin)).toEqual([]);
+    expect(await statusRows(admin)).toEqual([{ link_id: "mail" }]);
   });
 
   it("keeps the result when the edit is refused", async () => {
@@ -159,8 +167,8 @@ describe("link checks: stored result", () => {
   });
 });
 
-/** A catalog file with a checked link `wiki` and an unchecked link `mail`. */
-const fileWith = ({ url = "https://wiki.example.org", title = "Wiki", check = true } = {}) => `version: 1
+/** A catalog file with a checked link `wiki` and a link `mail`, unchecked unless `mailCheck`. */
+const fileWith = ({ url = "https://wiki.example.org", title = "Wiki", check = true, mailCheck = false } = {}) => `version: 1
 categories:
   - id: tools
     title: Tools
@@ -174,7 +182,7 @@ ${check ? "        check: true\n" : ""}      - id: mail
         title: Mail
         url: https://mail.example.org
         groups: ["@everyone"]
-`;
+${mailCheck ? "        check: true\n" : ""}`;
 
 type Preview = { diff: { added: { links: string[] }; updated: { categories: string[]; links: string[] }; removed: { links: string[] } } };
 async function preview(app: TestApp, yaml: string) {
@@ -230,18 +238,20 @@ describe("link checks: catalog file", () => {
 
   it("forgets the result when the import changes the address", async () => {
     const admin = await adminApp();
-    await importFile(admin, fileWith());
+    await importFile(admin, fileWith({ mailCheck: true }));
     await storeStatus(admin, "wiki");
-    await importFile(admin, fileWith({ url: "https://docs.example.org" }));
-    expect(await statusRows(admin)).toEqual([]);
+    await storeStatus(admin, "mail");
+    await importFile(admin, fileWith({ url: "https://docs.example.org", mailCheck: true }));
+    expect(await statusRows(admin)).toEqual([{ link_id: "mail" }]);
   });
 
   it("forgets the result when the import no longer checks the link", async () => {
     const admin = await adminApp();
-    await importFile(admin, fileWith());
+    await importFile(admin, fileWith({ mailCheck: true }));
     await storeStatus(admin, "wiki");
-    await importFile(admin, fileWith({ check: false }));
-    expect(await statusRows(admin)).toEqual([]);
+    await storeStatus(admin, "mail");
+    await importFile(admin, fileWith({ check: false, mailCheck: true }));
+    expect(await statusRows(admin)).toEqual([{ link_id: "mail" }]);
   });
 
   it("drops the result when the import removes the link", async () => {
