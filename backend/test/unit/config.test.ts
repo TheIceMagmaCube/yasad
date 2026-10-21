@@ -30,6 +30,7 @@ describe("loadConfig", () => {
       passwordSignIn: true,
       catalogFile: null,
       oidc: null,
+      statusChecks: { intervalMinutes: 5, timeoutSeconds: 10, batch: 10, concurrency: 4 },
     });
   });
 
@@ -78,6 +79,43 @@ describe("loadConfig", () => {
     for (const value of ["29", "3651", "0", "-30", "90d", "1.5"]) {
       expect(problemsOf({ ...valid, AUDIT_RETENTION_DAYS: value })).toEqual([expect.stringContaining("AUDIT_RETENTION_DAYS")]);
     }
+  });
+
+  const statusSettings = [
+    { name: "STATUS_CHECK_INTERVAL_MINUTES", key: "intervalMinutes", min: 1, max: 1440 },
+    { name: "STATUS_CHECK_TIMEOUT_SECONDS", key: "timeoutSeconds", min: 2, max: 30 },
+    { name: "STATUS_CHECK_BATCH", key: "batch", min: 1, max: 200 },
+    { name: "STATUS_CHECK_CONCURRENCY", key: "concurrency", min: 1, max: 6 },
+  ] as const;
+
+  it("reads the status check settings within their ranges", () => {
+    for (const { name, key, min, max } of statusSettings) {
+      expect(loadConfig({ ...valid, [name]: ` ${min} ` }).statusChecks[key]).toBe(min);
+      expect(loadConfig({ ...valid, [name]: String(max) }).statusChecks[key]).toBe(max);
+    }
+  });
+
+  it("rejects status check settings out of range or not whole", () => {
+    for (const { name, min, max } of statusSettings) {
+      for (const value of ["0", String(max + 1), "-1", "1.5", "abc"]) {
+        expect(problemsOf({ ...valid, [name]: value })).toEqual([expect.stringMatching(new RegExp(`^${name} .* from ${min} to ${max}\\.$`))]);
+      }
+    }
+  });
+
+  it("refuses a batch that could last over 600 s", () => {
+    const run = (batch: string, concurrency: string, timeout: string) => ({
+      ...valid,
+      STATUS_CHECK_BATCH: batch,
+      STATUS_CHECK_CONCURRENCY: concurrency,
+      STATUS_CHECK_TIMEOUT_SECONDS: timeout,
+    });
+    expect(problemsOf(run("200", "1", "30"))).toEqual([expect.stringContaining("up to 6000 s")]);
+    expect(problemsOf(run("200", "6", "30"))).toEqual([expect.stringContaining("up to 1020 s")]);
+    expect(loadConfig(run("200", "4", "12")).statusChecks).toMatchObject({ batch: 200, concurrency: 4, timeoutSeconds: 12 });
+    expect(problemsOf(run("200", "1", "31"))).toEqual([expect.stringContaining("STATUS_CHECK_TIMEOUT_SECONDS must")]);
+    expect(problemsOf(run("201", "1", "30"))).toEqual([expect.stringContaining("STATUS_CHECK_BATCH must")]);
+    expect(problemsOf(run("200", "0", "30"))).toEqual([expect.stringContaining("STATUS_CHECK_CONCURRENCY must")]);
   });
 
   it("reads TRUST_PROXY as a number of proxies", () => {
