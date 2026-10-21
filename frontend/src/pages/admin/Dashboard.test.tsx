@@ -20,6 +20,8 @@ const link = (fields: Partial<AdminLink> & { id: string }): AdminLink => ({
   iconKnown: false,
   keywords: [],
   active: true,
+  check: false,
+  status: null,
   groups: ["@authenticated"],
   revision: 1,
   ...fields,

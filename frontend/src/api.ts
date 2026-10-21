@@ -76,6 +76,8 @@ export type AdminGroup = {
   /** When a provider group last came in a sign-in token; null for one only typed (catalog, import) and never received. */
   seenAt: string | null;
 };
+/** The last built-in check of a link, as admins see it. */
+export type AdminLinkStatus = { state: "up" | "down" | "unknown"; reason: string | null; httpStatus: number | null; checkedAt: string | null };
 /** A link as the catalog stores it: inactive links and links without a group included. */
 export type AdminLink = {
   id: string;
@@ -87,6 +89,10 @@ export type AdminLink = {
   iconKnown: boolean;
   keywords: string[];
   active: boolean;
+  /** Whether the server checks the address. */
+  check: boolean;
+  /** Last check, null when unchecked or not checked yet. */
+  status: AdminLinkStatus | null;
   /** Group references: `@everyone`, `@authenticated`, `local:<name>`, `oidc:<name>`. */
   groups: string[];
   revision: number;
@@ -112,6 +118,7 @@ export type LinkInput = {
   keywords?: string[];
   groups: string[];
   active?: boolean;
+  check?: boolean;
 };
 export type CategoryInput = { id?: string; title: string; groups: string[] };
 type Direction = "up" | "down";

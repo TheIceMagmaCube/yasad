@@ -13,6 +13,8 @@ export const link = (fields: Partial<AdminLink> & { id: string; title: string })
   iconKnown: false,
   keywords: [],
   active: true,
+  check: false,
+  status: null,
   groups: ["@authenticated"],
   revision: 1,
   ...fields,

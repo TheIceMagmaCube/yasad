@@ -28,6 +28,8 @@ const link = (id: string, title: string, groups: string[]) => ({
   iconKnown: false,
   keywords: [],
   active: true,
+  check: false,
+  status: null,
   groups,
   revision: 1,
 });
