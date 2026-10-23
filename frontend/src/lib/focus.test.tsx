@@ -1,10 +1,14 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { claimFocus, focusById, focusPage, useFocusOnViewChange } from "./focus";
+import { claimFocus, focusById, focusPage, useFocusOnNavigation, useFocusOnViewChange, usePageHeading } from "./focus";
+import { navigate, usePath } from "./router";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  history.replaceState(null, "", "/");
+});
 
 function Page({ children }: { children?: ReactNode }) {
   return (
@@ -113,6 +117,78 @@ describe("useFocusOnViewChange", () => {
     other.focus();
     rerender(<Screen viewKey="home:ada" />);
     expect(other).toHaveFocus();
+    other.remove();
+  });
+});
+
+function Heading({ title, loading = false }: { title: string; loading?: boolean }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  usePageHeading(ref);
+  return (
+    <h1 ref={ref} tabIndex={-1} data-page-loading={loading ? "" : undefined}>
+      {title}
+    </h1>
+  );
+}
+
+/** A page loading after the navigation: a loading heading, then its own heading in another element. */
+function Loaded({ ready }: { ready: Promise<void> }) {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => void ready.then(() => setLoaded(true)), [ready]);
+  return loaded ? (
+    <section>
+      <Heading title="Jira" />
+      <button>Save</button>
+    </section>
+  ) : (
+    <Heading title="Loading" loading />
+  );
+}
+
+function Routed({ ready }: { ready: Promise<void> }) {
+  useFocusOnNavigation();
+  const path = usePath();
+  return <main id="content">{path === "/links/jira" ? <Loaded ready={ready} /> : <Heading title="Preview" />}</main>;
+}
+
+describe("usePageHeading", () => {
+  it("takes the page focus over from the loading heading of a page opened by a navigation", async () => {
+    let finish!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    render(<Routed ready={ready} />);
+    act(() => navigate("/links/jira"));
+    expect(screen.getByRole("heading", { name: "Loading" })).toHaveFocus();
+    await act(async () => finish());
+    expect(screen.getByRole("heading", { name: "Jira" })).toHaveFocus();
+  });
+
+  it("leaves the focus alone when the heading replaced was not a loading one", () => {
+    const { rerender } = render(<Page />);
+    focusPage();
+    rerender(
+      <main id="content">
+        <Heading title="Jira" />
+      </main>,
+    );
+    expect(document.body).toHaveFocus();
+  });
+
+  it("leaves the focus alone once it went elsewhere after the page focus", async () => {
+    let finish!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    render(<Routed ready={ready} />);
+    act(() => navigate("/links/jira"));
+    const other = document.createElement("button");
+    document.body.append(other);
+    other.focus();
+    // A click on the page background: the focus goes back to the body.
+    other.blur();
+    await act(async () => finish());
+    expect(document.body).toHaveFocus();
     other.remove();
   });
 });

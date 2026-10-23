@@ -199,7 +199,7 @@ export function LinksPage({ open }: { open: LinksRoute }) {
   const failed = catalog.status === "error" ? catalog : groups.status === "error" ? groups : null;
   if (open && (!categories || !groups.data)) {
     return (
-      <AdminShell section="links" title={m.loading}>
+      <AdminShell section="links" loading>
         {failed ? <LoadError attempt={failed.attempt} message={s.loadError} pending={failed.retrying} onRetry={failed.retry} /> : null}
       </AdminShell>
     );

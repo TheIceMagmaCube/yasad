@@ -139,7 +139,7 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
   const failed = users.status === "error" ? users : groups.status === "error" ? groups : null;
   if (open && (!list || !groupList)) {
     return (
-      <AdminShell section="users" title={m.loading}>
+      <AdminShell section="users" loading>
         {failed ? <LoadError attempt={failed.attempt} message={s.loadError} pending={failed.retrying} onRetry={failed.retry} /> : null}
       </AdminShell>
     );
