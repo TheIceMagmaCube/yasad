@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray, notExists, type SQL, sql } from "drizzle-
 import { z } from "zod";
 
 import { type AuditAction, type AuditEntry, type Auditor, auditStatements, readSnapshot, snapshot, unchangedSince } from "../audit";
+import { ownStatus } from "../checks/status";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
 import { category, categoryGroup, group, link, linkGroup, linkStatus } from "../schema";
@@ -145,9 +146,6 @@ function refsBy(rows: GroupRow[]): Map<string, string[]> {
   for (const refs of map.values()) refs.sort();
   return map;
 }
-
-/** The join condition of a link's built-in status row. */
-const ownStatus = and(eq(linkStatus.linkId, link.id), eq(linkStatus.source, "yasad"));
 
 function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: typeof linkStatus.$inferSelect | null): AdminLink {
   return {

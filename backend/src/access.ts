@@ -2,17 +2,29 @@ import { and, asc, eq, exists, inArray, ne, type SQL, sql, type SQLWrapper } fro
 import { unionAll } from "drizzle-orm/sqlite-core";
 
 import { parseKeywords } from "./catalog/format";
+import { ownStatus, type PublicStatus, publicStatus } from "./checks/status";
 import type { DB } from "./db";
 import { type Icon, resolveIcon } from "./icons/resolve";
-import { category, categoryGroup, group, link, linkGroup, userGroup, userLinkPin } from "./schema";
+import { category, categoryGroup, group, link, linkGroup, linkStatus, userGroup, userLinkPin } from "./schema";
 
 /** Who is asking: nobody signed in, or a signed-in person with their role. */
 export type Viewer = { kind: "anonymous" } | { kind: "user"; userId: string; role: "admin" | "user" };
 /** A signed-in viewer. */
 export type UserViewer = Extract<Viewer, { kind: "user" }>;
 
-/** A visible link as sent to the browser. `keywords` are sent as stored, for the search in the header. */
-export type HomeLink = { id: string; title: string; description: string; url: string; icon: Icon | null; keywords: string[] };
+/**
+ * A visible link as sent to the browser. `keywords` are sent as stored, for the search in the header. `status` is
+ * set only when the server checks the link.
+ */
+export type HomeLink = {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  icon: Icon | null;
+  keywords: string[];
+  status?: PublicStatus;
+};
 export type HomeCategory = { id: string; title: string; links: HomeLink[] };
 /** Why the home page is empty, for a signed-in viewer. */
 export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";
@@ -128,9 +140,14 @@ export function visiblePinCount(db: DB, viewer: UserViewer): SQL {
  *
  * Deny by default: an active link is visible only when the viewer holds a group on the link and a
  * group on its category (not necessarily the same one). Administrators follow the same rule.
- * Categories without a visible link are left out.
+ * Categories without a visible link are left out. A checked link carries its stored result, read in the same
+ * query so it follows the same condition, as {@link publicStatus} computes it at `checks.now`.
  */
-export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCategory[]> {
+export async function visibleCatalog(
+  db: DB,
+  viewer: Viewer,
+  checks: { now: number; intervalMinutes: number },
+): Promise<HomeCategory[]> {
   const rows = await db
     .select({
       categoryId: category.id,
@@ -141,9 +158,13 @@ export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCatego
       url: link.url,
       icon: link.icon,
       keywords: link.keywords,
+      check: link.check,
+      state: linkStatus.state,
+      checkedAt: linkStatus.checkedAt,
     })
     .from(category)
     .innerJoin(link, eq(link.categoryId, category.id))
+    .leftJoin(linkStatus, ownStatus)
     .where(linkVisibleWhere(db, viewer))
     .orderBy(asc(category.position), asc(category.id), asc(link.position), asc(link.id));
 
@@ -157,6 +178,7 @@ export async function visibleCatalog(db: DB, viewer: Viewer): Promise<HomeCatego
     current.links.push({
       id: row.id, title: row.title, description: row.description ?? "", url: row.url, icon: resolveIcon(row.icon),
       keywords: parseKeywords(row.keywords),
+      ...(row.check ? { status: publicStatus(row, checks.now, checks.intervalMinutes) } : {}),
     });
   }
   return categories;

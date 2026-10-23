@@ -12,10 +12,13 @@ export type HomeResponse = { signedIn: boolean; categories: HomeCategory[]; empt
 
 export const home = new Hono<AppEnv>();
 
-/** Return the links the viewer may see; public, with or without a session. */
+/**
+ * Return the links the viewer may see; public, with or without a session. Check results are only read from
+ * the database: a slow or failing check never delays this answer.
+ */
 home.get("/", async (c) => {
   const viewer = await viewerOf(c);
-  const categories = await visibleCatalog(c.var.db, viewer);
+  const categories = await visibleCatalog(c.var.db, viewer, { now: Date.now(), intervalMinutes: c.var.config.statusChecks.intervalMinutes });
   const empty = categories.length === 0 ? await emptyState(c.var.db, viewer) : null;
   const pins = await visiblePins(c.var.db, viewer);
   // The body depends on the cookie: no shared cache may keep it.

@@ -12,6 +12,11 @@ export const fr = {
     still: "Le serveur ne répond toujours pas.",
   },
   skipToContent: "Aller au contenu",
+  relative: {
+    never: "jamais",
+    justNow: "à l'instant",
+    onDate: (date) => `le ${date}`,
+  },
   errors: {
     generic: "Une erreur est survenue. Réessayez.",
     unreachable: "YASAD n'arrive pas à joindre son serveur. Réessayez dans un instant.",
@@ -254,11 +259,6 @@ export const fr = {
     backTo: (section) => `Retour : ${section}`,
     sortedAscending: "tri croissant",
     sortedDescending: "tri décroissant",
-    relative: {
-      never: "jamais",
-      justNow: "à l'instant",
-      onDate: (date) => `le ${date}`,
-    },
     errors: {
       last_local_admin:
         "Gardez au moins un administrateur local actif : il peut encore se connecter si le fournisseur d'identité est indisponible.",
@@ -755,6 +755,14 @@ export const fr = {
       full: (max) => `Vous avez atteint le maximum de ${max} favoris. Retirez-en un pour en ajouter un autre.`,
       gone: "Ce lien n'est plus disponible.",
       saveError: "Vos favoris n'ont pas pu être enregistrés. Réessayez.",
+    },
+    status: {
+      label: "Statut :",
+      up: "En ligne",
+      down: "En panne",
+      unknown: "Statut inconnu",
+      checkedAt: (time) => `vérifié ${time}`,
+      notCheckedYet: "pas encore vérifié",
     },
   },
   search: {

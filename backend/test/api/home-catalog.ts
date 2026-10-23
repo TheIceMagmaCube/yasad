@@ -3,7 +3,7 @@ import { expect } from "vitest";
 
 import { addUser, send, signIn } from "./users";
 
-export type LinkSpec = { id: string; groups: string[]; title?: string; description?: string; icon?: string; active?: boolean; keywords?: string[] };
+export type LinkSpec = { id: string; groups: string[]; title?: string; description?: string; icon?: string; active?: boolean; keywords?: string[]; check?: boolean };
 export type CategorySpec = { id: string; groups: string[]; links: LinkSpec[] };
 
 /** Return a catalog file (JSON is valid YAML) with a title and URL derived from each id. */

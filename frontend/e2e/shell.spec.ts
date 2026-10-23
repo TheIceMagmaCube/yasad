@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 import { ICONS_BASE } from "../src/icons-base";
-import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, importCatalog, MODES, open, setInstanceTheme, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
+import { addTemporaryUser, ADMIN, announcer, expectAccessible, expectNoHorizontalScroll, importCatalog, MODES, open, setInstanceTheme, setLinkStatus, signInAsAdmin, TEMPORARY, THEMES, watchCsp, WIDTHS } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -13,6 +13,27 @@ const HOME_CATEGORIES = ["Public", "Everyday", "Documentation", "People", "Money
 const HIDDEN_LINKS = ["Secret plans", "Secret vault", "Retired tool"];
 /** Keyword of a hidden link: it must never reach the browser either. */
 const HIDDEN_KEYWORD = "kw-hidden-marker";
+
+const HOUR = 60 * 60_000;
+
+/**
+ * Give checked links of the home fixture a stored result: up, down, up but too old (status unknown) and checked but
+ * never run (status unknown), plus a hidden link whose result must stay hidden with it. Seeded again by each test, so
+ * the fresh results are never older than the interval whatever the time the earlier tests took.
+ */
+function seedHomeStatuses(): void {
+  const now = Date.now();
+  setLinkStatus([
+    { linkId: "wiki", state: "up", httpStatus: 200, checkedAt: now },
+    { linkId: "directory", state: "down", reason: "http_error", httpStatus: 502, checkedAt: now },
+    { linkId: "e-learning", state: "up", httpStatus: 200, checkedAt: now - 48 * HOUR },
+    { linkId: "expenses", state: null, checkedAt: null },
+    { linkId: "secret-plans", state: "down", reason: "http_error", httpStatus: 502, checkedAt: now },
+  ]);
+}
+
+/** Return the card of the home link titled `title`. */
+const cardOf = (page: Page, title: string) => page.locator("#home-links .relief").filter({ has: page.getByRole("link", { name: title, exact: true }) });
 
 /** Return the header search field. */
 const searchField = (page: Page) => page.getByRole("combobox", { name: "Search links" });
@@ -76,6 +97,7 @@ for (const theme of THEMES) {
   for (const mode of MODES) {
     for (const width of WIDTHS) {
       test(`home shows the allowed links, accessibly (${theme}, ${mode}, ${width}px)`, async ({ page }) => {
+        seedHomeStatuses();
         await signIn(page);
         const csp = watchCsp(page);
         await open(page, "/", theme, mode, width);
@@ -85,6 +107,33 @@ for (const theme of THEMES) {
         for (const title of HIDDEN_LINKS) await expect(main.getByText(title)).toHaveCount(0);
         const body = await (await page.request.get("/api/home")).text();
         for (const title of HIDDEN_LINKS) expect(body).not.toContain(title);
+        // The seeded hidden link's result stays out, and no reason or HTTP status reaches the home page.
+        for (const marker of ["secret-plans", "http_error", "httpStatus"]) expect(body).not.toContain(marker);
+
+        // Each state shows a word and when it was checked, read after the description through aria-describedby.
+        await expect(cardOf(page, "Wiki").getByText("Up", { exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Wiki", exact: true })).toHaveAccessibleDescription(/^Status:\s*Up\s*,\s*checked\s/);
+        await expect(cardOf(page, "Wiki").locator("time")).toHaveAttribute("datetime", /Z$/);
+        await expect(cardOf(page, "Wiki").locator("time")).not.toHaveAttribute("title");
+        await expect(cardOf(page, "Directory").getByText("Down", { exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Directory", exact: true })).toHaveAccessibleDescription(/^Status:\s*Down\s*,\s*checked\s/);
+        await expect(cardOf(page, "Équipe e-learning").getByText("Status unknown", { exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Équipe e-learning", exact: true })).toHaveAccessibleDescription(
+          /^Training courses\s+Status:\s*Status unknown\s*,\s*checked\s/,
+        );
+        await expect(cardOf(page, "Expenses").getByText("not checked yet")).toBeVisible();
+        await expect(page.getByRole("link", { name: "Expenses", exact: true })).toHaveAccessibleDescription(/^Status:\s*Status unknown\s*,\s*not checked yet$/);
+        await expect(page.getByRole("link", { name: "Mail", exact: true })).toHaveAccessibleDescription("Company mailbox");
+        // The down band runs across the bottom of its card, edge to edge, at both widths.
+        const directory = (await cardOf(page, "Directory").boundingBox())!;
+        const band = (await cardOf(page, "Directory").locator('[id$="-status"]').boundingBox())!;
+        for (const [side, a, b] of [
+          ["left", band.x, directory.x],
+          ["right", band.x + band.width, directory.x + directory.width],
+          ["bottom", band.y + band.height, directory.y + directory.height],
+        ] as const) {
+          expect(Math.abs(a - b), `down band ${side} edge`).toBeLessThanOrEqual(1);
+        }
 
         const everyday = page.getByRole("region", { name: "Everyday" });
         // The icon sits in the card, beside the title link.

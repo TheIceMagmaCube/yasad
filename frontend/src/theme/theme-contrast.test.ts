@@ -114,6 +114,17 @@ describe("theme contract", () => {
 // Text needs 4.5:1 (WCAG 1.4.3). A control boundary, a focus indicator, a state marker or an icon needs 3:1
 // against what touches it (WCAG 1.4.11, 2.4.13). axe checks text it renders but not these.
 
+describe("muted text", () => {
+  // Secondary text (descriptions, the status line of a link card) and the unknown status icon use it.
+  it("keeps 4.5:1 for muted-foreground on the page and on a card", () => {
+    eachMode((color, label) => {
+      for (const ground of ["background", "card"]) {
+        expect(contrast(color("muted-foreground"), color(ground)), `${label} muted-foreground on ${ground}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  });
+});
+
 describe("category colours", () => {
   // A link's icon tile is a solid category fill with its icon or initial in on-fill: the 4.5:1 below covers the 3:1
   // the icon needs as a graphic (WCAG 1.4.11).
