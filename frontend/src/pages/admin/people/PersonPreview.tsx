@@ -1,4 +1,4 @@
-import { type AccessReason, type AdminGroup, type AdminUser, api, type GroupSource, type LinkExplanation } from "../../../api";
+import { type AdminGroup, type AdminUser, api, type GroupSource, type LinkExplanation } from "../../../api";
 import { AdminShell } from "../../../components/admin/AdminShell";
 import { AdminTable, type Column, RowLink } from "../../../components/admin/AdminTable";
 import { PaneSection, useQueryState, useRestoreRow } from "../../../components/admin/DetailPage";
@@ -8,14 +8,13 @@ import { Link } from "../../../components/Link";
 import { LoadError } from "../../../components/LoadError";
 import { Alert } from "../../../components/ui/alert";
 import { NativeSelect } from "../../../components/ui/native-select";
-import type { Messages } from "../../../i18n/en";
 import { useLocale, useStrings } from "../../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../../lib/admin-collection";
 import { useDebouncedStatus } from "../../../lib/announcer";
-import { groupRefOf } from "../../../lib/group-ref";
 import { formatRelative } from "../../../lib/relative-time";
+import { AccessReasons } from "../AccessReasons";
 import { HomePreview, PreviewSkeleton } from "../HomePreview";
-import { linkHref } from "../links/item-edit";
+import { linkFromPreviewHref } from "../links/item-edit";
 import { groupHref, personHref, previewHref } from "./hrefs";
 
 type HeldGroup = { id: string | null; name: string; source: GroupSource };
@@ -36,28 +35,6 @@ function heldGroups(user: AdminUser, groups: AdminGroup[]): HeldGroup[] {
   }));
   const own = [...user.groups].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) || a.source.localeCompare(b.source));
   return [...system, ...own];
-}
-
-/** Return the sentences of a link's reasons, each hint under its reason, then the pin of a hidden link. */
-function Reasons({ link, m }: { link: LinkExplanation; m: Messages }) {
-  const a = m.access;
-  const hintOf = (reason: AccessReason) =>
-    reason.hint && a.hints[reason.hint.kind](groupRefOf(reason.hint.held), groupRefOf(reason.hint.expected), reason.code === "missing_category_group" ? "category" : "link");
-  const lines = [
-    ...link.reasons.map((reason) => ({ key: reason.code, text: a.reasons[reason.code], hint: hintOf(reason) })),
-    ...(link.pinned && !link.visible ? [{ key: "pinned", text: a.pinned, hint: undefined }] : []),
-  ];
-  if (lines.length === 0) return null;
-  return (
-    <ul className="flex flex-col gap-1.5">
-      {lines.map(({ key, text, hint }) => (
-        <li key={key}>
-          <span className="block wrap-anywhere">{text}</span>
-          {hint && <span className="block wrap-anywhere text-muted-foreground">{hint}</span>}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 /**
@@ -89,13 +66,13 @@ export function PersonPreview({ user, groups }: { user: AdminUser; groups: Admin
       cell: (l) => (
         <div className="flex min-w-0 flex-col gap-1">
           <span className="wrap-anywhere">
-            <RowLink id={rowIdOf(l.id)} href={`${linkHref(l.id)}?as=${encodeURIComponent(user.id)}`} listBase={base}>
+            <RowLink id={rowIdOf(l.id)} href={linkFromPreviewHref(l.id, user.id)} listBase={base}>
               {l.title}
             </RowLink>
           </span>
           <span className="text-[0.8125rem] text-muted-foreground @min-[40rem]/table:hidden">{l.categoryTitle}</span>
           <div className="mt-1 @min-[48rem]/table:hidden">
-            <Reasons link={l} m={m} />
+            <AccessReasons link={l} />
           </div>
         </div>
       ),
@@ -117,7 +94,7 @@ export function PersonPreview({ user, groups }: { user: AdminUser; groups: Admin
     {
       id: "reasons",
       header: a.columns.reasons,
-      cell: (l) => <Reasons link={l} m={m} />,
+      cell: (l) => <AccessReasons link={l} />,
       className: "hidden @min-[48rem]/table:table-cell",
     },
   ];

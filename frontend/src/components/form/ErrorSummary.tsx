@@ -1,19 +1,8 @@
-import type { MouseEvent } from "react";
-
 import { Alert } from "@/components/ui/alert";
 
 import { useStrings } from "../../i18n/LocaleProvider";
 import type { FormErrors } from "../../lib/form-errors";
-
-/** Focus a field from the summary: scroll it into view, and select its text when it asks for it. */
-function goToField(event: MouseEvent<HTMLAnchorElement>, id: string): void {
-  event.preventDefault();
-  const field = document.getElementById(id);
-  if (!field) return;
-  field.focus();
-  field.scrollIntoView({ block: "center" });
-  if (field instanceof HTMLInputElement && field.hasAttribute("data-select-on-error")) field.select();
-}
+import { goToField } from "../../lib/go-to-field";
 
 /**
  * Render the error summary of a form: a focused alert titled with the problem, then a link to each field in
