@@ -195,8 +195,24 @@ export type AdminInput = { name: string; email: string; password: string; passwo
 
 /** Icon of a link: a Simple Icons slug or a canonical Lucide name, both known to the generated icon files. */
 export type HomeIcon = { set: "si" | "lucide"; name: string };
-/** A visible link; `keywords` are sent as written in the catalog and only feed the search. */
-export type HomeLink = { id: string; title: string; description: string; url: string; icon: HomeIcon | null; keywords: string[] };
+/**
+ * Last check result of a link, as the server read it. After `staleAt` (null when never checked) the result is
+ * too old to trust and reads unknown, even while the page stays open.
+ */
+export type HomeLinkStatus = { state: "up" | "down" | "unknown"; checkedAt: string | null; staleAt: string | null };
+/**
+ * A visible link; `keywords` are sent as written in the catalog and only feed the search. `status` is set only
+ * when the server checks the link.
+ */
+export type HomeLink = {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  icon: HomeIcon | null;
+  keywords: string[];
+  status?: HomeLinkStatus;
+};
 export type HomeCategory = { id: string; title: string; links: HomeLink[] };
 /** Why the home page is empty; set only when `categories` is empty and someone is signed in. */
 export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";

@@ -12,6 +12,11 @@ export const en = {
     still: "The server still does not respond.",
   },
   skipToContent: "Skip to content",
+  relative: {
+    never: "never",
+    justNow: "just now",
+    onDate: (date: string) => date,
+  },
   errors: {
     generic: "Something went wrong. Try again.",
     unreachable: "YASAD cannot reach its server. Try again in a moment.",
@@ -249,11 +254,6 @@ export const en = {
     backTo: (section: string) => `Back to ${section}`,
     sortedAscending: "sorted ascending",
     sortedDescending: "sorted descending",
-    relative: {
-      never: "never",
-      justNow: "just now",
-      onDate: (date: string) => date,
-    },
     errors: {
       last_local_admin: "Keep at least one enabled local administrator: they can still sign in if the identity provider is down.",
       cannot_change_self: "You cannot change your own role, reset your own password, disable or delete your own account.",
@@ -742,6 +742,14 @@ export const en = {
       full: (max: number) => `You have reached the maximum of ${max} favourites. Remove one to add another.`,
       gone: "This link is no longer available.",
       saveError: "Your favourites could not be saved. Try again.",
+    },
+    status: {
+      label: "Status:",
+      up: "Up",
+      down: "Down",
+      unknown: "Status unknown",
+      checkedAt: (time: string) => `checked ${time}`,
+      notCheckedYet: "not checked yet",
     },
   },
   search: {
