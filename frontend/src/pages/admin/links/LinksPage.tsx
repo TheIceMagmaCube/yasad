@@ -1,4 +1,4 @@
-import { FileCode2, ListOrdered, Plus } from "lucide-react";
+import { Eye, FileCode2, ListOrdered, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { type AdminCategory, type AdminGroup, type AdminLink, api, type EditWarning, type HomeIcon } from "../../../api";
@@ -30,15 +30,17 @@ import { CategoryPage } from "./CategoryPage";
 import { categoryHref, isManagedByFile, LIST, linkHref } from "./item-edit";
 import { LinkPage } from "./LinkPage";
 import { Reorder } from "./Reorder";
+import { VisitorPreview } from "./VisitorPreview";
 
 const FILTER_ID = "links-filter";
 const NEW_ID = "links-new";
 const REORDER_ID = "links-reorder";
+const VISITOR_ID = "links-visitor";
 const linkIdOf = (id: string) => `link-${id}-link`;
 const categoryLinkIdOf = (id: string) => `category-${id}-link`;
 
-/** The page of a link or a category, the wizard adding either, or null for the list. */
-export type LinksRoute = { kind: "link" | "category"; id: string } | { kind: "new"; type: "link" | "category" } | null;
+/** The page of a link or a category, the wizard adding either, the visitor's home page, or null for the list. */
+export type LinksRoute = { kind: "link" | "category"; id: string } | { kind: "new"; type: "link" | "category" } | { kind: "visitor" } | null;
 
 /** States a list can be narrowed to with `?state=`, as the dashboard links to them. */
 const STATES = ["noGroup", "unknownIcon", "neverReceived", "inactive", "down", "statusUnknown"] as const;
@@ -192,10 +194,12 @@ export function LinksPage({ open }: { open: LinksRoute }) {
     navigate(href);
   };
 
+  // Read from its own route: it needs neither the catalog nor the groups.
+  if (open?.kind === "visitor") return <VisitorPreview />;
   const failed = catalog.status === "error" ? catalog : groups.status === "error" ? groups : null;
   if (open && (!categories || !groups.data)) {
     return (
-      <AdminShell section="links" title={m.loading}>
+      <AdminShell section="links" loading>
         {failed ? <LoadError attempt={failed.attempt} message={s.loadError} pending={failed.retrying} onRetry={failed.retry} /> : null}
       </AdminShell>
     );
@@ -383,6 +387,10 @@ export function LinksPage({ open }: { open: LinksRoute }) {
                 <Link href={`${LIST}/file`} className={buttonVariants({ variant: "ghost" })}>
                   <FileCode2 aria-hidden="true" />
                   {s.file}
+                </Link>
+                <Link id={VISITOR_ID} href={`${LIST}/visitor/home`} className={buttonVariants({ variant: "ghost" })} onClick={() => rememberRow(LIST, VISITOR_ID)}>
+                  <Eye aria-hidden="true" />
+                  {m.access.seeAsVisitor}
                 </Link>
               </>
             }

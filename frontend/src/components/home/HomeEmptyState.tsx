@@ -16,10 +16,13 @@ const stepLink =
  * three setup steps; nobody else is pointed at the administration pages. `no_groups` and `nothing_visible` link to
  * the person's groups on the account page. An unknown or missing code (an anonymous visitor included) reads as
  * "nothing visible", without that link.
+ *
+ * In a preview of someone else's home page, `titleAs` is h3 and `ownGroups` false: the account page would show the
+ * administrator's groups, not theirs.
  */
-export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
+export function HomeEmptyState({ empty, titleAs = "h2", ownGroups = true }: { empty: HomeEmpty | null; titleAs?: "h2" | "h3"; ownGroups?: boolean }) {
   const m = useStrings().home.empty;
-  const seeGroups = (
+  const seeGroups = ownGroups && (
     <Link href="/account#groups" className={buttonVariants({ variant: "outline" })}>
       {m.seeGroups}
     </Link>
@@ -27,7 +30,7 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
   switch (empty) {
     case "catalog_empty":
       return (
-        <EmptyState icon={FolderOpen} titleAs="h2" title={m.catalog.title}>
+        <EmptyState icon={FolderOpen} titleAs={titleAs} title={m.catalog.title}>
           <p>{m.catalog.body}</p>
           <ol className="mt-4 list-inside list-decimal space-y-2 text-left text-foreground sm:text-center">
             <li>
@@ -59,7 +62,7 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
       return (
         <EmptyState
           icon={Lock}
-          titleAs="h2"
+          titleAs={titleAs}
           title={m.adminNoAccess.title}
           actions={
             <>
@@ -77,19 +80,19 @@ export function HomeEmptyState({ empty }: { empty: HomeEmpty | null }) {
       );
     case "no_groups":
       return (
-        <EmptyState icon={UserRoundX} titleAs="h2" title={m.noGroups.title} actions={seeGroups}>
+        <EmptyState icon={UserRoundX} titleAs={titleAs} title={m.noGroups.title} actions={seeGroups}>
           {m.noGroups.body}
         </EmptyState>
       );
     case "nothing_visible":
       return (
-        <EmptyState icon={Layers} titleAs="h2" title={m.nothingVisible.title} actions={seeGroups}>
+        <EmptyState icon={Layers} titleAs={titleAs} title={m.nothingVisible.title} actions={seeGroups}>
           {m.nothingVisible.body}
         </EmptyState>
       );
     default:
       return (
-        <EmptyState icon={Layers} titleAs="h2" title={m.nothingVisible.title}>
+        <EmptyState icon={Layers} titleAs={titleAs} title={m.nothingVisible.title}>
           {m.nothingVisible.body}
         </EmptyState>
       );

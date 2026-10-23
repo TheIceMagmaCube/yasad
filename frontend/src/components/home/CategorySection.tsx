@@ -13,7 +13,7 @@ export const LINK_GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3";
 export const PANEL_LINK_GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3";
 
 /**
- * Region of one category, named by its h2, with its links as a list of cards. `index` is the category's position in
+ * Region of one category, named by its heading (h2 unless `level` says otherwise), with its links as a list of cards. `index` is the category's position in
  * the list the person receives and picks its colour. `grid` gives the classes of the card list (`LINK_GRID` by default).
  * `pin`, given only in the manage mode of the favourites, returns the pin button of each card.
  */
@@ -22,11 +22,13 @@ export function CategorySection({
   index,
   grid = LINK_GRID,
   pin,
+  level,
 }: {
   category: HomeCategory;
   index: number;
   grid?: string;
   pin?: (link: HomeLink) => CardPin;
+  level?: "h2" | "h3";
 }) {
   const id = useId();
   const tone = categoryTone(index);
@@ -34,6 +36,7 @@ export function CategorySection({
     <section aria-labelledby={id}>
       <SectionHeader
         id={id}
+        level={level}
         title={
           <span className="flex items-center gap-2">
             <span aria-hidden="true" className={`pixel-corners size-4 shrink-0 ${tone.bar}`} />

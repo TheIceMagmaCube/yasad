@@ -28,6 +28,13 @@ describe("CategorySection", () => {
     expect(within(region).getByRole("list")).toHaveClass("grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3");
   });
 
+  it("titles the region with an h3 when asked, inside a preview", () => {
+    renderWithProviders(<CategorySection category={CATEGORY} index={0} level="h3" />);
+    const region = screen.getByRole("region", { name: "Developer tools" });
+    expect(within(region).getByRole("heading", { level: 3, name: "Developer tools" })).toBeInTheDocument();
+    expect(within(region).queryByRole("heading", { level: 2 })).toBeNull();
+  });
+
   it("colours the marker, tiles and card bases from the index, cycling after six", () => {
     const { container } = renderWithProviders(<CategorySection category={CATEGORY} index={7} />);
     // Read from categoryTone so a change of palette classes leaves this test alone.

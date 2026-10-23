@@ -108,4 +108,19 @@ describe("PinsPanel", () => {
     expect(screen.queryByRole("button", { name: "Remove L1" })).toBeNull();
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
+
+  it("is read only without the manage props: no button, named and titled as given, its skip link on the target given", () => {
+    renderWithProviders(<PinsPanel categories={CATEGORIES} pins={["l3"]} label="Favourites of Bob" level="h3" skipTarget="preview-links" />);
+    const aside = screen.getByRole("complementary", { name: "Favourites of Bob" });
+    expect(within(aside).queryByRole("button")).toBeNull();
+    expect(within(aside).getByRole("heading", { level: 3, name: "Favourites" })).toBeInTheDocument();
+    expect(within(aside).getByRole("link", { name: "Go to the links" })).toHaveAttribute("href", "#preview-links");
+    expect(within(aside).getByRole("link", { name: "L3" })).toHaveAttribute("href", "https://l3.example.invalid");
+  });
+
+  it("says there is no favourite in read only, without inviting to Manage", () => {
+    renderWithProviders(<PinsPanel categories={CATEGORIES} pins={[]} />);
+    expect(screen.getByText("No favourites.")).toBeInTheDocument();
+    expect(screen.queryByText(/with Manage/)).toBeNull();
+  });
 });

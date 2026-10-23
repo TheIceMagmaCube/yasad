@@ -1,10 +1,11 @@
 import { ArrowLeft, CircleCheck, Search } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { useStrings } from "../../i18n/LocaleProvider";
 import { useDebouncedStatus } from "../../lib/announcer";
+import { usePageHeading } from "../../lib/focus";
 import { useDocumentTitle } from "../../lib/page";
 import { Link } from "../Link";
 import { ShellNotice } from "../ShellNotice";
@@ -33,6 +34,8 @@ type AdminShellProps = {
   section: AdminSection;
   /** Page title, the h1; the section name unless the page says otherwise (an item's name on its own page). */
   title?: string;
+  /** The page is not read yet: the title says so, and the page's own heading takes the focus over once it shows. */
+  loading?: boolean;
   /** Extra parts of the document title, most specific first. */
   titleParts?: string[];
   /** Link back to the list an item page was opened from. */
@@ -51,9 +54,12 @@ type AdminShellProps = {
  * its list above it), then the page. No eyebrow and no description: what needs explaining is said in the empty
  * states and on the item pages.
  */
-export function AdminShell({ section, title, titleParts = [], back, leading, subtitle, banner, children }: AdminShellProps) {
+export function AdminShell({ section, title: givenTitle, loading = false, titleParts = [], back, leading, subtitle, banner, children }: AdminShellProps) {
   const m = useStrings();
+  const title = loading ? m.loading : givenTitle;
   const heading = title ?? m.admin.tabs[section];
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  usePageHeading(headingRef);
   useDocumentTitle(...titleParts, ...(title ? [title] : []), m.admin.tabs[section], m.admin.title);
   return (
     <div data-slot="admin-shell">
@@ -81,7 +87,7 @@ export function AdminShell({ section, title, titleParts = [], back, leading, sub
       <div className="mb-6 flex items-start gap-4">
         {leading}
         <div className="min-w-0">
-          <h1 tabIndex={-1} className="text-display wrap-anywhere outline-none">
+          <h1 ref={headingRef} tabIndex={-1} data-page-loading={loading ? "" : undefined} className="text-display wrap-anywhere outline-none">
             {heading}
           </h1>
           {subtitle && <div className="mt-1 flex flex-col gap-1 text-muted-foreground">{subtitle}</div>}

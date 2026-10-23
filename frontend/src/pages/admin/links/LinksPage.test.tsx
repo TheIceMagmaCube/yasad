@@ -30,14 +30,15 @@ describe("LinksPage", () => {
     expect(screen.getByText("4 links")).toBeInTheDocument();
   });
 
-  it("puts the filter, the count and Add, Reorder, YAML file on the toolbar, with no hero", async () => {
+  it("puts the filter, the count and Add, Reorder, YAML file, See as a visitor on the toolbar, with no hero", async () => {
     renderAdmin("/admin/links", linksRoutes());
     await screen.findByRole("table", { name: "Links of Tools" });
     const toolbar = document.querySelector<HTMLElement>('[data-slot="admin-toolbar"]')!;
     const controls = [...toolbar.querySelectorAll<HTMLElement>("input, a, button")].map((el) => (el instanceof HTMLInputElement ? el.placeholder : el.textContent));
-    expect(controls).toEqual(["Filter by title, address or keyword", "Add", "Reorder", "YAML file"]);
+    expect(controls).toEqual(["Filter by title, address or keyword", "Add", "Reorder", "YAML file", "See as a visitor"]);
     expect(within(toolbar).getByRole("link", { name: "Add" })).toHaveAttribute("href", "/admin/links/new");
     expect(within(toolbar).getByRole("link", { name: "YAML file" })).toHaveAttribute("href", "/admin/links/file");
+    expect(within(toolbar).getByRole("link", { name: "See as a visitor" })).toHaveAttribute("href", "/admin/links/visitor/home");
     expect(document.querySelector('[data-slot="pixel-scene"]')).toBeNull();
   });
 

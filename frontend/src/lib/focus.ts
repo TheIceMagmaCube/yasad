@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 import { useNavigations } from "./router";
 
@@ -22,10 +22,36 @@ function pageTarget(): HTMLElement | null {
   return document.querySelector<HTMLElement>('main h1[tabindex="-1"]') ?? document.getElementById("content");
 }
 
+/**
+ * What the last page focus went to, so a heading replacing it while the page loads can take the focus over; forgotten
+ * as soon as the focus goes anywhere else.
+ */
+let lastTarget: HTMLElement | null = null;
+document.addEventListener("focusin", (e) => {
+  if (e.target !== lastTarget) lastTarget = null;
+});
+
 /** Move the focus to the page heading, else to the main region, unless a component claimed it in this commit. */
 export function focusPage(): void {
   if (claimed) return;
-  pageTarget()?.focus();
+  lastTarget = pageTarget();
+  lastTarget?.focus();
+}
+
+/**
+ * Give the page focus to the heading in `ref` when it replaces the loading heading (`data-page-loading`) the page
+ * focus went to, the focus having fallen to the body with it: a page still loading at the navigation shows a loading
+ * heading first, and the page's own heading is a new element. Call it from the component rendering the page heading.
+ */
+export function usePageHeading(ref: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const heading = ref.current;
+    if (!heading || claimed || !lastTarget?.hasAttribute("data-page-loading") || lastTarget.isConnected) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    lastTarget = heading;
+    heading.focus();
+  }, [ref]);
 }
 
 /**

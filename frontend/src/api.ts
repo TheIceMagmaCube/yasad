@@ -218,6 +218,22 @@ export type HomeCategory = { id: string; title: string; links: HomeLink[] };
 export type HomeEmpty = "catalog_empty" | "admin_no_access" | "no_groups" | "nothing_visible";
 /** `pins` lists the ids of the viewer's visible pinned links, in their order; empty when nobody is signed in. */
 export type HomeData = { signedIn: boolean; categories: HomeCategory[]; empty: HomeEmpty | null; pins: string[] };
+/** Why a person does not see a link, in the order an administrator fixes them. */
+export type AccessReasonCode = "link_inactive" | "link_no_group" | "category_no_group" | "missing_link_group" | "missing_category_group";
+export type NamedGroup = { id: string; name: string; source: GroupSource };
+/** A held group that looks like an expected one without being it; it never opens the link. */
+export type AccessHint = { kind: "other_source" | "other_case"; held: NamedGroup; expected: NamedGroup };
+export type AccessReason = { code: AccessReasonCode; hint?: AccessHint };
+/** Whether a person sees a link and, when not, every reason; `visible` is true exactly when `reasons` is empty. */
+export type LinkExplanation = {
+  id: string;
+  title: string;
+  categoryId: string;
+  categoryTitle: string;
+  visible: boolean;
+  reasons: AccessReason[];
+  pinned?: true;
+};
 /** The about page: build version and source links for everyone; `instance` is sent to admins only. */
 export type About = {
   version: string;
@@ -330,6 +346,13 @@ export const api = {
   /** Move a pin one step among the visible ones; the list is unchanged at either end. */
   movePin: (linkId: string, direction: Direction) =>
     call<{ pins: string[] }>(`/api/pins/${encodeURIComponent(linkId)}/move`, post({ direction })),
+  /** Return a person's home page as they get it, for a read-only preview: never put in the home store. */
+  previewHome: (userId: string) => call<HomeData>(`/api/admin/access/users/${encodeURIComponent(userId)}/home`),
+  /** Return the home page of a visitor who is not signed in, for a read-only preview. */
+  visitorHome: () => call<HomeData>("/api/admin/access/visitor/home"),
+  /** Return, for every link of the catalog, whether the person sees it and why not. */
+  accessLinks: async (userId: string) =>
+    (await call<{ links: LinkExplanation[] }>(`/api/admin/access/users/${encodeURIComponent(userId)}/links`)).links,
   history: (query: HistoryQuery = {}) => call<HistoryPage>(`/api/admin/history${historyQueryString(query)}`),
   historyActors: async () => (await call<{ actors: HistoryActor[] }>("/api/admin/history/actors")).actors,
 };

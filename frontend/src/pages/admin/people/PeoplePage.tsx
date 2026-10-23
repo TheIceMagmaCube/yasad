@@ -24,12 +24,11 @@ import { formatRelative } from "../../../lib/relative-time";
 import { navigate } from "../../../lib/router";
 import { AddPeople } from "./AddPeople";
 import { GroupPage, groupName } from "./GroupPage";
+import { groupHref, LIST, personHref } from "./hrefs";
 import { PersonPage } from "./PersonPage";
+import { PersonPreview } from "./PersonPreview";
 
-const LIST = "/admin/users";
 const FILTER_ID = "users-filter";
-export const personHref = (id: string) => `${LIST}/${encodeURIComponent(id)}`;
-export const groupHref = (id: string) => `/admin/groups/${encodeURIComponent(id)}`;
 const linkIdOf = (id: string) => `user-${id}-link`;
 
 /** States the dashboard links to, as `?state=`. */
@@ -60,8 +59,8 @@ function stateOf(user: AdminUser, m: Messages) {
   return null;
 }
 
-/** The page of a person or a group, the wizard adding either, or null for the table. */
-export type PeopleRoute = { kind: "person" | "group"; id: string } | { kind: "new"; type: "person" | "group" } | null;
+/** The page of a person or a group, the preview of a person's home page, the wizard adding either, or null for the table. */
+export type PeopleRoute = { kind: "person" | "group" | "preview"; id: string } | { kind: "new"; type: "person" | "group" } | null;
 
 /**
  * Admin section of people and their groups: the people table, narrowed to a group when one is chosen, the pages of
@@ -101,6 +100,16 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
     shownRef.current = shown;
   });
   useRestoreRow(LIST, open === null && list !== null);
+  // The preview's groups and banners come from these lists, its home and links from a fresh read: reload them, so
+  // a sign-in or another administrator's change since the section opened does not leave the page contradicting itself.
+  const previewId = open?.kind === "preview" ? open.id : null;
+  const { refresh: refreshUsers } = users;
+  const { refresh: refreshGroups } = groups;
+  useEffect(() => {
+    if (previewId === null) return;
+    void refreshUsers();
+    void refreshGroups();
+  }, [previewId, refreshUsers, refreshGroups]);
 
   const changeQuery = (next: string) => {
     setQuery(next);
@@ -130,7 +139,7 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
   const failed = users.status === "error" ? users : groups.status === "error" ? groups : null;
   if (open && (!list || !groupList)) {
     return (
-      <AdminShell section="users" title={m.loading}>
+      <AdminShell section="users" loading>
         {failed ? <LoadError attempt={failed.attempt} message={s.loadError} pending={failed.retrying} onRetry={failed.retry} /> : null}
       </AdminShell>
     );
@@ -190,6 +199,11 @@ export function PeoplePage({ me, open }: { me: User; open: PeopleRoute }) {
         }}
       />
     );
+  }
+  if (open?.kind === "preview" && list && groupList) {
+    const user = list.find((u) => u.id === open.id);
+    if (!user) return <Missing />;
+    return <PersonPreview key={user.id} user={user} groups={groupList} />;
   }
   if (open?.kind === "group" && list && groupList) {
     const group = groupList.find((g) => g.id === open.id);

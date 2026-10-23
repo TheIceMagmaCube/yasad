@@ -4,10 +4,11 @@ import { type FormEvent, useState } from "react";
 import { type AdminGroup, type AdminUser, api, type Role, type UserChanges } from "../../../api";
 import { ConfirmPanel } from "../../../components/admin/ConfirmPanel";
 import { AdminShell } from "../../../components/admin/AdminShell";
-import { DetailColumns, listHref, PaneDanger, PaneSection } from "../../../components/admin/DetailPage";
+import { DetailColumns, listHref, PaneDanger, PaneSection, rememberRow, useRestoreRow } from "../../../components/admin/DetailPage";
 import { SecretPanel } from "../../../components/admin/SecretPanel";
 import { StateMark } from "../../../components/admin/StateMark";
 import { ErrorSummary } from "../../../components/form/ErrorSummary";
+import { Link } from "../../../components/Link";
 import { Field } from "../../../components/form/Field";
 import { FormActions, FormStack } from "../../../components/form/FormLayout";
 import { SubmitButton } from "../../../components/form/PendingButton";
@@ -23,11 +24,11 @@ import { invalidateHome } from "../../../lib/home-store";
 import { formatRelative } from "../../../lib/relative-time";
 import { RecentChanges } from "../history/RecentChanges";
 import { adminErrorText, PersonTile } from "../shared";
-
-const LIST = "/admin/users";
+import { LIST, personHref, previewHref } from "./hrefs";
 
 type UserField = "name" | "email" | "role" | "roleOverride" | "disabled";
 const USER_FIELDS = ["name", "email", "role", "roleOverride", "disabled"] as const;
+const PREVIEW_ID = "person-preview";
 
 /** Return the changes the form makes to the user as it was when the pane opened, leaving out what stays the same. */
 function changesOf(user: AdminUser, form: { name: string; email: string; role: Role; override: Role | ""; disabled: boolean }): UserChanges {
@@ -67,6 +68,7 @@ export function PersonPage({ user, self, localGroups, secret, onUpdated, onMembe
   };
   const errorText = (err: unknown) => adminErrorText(err, m);
   const providerGroups = user.groups.filter((g) => g.source === "oidc");
+  useRestoreRow(personHref(user.id), true);
   const last = formatRelative(user.lastSignInAt, language, m);
 
   return (
@@ -127,6 +129,18 @@ export function PersonPage({ user, self, localGroups, secret, onUpdated, onMembe
                 <dt className="text-muted-foreground">{s.columns.lastSignIn}</dt>
                 <dd>{last.exact ?? last.text}</dd>
               </dl>
+            </PaneSection>
+            <PaneSection title={m.access.section}>
+              <p>
+                <Link
+                  id={PREVIEW_ID}
+                  href={previewHref(user.id)}
+                  onClick={() => rememberRow(personHref(user.id), PREVIEW_ID)}
+                  className="inline-flex min-h-11 items-center font-bold underline decoration-link-decoration decoration-2 underline-offset-4 hover:decoration-foreground"
+                >
+                  {m.access.seeHome}
+                </Link>
+              </p>
             </PaneSection>
             <RecentChanges type="user" id={user.id} version={`${JSON.stringify(user)}:${secret ?? ""}`} />
           </>
