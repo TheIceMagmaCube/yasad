@@ -41,7 +41,8 @@ async function run<T>(
   return render(result.after, result.edit);
 }
 
-const noStore: MiddlewareHandler<AppEnv> = async (c, next) => {
+/** Forbid any cache to keep an administration answer. */
+export const noStore: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.header("Cache-Control", "no-store");
   await next();
 };

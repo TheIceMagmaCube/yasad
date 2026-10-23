@@ -12,6 +12,7 @@ import { apiError } from "./errors";
 import type { Outbound } from "./net/outbound";
 import { about } from "./routes/about";
 import { accountRoutes } from "./routes/account";
+import { adminAccess } from "./routes/admin-access";
 import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { adminGroups } from "./routes/admin-groups";
 import { adminHistory } from "./routes/admin-history";
@@ -137,6 +138,7 @@ export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps
   app.route("/admin/users", adminUsers);
   app.route("/admin/groups", adminGroups);
   app.route("/admin/history", adminHistory);
+  app.route("/admin/access", adminAccess);
   app.route("/auth", authRoutes);
 
   return app;
