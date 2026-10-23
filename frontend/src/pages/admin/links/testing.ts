@@ -3,7 +3,7 @@ import { renderHook } from "@testing-library/react";
 import type { AdminCategory, AdminLink, CatalogState, CheckSettings, HomeData } from "../../../api";
 import { primeHome, useHomeEntry } from "../../../lib/home-store";
 import type { Routes } from "../../../test-utils";
-import { group, groupsAnswer } from "../people/testing";
+import { group, groupsAnswer, person, usersAnswer } from "../people/testing";
 
 export const link = (fields: Partial<AdminLink> & { id: string; title: string }): AdminLink => ({
   categoryId: "tools",
@@ -47,11 +47,23 @@ export const GROUPS = [
 export const CHECKS: CheckSettings = { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null };
 export const STATE: CatalogState = { managedByFile: false, categories: 3, links: 4, groups: 3, checks: CHECKS };
 
-/** The answers the links section loads, `extra` added or replacing them. */
+export const BOB = person({ id: "bob", name: "Bob", groups: [{ id: "g1", name: "Finance", source: "local" }] });
+export const KEN = person({ id: "ken", name: "Ken", origin: "oidc" });
+
+/** Who sees an item: `people` active accounts, and a visitor when `public`. */
+export const audienceAnswer = (people: number, isPublic = false) => ({ status: 200, body: { audience: { people, public: isPublic } } });
+
+/**
+ * The answers the links section loads, `extra` added or replacing them: the item pages read who sees each link and
+ * category of `categories`, and the people a link can be explained for.
+ */
 export const linksRoutes = (extra: Routes = {}, { categories = [TOOLS, DEV, EMPTY], state = STATE } = {}): Routes => ({
   "GET /api/admin/categories": { status: 200, body: { categories } },
   "GET /api/admin/groups": groupsAnswer(...GROUPS),
   "GET /api/admin/catalog/state": { status: 200, body: state },
+  "GET /api/admin/users": usersAnswer(BOB, KEN),
+  ...Object.fromEntries(categories.map((c) => [`GET /api/admin/access/categories/${c.id}`, audienceAnswer(2)])),
+  ...Object.fromEntries(categories.flatMap((c) => c.links).map((l) => [`GET /api/admin/access/links/${l.id}`, audienceAnswer(2)])),
   ...extra,
 });
 
