@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 
-import type { AdminCategory, AdminLink, CatalogState, CheckSettings } from "../../../api";
+import type { AdminCategory, AdminLink, CatalogState, CheckSettings, HomeData } from "../../../api";
 import { primeHome, useHomeEntry } from "../../../lib/home-store";
 import type { Routes } from "../../../test-utils";
 import { group, groupsAnswer } from "../people/testing";
@@ -55,9 +55,16 @@ export const linksRoutes = (extra: Routes = {}, { categories = [TOOLS, DEV, EMPT
   ...extra,
 });
 
-/** Put an answer in the home cache; the function returned says whether it is still there. */
+/**
+ * Put an answer in the home cache; the function returned says whether that same answer is still there, so a write
+ * of another one in its place counts as gone.
+ */
 export function primeHomeCache(): () => boolean {
-  primeHome("user:ada", { signedIn: true, categories: [], empty: null, pins: [] });
+  const primed: HomeData = { signedIn: true, categories: [], empty: null, pins: [] };
+  primeHome("user:ada", primed);
   const cached = renderHook(() => useHomeEntry("user:ada")).result;
-  return () => cached.current !== null;
+  return () => {
+    const state = cached.current?.state;
+    return state?.status === "ready" && state.data === primed;
+  };
 }

@@ -139,6 +139,8 @@ test("the dashboard is accessible, and its items open the list filtered on them,
 test("the people pages are accessible in each of their states, in every theme, mode and width", async ({ page }) => {
   test.setTimeout(300_000);
   await signInAsAdmin(page);
+  // The preview of a home page needs a catalog: Grace sees Everyday, not Developer tools.
+  await importCatalog(page.request, CATALOG);
   for (const theme of THEMES) {
     for (const mode of MODES) {
       for (const width of WIDTHS) {
@@ -181,6 +183,17 @@ test("the people pages are accessible in each of their states, in every theme, m
         await open(page, `/admin/users/${KEN.id}`, theme, mode, width);
         await expect(page.getByRole("heading", { level: 1, name: KEN.name })).toBeVisible();
         await expectClean(page, `${label}, provider person page`);
+
+        await open(page, `/admin/users/${GRACE.id}/home`, theme, mode, width);
+        await expect(page.getByRole("region", { name: `Preview of ${GRACE.name}'s home page` }).getByRole("heading", { level: 3, name: "Everyday" })).toBeVisible();
+        await expect(page.getByRole("table", { name: `Links of the catalog for ${GRACE.name}` }).getByRole("link", { name: "Jira", exact: true })).toBeVisible();
+        await expectClean(page, `${label}, home page preview`);
+        await page.getByLabel("Show", { exact: true }).selectOption("visible");
+        await expect(page.getByRole("table", { name: `Links of the catalog for ${GRACE.name}` }).getByRole("link", { name: "Mail", exact: true })).toBeVisible();
+        await expectClean(page, `${label}, home page preview, visible links`);
+        await open(page, `/admin/users/${KEN.id}/home`, theme, mode, width);
+        await expect(page.getByText("No sign-in yet: no identity provider group received.")).toBeVisible();
+        await expectClean(page, `${label}, provider home page preview`);
 
         await open(page, "/admin/groups/adm-staff", theme, mode, width);
         await expect(page.getByRole("checkbox", { name: GRACE.name })).toBeChecked();
@@ -256,6 +269,11 @@ test("the links pages are accessible in each of their states, in every theme, mo
         await expect(page.getByRole("heading", { level: 1, name: "Developer tools" })).toBeVisible();
         await expect(page.getByRole("checkbox", { name: "Developers typed, never received" })).toBeChecked();
         await expectClean(page, `${label}, category page`);
+
+        // The example has no public link: a visitor gets the sign-in screen, and the preview says so.
+        await open(page, "/admin/links/visitor/home", theme, mode, width);
+        await expect(page.getByRole("heading", { level: 3, name: "No public link" })).toBeVisible();
+        await expectClean(page, `${label}, visitor preview`);
 
         await page.route("**/api/admin/catalog/state", (route) =>
           route.fulfill({ json: { managedByFile: true, categories: 2, links: 3, groups: 3, checks: { intervalMinutes: 5, staleAfterMinutes: 15, checked: 0, capacity: null } }, headers: { "cache-control": "no-store" } }),
@@ -498,6 +516,31 @@ test.describe("keyboard and focus", () => {
     await page.getByRole("link", { name: "Back to People" }).click();
     await expect(page).toHaveURL(/\/admin\/users\?q=marg$/);
     await expect(page.getByRole("link", { name: MARGARET.name })).toBeFocused();
+  });
+
+  test("previews a person's home page, opens a hidden link from its table and comes back to the row", async ({ page }) => {
+    await importCatalog(page.request, CATALOG);
+    await page.goto(`/admin/users/${GRACE.id}`);
+    await page.getByRole("link", { name: "See their home page" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: `Home page of ${GRACE.name}` })).toBeFocused();
+    await expect(page.getByRole("note").first()).toContainText("Read-only preview. You stay signed in with your own account");
+    const preview = page.getByRole("region", { name: `Preview of ${GRACE.name}'s home page` });
+    await expect(preview.getByRole("link", { name: /^Mail/ })).toHaveAttribute("href", "https://mail.example.org");
+    await expect(preview.getByRole("link", { name: /^Jira/ })).toHaveCount(0);
+    await expect(preview.getByRole("button", { name: "Manage favourites" })).toHaveCount(0);
+
+    const jira = page.getByRole("table", { name: `Links of the catalog for ${GRACE.name}` }).getByRole("link", { name: "Jira", exact: true });
+    const row = jira.locator("xpath=ancestor::tr");
+    await expect(row).toContainText("Hidden");
+    await expect(row).toContainText("They hold none of the link's groups.");
+    await expect(row).toContainText("They hold none of the category's groups.");
+    await jira.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/admin/links/jira\\?as=${GRACE.id}$`));
+    await expect(page.getByRole("heading", { level: 1, name: "Jira" })).toBeFocused();
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/admin/users/${GRACE.id}/home$`));
+    await expect(jira).toBeFocused();
   });
 
   test("edits a person on their page and announces it, the focus staying on Save", async ({ page }) => {

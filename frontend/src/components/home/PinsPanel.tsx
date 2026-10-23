@@ -22,10 +22,8 @@ export type PinGestures = {
   isPending(buttonId: string): boolean;
 };
 
-type PinsPanelProps = {
-  categories: HomeCategory[];
-  /** Ids of the visible pinned links, in their order. */
-  pins: string[];
+/** The manage mode of the viewer's own panel. */
+type ManageProps = {
   managing: boolean;
   /** Open or close the manage mode. */
   onToggle(): void;
@@ -34,6 +32,18 @@ type PinsPanelProps = {
   /** Error of the last gesture; a new `n` focuses it again. */
   error: { text: string; n: number } | null;
 };
+
+type PinsPanelProps = {
+  categories: HomeCategory[];
+  /** Ids of the visible pinned links, in their order. */
+  pins: string[];
+  /** Id of the categories' container, the target of the skip link. */
+  skipTarget?: string;
+  /** Name of the aside, when it is not the viewer's own favourites. */
+  label?: string;
+  /** Element of the panel title: h3 inside an h2 section. */
+  level?: "h2" | "h3";
+} & (ManageProps | { [K in keyof ManageProps]?: never });
 
 /**
  * Return the pinned links in `pins` order, each with the index of its category in `categories` (which picks its
@@ -58,21 +68,27 @@ export function pinnedLinks(categories: HomeCategory[], pins: string[]): { link:
  *
  * In the manage mode each favourite gets Up, Down and Remove, which go under the title when the row is too narrow.
  * At either end the move is aria-disabled, so it keeps its place in the tab order and the focus.
+ *
+ * Without `onToggle` the panel is read only, for a preview of someone else's home page: no Manage button, no
+ * gesture, nothing written.
  */
-export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, gestures, error }: PinsPanelProps) {
+export function PinsPanel({ categories, pins, skipTarget = "home-links", label, level, managing = false, onToggle, toggleRef, gestures, error = null }: PinsPanelProps) {
   const m = useStrings().home.pins;
   const items = pinnedLinks(categories, pins);
   return (
     <div className="pins-panel panel p-4 lg:col-start-2 lg:row-start-1 lg:self-start">
-      <aside aria-label={m.title}>
-        <SkipLink target="home-links" label={m.skipToLinks} inline />
+      <aside aria-label={label ?? m.title}>
+        <SkipLink target={skipTarget} label={m.skipToLinks} inline />
         <SectionHeader
           title={m.title}
+          level={level}
           className="mb-3"
           actions={
-            <Button id="pins-toggle" ref={toggleRef} variant="outline" aria-label={managing ? m.doneName : m.manageName} onClick={onToggle}>
-              {managing ? m.done : m.manage}
-            </Button>
+            onToggle && (
+              <Button id="pins-toggle" ref={toggleRef} variant="outline" aria-label={managing ? m.doneName : m.manageName} onClick={onToggle}>
+                {managing ? m.done : m.manage}
+              </Button>
+            )
           }
         />
         {error && (
@@ -81,7 +97,7 @@ export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, ges
           </Alert>
         )}
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{managing ? m.emptyManaging : m.invite}</p>
+          <p className="text-sm text-muted-foreground">{!onToggle ? m.none : managing ? m.emptyManaging : m.invite}</p>
         ) : (
           <ul role="list" className="flex flex-col divide-y divide-border">
             {items.map(({ link, categoryIndex }, index) => (
@@ -98,7 +114,7 @@ export function PinsPanel({ categories, pins, managing, onToggle, toggleRef, ges
                   data-slot="pin-category"
                   className={cn("size-3 shrink-0 rounded-[2px] forced-colors:border", categoryTone(categoryIndex).bar)}
                 />
-                {managing && <RowActions link={link} first={index === 0} last={index === items.length - 1} gestures={gestures} />}
+                {managing && gestures && <RowActions link={link} first={index === 0} last={index === items.length - 1} gestures={gestures} />}
               </li>
             ))}
           </ul>

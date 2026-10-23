@@ -9,7 +9,7 @@ import { PixelScene } from "../../components/PixelScene";
 import { useStrings } from "../../i18n/LocaleProvider";
 import { useAdminCollection } from "../../lib/admin-collection";
 import { groupRefOf, neverReceived } from "../../lib/group-ref";
-import { groupHref } from "./people/PeoplePage";
+import { groupHref } from "./people/hrefs";
 
 /**
  * Render the decorative band at the head of the dashboard: the pixel scene and a line drawn at random. It says

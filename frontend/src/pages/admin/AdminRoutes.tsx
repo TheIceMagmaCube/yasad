@@ -36,6 +36,9 @@ export function adminRoute(path: string): AdminRoute | null {
   if (parts[0] === "history") return parts.length === 1 ? { section: "history" } : null;
   const [section, id, ...rest] = parts;
   if (section === undefined) return { section: "dashboard" };
+  if (section === "users" && id !== undefined && id !== "new" && rest.length === 1 && rest[0] === "home") {
+    return { section: "users", open: { kind: "preview", id } };
+  }
   if (rest.length > 0) return null;
   if (section === "users") {
     if (id === undefined) return { section: "users", open: null };
@@ -53,6 +56,8 @@ function linksRoute([a, b, ...rest]: string[]): AdminRoute | null {
   if (a === undefined) return { section: "links", open: null };
   if (a === "file") return b === undefined ? { section: "links-file" } : null;
   if (a === "new") return b === undefined ? { section: "links", open: { kind: "new", type: "link" } } : null;
+  // Two segments, as no link page has: a link whose id is "visitor" keeps its page.
+  if (a === "visitor" && b === "home") return { section: "links", open: { kind: "visitor" } };
   if (a === "categories") {
     if (b === undefined) return null;
     return { section: "links", open: b === "new" ? { kind: "new", type: "category" } : { kind: "category", id: b } };
