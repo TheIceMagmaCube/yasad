@@ -11,8 +11,10 @@ import { Button } from "../../../components/ui/button";
 import { CheckboxField } from "../../../components/ui/checkbox";
 import { useStrings } from "../../../i18n/LocaleProvider";
 import { useFormErrors } from "../../../lib/form-errors";
+import { categoryTone } from "../../../lib/category-tone";
 import { groupRefLabel } from "../../../lib/group-ref";
 import { GroupsChooser, refsWith } from "./GroupsChooser";
+import { choiceOf, IconChooser, iconValueOf } from "./IconChooser";
 import { freeId, idFromTitle, isManagedByFile, isReservedId, linksErrorText } from "./item-edit";
 import { keywordsOf } from "./LinkPage";
 
@@ -54,7 +56,7 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [refs, setRefs] = useState<string[]>([]);
   const [other, setOther] = useState("");
-  const [icon, setIcon] = useState("");
+  const [icon, setIcon] = useState(() => choiceOf(null));
   const [keywords, setKeywords] = useState("");
   const [check, setCheck] = useState(false);
   const [pending, setPending] = useState(false);
@@ -99,7 +101,7 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
           groups: groupRefs,
           categoryId,
           keywords: keywordsOf(keywords),
-          ...(icon.trim() ? { icon: icon.trim() } : {}),
+          ...(iconValueOf(icon) ? { icon: iconValueOf(icon) } : {}),
           // Sent only when ticked, so an untouched wizard sends the body it always sent.
           ...(check ? { check: true } : {}),
         });
@@ -110,9 +112,9 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
       }
     } catch (err) {
       if (isManagedByFile(err)) onManaged();
-      const first = err instanceof ApiError ? Object.keys(err.body.fields ?? {})[0] : undefined;
+      const first = err instanceof ApiError ? (err.body.code === "unknown_image" ? "icon" : Object.keys(err.body.fields ?? {})[0]) : undefined;
       if (first) setStep(stepOf(first));
-      errors.failWith(err, { fallback: linksErrorText });
+      errors.failWith(err, { fallback: linksErrorText, codes: { unknown_image: { message: m.images.errors.unknown_image, field: "icon" } } });
     }
   }
 
@@ -150,6 +152,9 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
     </>
   );
   const categoryTitle = categories.find((c) => c.id === categoryId)?.title ?? "";
+  const iconValue = iconValueOf(icon);
+  // The image's reference is never shown: how it was obtained is, with the host of the address typed.
+  const iconRecap = !iconValue ? w.none : icon.kind === "builtin" ? iconValue : icon.image?.host ? s.icon.fetchedFrom(icon.image.host) : s.icon.uploaded;
   const groupsText = groupRefs.map(groupRefLabel).join(", ") || w.none;
 
   return (
@@ -201,15 +206,12 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
           )}
           {current === s.steps.extras && (
             <div className="flex max-w-md flex-col gap-4">
-              <Field
-                {...errors.field("icon")}
-                label={s.fields.icon}
-                hint={s.fields.iconHint}
-                autoComplete="off"
-                spellCheck={false}
-                inputClassName="font-mono"
+              <IconChooser
+                field={errors.field("icon")}
                 value={icon}
-                onChange={(e) => setIcon(e.target.value)}
+                onChange={setIcon}
+                title={title}
+                tone={categoryTone(categories.findIndex((c) => c.id === categoryId)).tile}
               />
               <Field {...errors.field("keywords")} label={s.fields.keywords} hint={s.fields.keywordsHint} autoComplete="off" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
               <CheckboxField
@@ -231,7 +233,7 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
                       [s.fields.url, url],
                       [s.fields.category, categoryTitle],
                       [s.fields.groups, groupsText],
-                      [s.fields.icon, icon.trim() || w.none],
+                      [s.fields.icon, iconRecap],
                       [s.fields.keywords, keywordsOf(keywords).join(", ") || w.none],
                       ...(check ? [[s.fields.check, m.history.yes] as [string, string]] : []),
                     ]
@@ -252,7 +254,7 @@ export function AddLinks({ categories, groups, initialType, checks, onLinkCreate
                 type="button"
                 variant="ghost"
                 onClick={() => {
-                  setIcon("");
+                  setIcon(choiceOf(null));
                   setKeywords("");
                   setCheck(false);
                   errors.reset();

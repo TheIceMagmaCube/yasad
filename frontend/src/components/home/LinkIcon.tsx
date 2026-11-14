@@ -1,7 +1,7 @@
 import { Icon, type LucideIconNode } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import type { HomeIcon } from "@/api";
+import type { BuiltInIcon, HomeIcon } from "@/api";
 import { useLocale } from "@/i18n/LocaleProvider";
 import { ICONS_BASE } from "@/icons-base";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ function lucideNodes(nodes: unknown): LucideIconNode[] {
 }
 
 /** Turn an icon file into Lucide icon nodes; a Simple Icons path is filled with the current colour. */
-function toNodes(set: HomeIcon["set"], data: unknown): LucideIconNode[] {
+function toNodes(set: BuiltInIcon["set"], data: unknown): LucideIconNode[] {
   const file = (data ?? {}) as { path?: unknown; nodes?: unknown };
   if (set === "si") {
     if (typeof file.path !== "string") throw new Error("invalid icon file");
@@ -40,7 +40,7 @@ function toNodes(set: HomeIcon["set"], data: unknown): LucideIconNode[] {
  *
  * Only a JSON answer counts: depending on the target, a missing file comes back as a 404 or as index.html with a 200.
  */
-export function loadIcon(icon: HomeIcon): Promise<LucideIconNode[]> {
+export function loadIcon(icon: BuiltInIcon): Promise<LucideIconNode[]> {
   const key = `${icon.set}/${icon.name}`;
   let request = requests.get(key);
   if (!request) {
@@ -76,16 +76,19 @@ export function initialOf(title: string, language: string): string {
 type Loaded = { key: string; nodes: LucideIconNode[] | null };
 
 /**
- * Decorative icon tile of a link: the icon drawn in the current colour, or the first letter of the title while the
- * icon has none, is unknown or fails to load. While loading, the tile is empty at its final size.
+ * Decorative icon tile of a link: the icon drawn in the current colour, an uploaded image on a neutral plate (it keeps
+ * its own colours, which the category fill could swallow), or the first letter of the title while the icon has none,
+ * is unknown or fails to load. While a built-in icon loads, the tile is empty at its final size.
  */
 export function LinkIcon({ icon, title, className }: { icon: HomeIcon | null; title: string; className?: string }) {
   const { language } = useLocale();
   const key = icon ? `${icon.set}/${icon.name}` : "";
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  // The image that failed to load, so the tile falls back to the initial; a new image is tried again.
+  const [broken, setBroken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!icon) return;
+    if (!icon || icon.set === "image") return;
     let active = true;
     loadIcon(icon).then(
       (nodes) => active && setLoaded({ key, nodes }),
@@ -98,11 +101,16 @@ export function LinkIcon({ icon, title, className }: { icon: HomeIcon | null; ti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  const image = icon?.set === "image" && broken !== key ? icon.name : null;
   const current = icon && loaded?.key === key ? loaded : null;
-  const loading = icon !== null && current === null;
+  const loading = icon !== null && icon.set !== "image" && current === null;
   return (
     <span aria-hidden="true" data-slot="link-icon" className={cn("pixel-corners flex size-11 shrink-0 items-center justify-center", className)}>
-      {current?.nodes ? (
+      {image ? (
+        <span data-slot="link-icon-plate" className="flex size-4/5 items-center justify-center rounded-sm bg-card">
+          <img src={`/api/images/${image}`} alt="" className="size-4/5 object-contain" onError={() => setBroken(key)} />
+        </span>
+      ) : current?.nodes ? (
         <Icon iconNode={current.nodes} className="size-6" />
       ) : loading ? null : (
         // Generated content, not text: an option or a link naming itself by the title must not show an extra letter.

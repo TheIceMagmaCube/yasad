@@ -15,13 +15,12 @@ import { Logo } from "../../../components/Logo";
 import { SectionHeader } from "../../../components/SectionHeader";
 import { ThemeVignette } from "../../../components/ThemeVignette";
 import { FileInput } from "../../../components/ui/file-input";
-import type { Messages } from "../../../i18n/en";
-import { errorMessage } from "../../../i18n/errors";
 import { useLocale, useStrings } from "../../../i18n/LocaleProvider";
 import { refreshTabIcon, useInstance, useReloadInstance } from "../../../instance";
 import { useAdminCollection } from "../../../lib/admin-collection";
 import { useAnnounce } from "../../../lib/announcer";
 import { useFormErrors } from "../../../lib/form-errors";
+import { fileProblem, IMAGE_TYPES, imageErrorText, imageSrc, readBase64, sizeText, TYPE_NAMES } from "../../../lib/images";
 import { type Theme, THEMES } from "../../../preferences";
 
 /** Address of the appearance page. */
@@ -29,51 +28,6 @@ export const APPEARANCE = "/admin/appearance";
 
 /** Longest title, as the server checks it. */
 export const MAX_TITLE = 60;
-/** Largest image and longest side, as the server checks them: said in the hint, the size checked before the upload. */
-export const MAX_IMAGE_BYTES = 256 * 1024;
-const MAX_IMAGE_SIDE = 2048;
-/** Types the server accepts, also the file picker's filter; the server reads the type from the bytes anyway. */
-export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"] as const;
-const TYPE_NAMES: Record<string, string> = { "image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WebP", "image/svg+xml": "SVG" };
-
-/** Return a size in bytes as people read it: bytes under 1 KiB, else KiB with one decimal at most. */
-export function sizeText(bytes: number, language: string, m: Messages): string {
-  if (bytes < 1024) return m.appearance.sizes.bytes(new Intl.NumberFormat(language).format(bytes));
-  return m.appearance.sizes.kib(new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(bytes / 1024));
-}
-
-/** Return why an image was refused, with the limit in figures. */
-function uploadErrorText(err: unknown, language: string, m: Messages): string {
-  const e = m.images.errors;
-  if (!(err instanceof ApiError)) return errorMessage(err, m);
-  const { code, reason, max } = err.body;
-  if (code === "images_full") return e.images_full;
-  if (code !== "invalid_image") return errorMessage(err, m);
-  switch (reason) {
-    case "too_large":
-      return e.too_large_max(sizeText(max ?? MAX_IMAGE_BYTES, language, m));
-    case "dimensions":
-      return e.dimensions(new Intl.NumberFormat(language).format(max ?? MAX_IMAGE_SIDE));
-    case "unsupported_type":
-    case "unreadable":
-    case "animated":
-    case "svg_doctype":
-    case "svg_too_complex":
-      return e[reason];
-    default:
-      return e.unreadable;
-  }
-}
-
-/** Return the file's content in base64, as the upload sends it. */
-function readBase64(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).replace(/^[^,]*,/, ""));
-    reader.onerror = () => reject(reader.error ?? new Error("The file could not be read."));
-    reader.readAsDataURL(file);
-  });
-}
 
 /**
  * The appearance of the instance, in three blocks saved one at a time: title, logo and default theme. A save
@@ -225,15 +179,15 @@ function LogoBlock({ stored, onSaved }: BlockProps) {
     setUploadError(null);
     errors.reset();
     setPending(null);
-    if (file.size > MAX_IMAGE_BYTES) return refuse(m.images.errors.too_large(sizeText(file.size, language, m), sizeText(MAX_IMAGE_BYTES, language, m)));
-    if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) return refuse(m.images.errors.unsupported_type);
+    const problem = fileProblem(file, language, m);
+    if (problem) return refuse(problem);
     setBusy("upload");
     announce(l.uploading);
     try {
       setPending(await api.uploadImage(await readBase64(file)));
       announce(l.uploaded);
     } catch (err) {
-      refuse(uploadErrorText(err, language, m));
+      refuse(imageErrorText(err, language, m));
     } finally {
       setBusy(null);
     }
@@ -267,7 +221,7 @@ function LogoBlock({ stored, onSaved }: BlockProps) {
         <ErrorSummary errors={errors} labels={{ file: l.file }} />
         <div className="flex flex-col gap-2">
           {/* A logo set outside the app is shown as the header shows it, from the public settings. */}
-          <LogoPreview src={shown ? `/api/images/${shown.id}` : current ? shownLogo : null} alt={pending ? l.next : l.current} />
+          <LogoPreview src={shown ? imageSrc(shown.id) : current ? shownLogo : null} alt={pending ? l.next : l.current} />
           <p data-slot="logo-details" className="text-sm text-muted-foreground">
             {pending && <span className="block font-bold text-foreground">{l.next}</span>}
             {details ?? (current && !isStored(current) ? l.legacy : l.byDefault)}

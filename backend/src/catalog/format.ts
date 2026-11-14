@@ -3,7 +3,8 @@ import { z } from "zod";
 
 export const ID = z.string().regex(/^[a-z0-9][a-z0-9-]*$/).max(64);
 const GROUP_REF = z.string().regex(/^(@everyone|@authenticated|(oidc|local):\S(.*\S)?)$/);
-export const ICON = z.string().max(100).regex(/^(si:[a-z0-9_-]+|lucide:[a-z0-9-]+)$/);
+/** A built-in icon (`si:`, `lucide:`) or an uploaded image (`image:<id>`, as `images/store.ts` cites it). */
+export const ICON = z.string().max(100).regex(/^(si:[a-z0-9_-]+|lucide:[a-z0-9-]+|image:[0-9a-f]{32})$/);
 const URL_HTTP = z
   .string()
   .max(2048)

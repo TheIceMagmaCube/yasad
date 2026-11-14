@@ -52,7 +52,7 @@ describe("AddLinks", () => {
     await user.click(screen.getByRole("checkbox", { name: "Finance" }));
     await user.click(next());
     expect(stepTitle()).toHaveTextContent("Icon, keywords and check");
-    await user.type(screen.getByLabelText("Icon"), "si:statuspage");
+    await user.type(screen.getByLabelText("Icon name"), "si:statuspage");
     await user.type(screen.getByLabelText("Keywords"), "uptime, , incidents");
     await user.click(next());
     expect(stepTitle()).toHaveTextContent("Summary");
@@ -109,7 +109,7 @@ describe("AddLinks", () => {
     await user.click(next());
     await user.click(next());
     await user.click(next());
-    await user.type(screen.getByLabelText("Icon"), "lucide:x");
+    await user.type(screen.getByLabelText("Icon name"), "lucide:x");
     await user.click(screen.getByRole("button", { name: "Skip" }));
     expect(stepTitle()).toHaveTextContent("Summary");
     await user.click(screen.getByRole("button", { name: "Create" }));
@@ -217,6 +217,54 @@ describe("AddLinks", () => {
     expect(screen.getByLabelText("Filter by title, address or keyword")).toHaveValue("dev");
     // The new category matches the filter by its title, so it shows, empty, and takes the focus.
     await waitFor(() => expect(screen.getByRole("link", { name: "Devops" })).toHaveFocus());
+  });
+
+  it("uploads an icon, and the summary says so without the image's reference", async () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    const { user, fetchMock } = renderAdmin(
+      "/admin/links/new",
+      linksRoutes({
+        "POST /api/admin/images": { status: 201, body: { image: { id, type: "image/png", width: 64, height: 64, size: 900, sanitized: false } } },
+        ...createdNas,
+      }),
+    );
+    await toExtras(user);
+    await user.click(screen.getByRole("radio", { name: "Upload an image" }));
+    await user.upload(screen.getByLabelText("Choose an image"), new File([new Uint8Array(10)], "nas.png", { type: "image/png" }));
+    await waitFor(() => expect(screen.getByText("Uploaded image, 64 × 64 px")).toBeInTheDocument());
+    await user.click(next());
+    expect(stepTitle()).toHaveTextContent("Summary");
+    const icon = [...document.querySelectorAll("dt")].find((dt) => dt.textContent === "Icon")!.nextElementSibling!;
+    expect(icon).toHaveTextContent(/^Uploaded image$/);
+    expect(screen.queryByText(new RegExp(id))).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(location.pathname).toBe("/admin/links"));
+    expect(postedLink(fetchMock).icon).toBe(`image:${id}`);
+  });
+
+  it("fetches an icon from an address, and the summary names the host typed", async () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    const { user, fetchMock } = renderAdmin(
+      "/admin/links/new",
+      linksRoutes({
+        "POST /api/admin/images/fetch": { status: 201, body: { image: { id, type: "image/svg+xml", width: 24, height: 24, size: 400, sanitized: false } } },
+        ...createdNas,
+      }),
+    );
+    await toExtras(user);
+    await user.click(screen.getByRole("radio", { name: "From an address" }));
+    const address = screen.getByLabelText("Image address");
+    await user.clear(address);
+    await user.type(address, "https://cdn.example.org/nas.svg?token=secret");
+    await user.click(screen.getByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(screen.getByText("Image fetched from cdn.example.org")).toBeInTheDocument());
+    await user.click(next());
+    const icon = [...document.querySelectorAll("dt")].find((dt) => dt.textContent === "Icon")!.nextElementSibling!;
+    expect(icon).toHaveTextContent(/^Image fetched from cdn\.example\.org$/);
+    expect(document.body).not.toHaveTextContent("token=secret");
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(location.pathname).toBe("/admin/links"));
+    expect(postedLink(fetchMock).icon).toBe(`image:${id}`);
   });
 
   it("offers only a category while there is none to put a link in", async () => {

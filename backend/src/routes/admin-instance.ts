@@ -5,11 +5,11 @@ import { auditStatements, readSnapshot, retrying, snapshot, unchangedSince } fro
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { apiError } from "../errors";
-import { imageExists, IMAGE_ID, purgeOrphans, storedImage, type StoredImage } from "../images/store";
+import { imageExists, IMAGE_ID, IMAGE_REF, imageIdOf, purgeOrphans, storedImage, type StoredImage } from "../images/store";
 import { setting } from "../schema";
 import { type Theme, THEMES } from "../themes";
 import { readJson } from "./body";
-import { IMAGE_REF, imageIdOf, INSTANCE_KEYS, instanceSettings } from "./instance";
+import { INSTANCE_KEYS, instanceSettings } from "./instance";
 import { auditorOf, requireAdmin } from "./require-admin";
 
 /** Longest instance title, in characters after trimming. */

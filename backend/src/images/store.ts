@@ -15,6 +15,16 @@ export type StoredImage = { id: string; type: ImageType; width: number; height: 
 /** Image ids as cited in the catalog and the settings: 32 lowercase hex characters. */
 export const IMAGE_ID = /^[0-9a-f]{32}$/;
 
+/** Prefix of a stored image cited by a setting or a link. */
+export const IMAGE_REF = "image:";
+
+/** Return the image id an `image:<id>` reference cites, or null for any other value. */
+export function imageIdOf(value: string | null | undefined): string | null {
+  if (!value?.startsWith(IMAGE_REF)) return null;
+  const id = value.slice(IMAGE_REF.length);
+  return IMAGE_ID.test(id) ? id : null;
+}
+
 const metadata = { id: image.id, type: image.type, width: image.width, height: image.height, size: image.size };
 
 const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");

@@ -26,6 +26,7 @@ const MESSAGES: Record<string, string> = {
   not_found: "No such item.",
   item_changed: "Someone changed this item since you opened it.",
   catalog_full: "The catalog holds as many items as a catalog file may.",
+  unknown_image: "The image is no longer stored; upload it again.",
 };
 
 /** Run one catalog edit as the signed-in admin, and answer with `render` of the state after it, or the refusal. */

@@ -5,7 +5,8 @@ import { type AuditAction, type AuditEntry, type Auditor, auditStatements, readS
 import { ownStatus } from "../checks/status";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
-import { category, categoryGroup, group, link, linkGroup, linkStatus } from "../schema";
+import { imageExists, imageIdOf, IMAGE_REF, purgeOrphans, storedImage } from "../images/store";
+import { category, categoryGroup, group, image, link, linkGroup, linkStatus } from "../schema";
 import { categoryFields, errorOf, ICON, ID, linkSchema, MAX_CATEGORIES, MAX_LINKS_PER_CATEGORY, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
 import { type CheckWarning, checkWarnings } from "./check-warnings";
@@ -19,7 +20,7 @@ export type AdminLink = {
   description: string;
   url: string;
   icon: string | null;
-  /** Whether `icon` names an icon YASAD serves; an unknown one is kept, as at import. */
+  /** Whether `icon` names an icon YASAD serves, an image still stored included; an unknown one is kept, as at import. */
   iconKnown: boolean;
   keywords: string[];
   active: boolean;
@@ -97,6 +98,7 @@ const linkDeleteSchema = z.strictObject({ revision: REVISION });
 
 const invalid = (fields: Record<string, string>): EditFailure => ({ status: 422, code: "invalid_input", details: { fields } });
 const NOT_FOUND: EditFailure = { status: 404, code: "not_found" };
+const UNKNOWN_IMAGE: EditFailure = { status: 422, code: "unknown_image" };
 const CATALOG_FULL: EditFailure = { status: 409, code: "catalog_full" };
 
 /** Return the parsed body, or the 422 naming each invalid field by its top-level name (`keywords[3]` is `keywords`). */
@@ -147,7 +149,23 @@ function refsBy(rows: GroupRow[]): Map<string, string[]> {
   return map;
 }
 
-function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: typeof linkStatus.$inferSelect | null): AdminLink {
+/** Return whether a stored icon value is one YASAD can draw: a built-in icon it knows, or an image among `images`. */
+function iconKnown(value: string | null, images: ReadonlySet<string>): boolean {
+  const icon = resolveIcon(value);
+  return icon !== null && (icon.set !== "image" || images.has(icon.name));
+}
+
+/**
+ * Return the ids of the stored images the links cite, all of them or those of the links `where` keeps. A subquery,
+ * not a list of ids: D1 refuses more than 100 bound parameters.
+ */
+async function citedImages(db: DB, where?: SQL): Promise<Set<string>> {
+  const icons = db.select({ icon: link.icon }).from(link).where(where);
+  const rows = await db.select({ id: image.id }).from(image).where(inArray(sql`${IMAGE_REF} || ${image.id}`, icons));
+  return new Set(rows.map((row) => row.id));
+}
+
+function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: typeof linkStatus.$inferSelect | null, images: ReadonlySet<string>): AdminLink {
   return {
     id: row.id,
     categoryId: row.categoryId,
@@ -155,7 +173,7 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: ty
     description: row.description,
     url: row.url,
     icon: row.icon,
-    iconKnown: resolveIcon(row.icon) !== null,
+    iconKnown: iconKnown(row.icon, images),
     keywords: parseKeywords(row.keywords),
     active: row.active,
     check: row.check,
@@ -170,7 +188,7 @@ function toAdminLink(row: typeof link.$inferSelect, groups: string[], status: ty
 
 /** Return the categories with their links in display order (position, then id), or only the category `id`. */
 export async function readCategories(db: DB, id?: string): Promise<AdminCategory[]> {
-  const [categories, links, categoryGroups, linkGroups] = await Promise.all([
+  const [categories, links, categoryGroups, linkGroups, images] = await Promise.all([
     db.select().from(category).where(id === undefined ? undefined : eq(category.id, id)).orderBy(asc(category.position), asc(category.id)),
     db
       .select()
@@ -189,6 +207,7 @@ export async function readCategories(db: DB, id?: string): Promise<AdminCategory
       .innerJoin(group, eq(group.id, linkGroup.groupId))
       .innerJoin(link, eq(link.id, linkGroup.linkId))
       .where(id === undefined ? undefined : eq(link.categoryId, id)),
+    citedImages(db, id === undefined ? undefined : eq(link.categoryId, id)),
   ]);
   const catGroups = refsBy(categoryGroups);
   const lnkGroups = refsBy(linkGroups);
@@ -197,7 +216,7 @@ export async function readCategories(db: DB, id?: string): Promise<AdminCategory
     title: cat.title,
     groups: catGroups.get(cat.id) ?? [],
     revision: cat.revision,
-    links: links.filter((r) => r.link.categoryId === cat.id).map((r) => toAdminLink(r.link, lnkGroups.get(r.link.id) ?? [], r.link_status)),
+    links: links.filter((r) => r.link.categoryId === cat.id).map((r) => toAdminLink(r.link, lnkGroups.get(r.link.id) ?? [], r.link_status, images)),
   }));
 }
 
@@ -206,11 +225,12 @@ export async function readCategory(db: DB, id: string): Promise<AdminCategory | 
 }
 
 export async function readLink(db: DB, id: string): Promise<AdminLink | null> {
-  const [row, groups] = await Promise.all([
+  const [row, groups, images] = await Promise.all([
     db.select().from(link).leftJoin(linkStatus, ownStatus).where(eq(link.id, id)).get(),
     db.select({ id: linkGroup.linkId, source: group.source, name: group.name }).from(linkGroup).innerJoin(group, eq(group.id, linkGroup.groupId)).where(eq(linkGroup.linkId, id)),
+    citedImages(db, eq(link.id, id)),
   ]);
-  return row ? toAdminLink(row.link, refsBy(groups).get(id) ?? [], row.link_status) : null;
+  return row ? toAdminLink(row.link, refsBy(groups).get(id) ?? [], row.link_status, images) : null;
 }
 
 /**
@@ -254,9 +274,25 @@ function revisionGuard(db: DB, table: typeof category | typeof link, id: string,
   return guard(db, notExists(db.select({ one: sql`1` }).from(table).where(and(eq(table.id, id), eq(table.revision, revision)))));
 }
 
+// An image never warns: `imageGuard` refuses a missing one inside the write.
 function warningsOf(groups: string[], icon: string | null | undefined, groupWarnings: EditWarning[]): EditWarning[] {
   return [...(groups.length === 0 ? (["no_group"] as const) : []), ...(icon && !resolveIcon(icon) ? (["unknown_icon"] as const) : []), ...groupWarnings];
 }
+
+/** Return the statement failing the batch when `icon` cites an image no longer stored, or none for another value. */
+function imageGuard(db: DB, icon: string | null | undefined): unknown[] {
+  const id = imageIdOf(icon);
+  return id ? [imageExists(db, id)] : [];
+}
+
+/** Return whether `icon` cites an image no longer stored, to answer `unknown_image` after a failed batch. */
+async function lacksImage(db: DB, icon: string | null | undefined): Promise<boolean> {
+  const id = imageIdOf(icon);
+  return id !== null && !(await storedImage(db, id));
+}
+
+/** Return the orphan purge, for the batch of a write that removes the citation of an image. */
+const purgeIfCited = (db: DB, icons: (string | null | undefined)[]) => (icons.some((icon) => imageIdOf(icon)) ? [purgeOrphans(db, Date.now())] : []);
 
 const linksIn = (db: DB, categoryId: string) => db.select({ n: count() }).from(link).where(eq(link.categoryId, categoryId));
 const nextLinkPosition = (categoryId: string) =>
@@ -421,6 +457,7 @@ export async function deleteCategory({ db }: Author, id: string, body: unknown):
       guard(db, sql`(${linksIn(db, id)}) <> ${linkCount}`),
       db.delete(category).where(eq(category.id, id)),
       placeCategories(db),
+      ...purgeIfCited(db, before.links.map((l) => l.icon)),
     ],
     before,
     afterOf: () => readCategory(db, id),
@@ -449,6 +486,7 @@ export async function createLink({ db }: Author, body: unknown): Promise<Edit<Ad
       bumpRevision(db),
       guard(db, sql`(${linksIn(db, input.categoryId)}) >= ${MAX_LINKS_PER_CATEGORY}`),
       ...groupStatements(db, input.groups),
+      ...imageGuard(db, input.icon),
       db.insert(link).values({
         id,
         categoryId: input.categoryId,
@@ -471,6 +509,7 @@ export async function createLink({ db }: Author, body: unknown): Promise<Edit<Ad
       if (!(await readCategoryRow(db, input.categoryId))) return invalid({ categoryId: "unknown_category" });
       if (await lacksGroup(db, input.groups)) return invalid({ groups: "unknown_group" });
       if ((await linksIn(db, input.categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
+      if (await lacksImage(db, input.icon)) return UNKNOWN_IMAGE;
       return null;
     },
     warnings: [...warningsOf(input.groups, input.icon, groups.warnings), ...checkWarnings(input.url, input.check ?? false)],
@@ -497,6 +536,8 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
   const groups = refs ? await checkGroups(db, refs) : { unknown: false, warnings: [] };
   if (groups.unknown) return invalid({ groups: "unknown_group" });
   if (moves && (await linksIn(db, categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
+  // An image the link no longer cites may be an orphan now; the purge comes after the update, which cites the new one.
+  const uncites = fields.icon !== undefined && fields.icon !== before.icon ? [before.icon] : [];
   // `before` is the stored link: the revision guard fails the batch otherwise, and a check result never bumps it.
   const resets = (fields.url ?? before.url) !== before.url || !(fields.check ?? before.check);
 
@@ -506,6 +547,7 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
       revisionGuard(db, link, id, revision),
       ...(refs ? groupStatements(db, refs) : []),
       ...(moves ? [guard(db, sql`(${linksIn(db, categoryId)}) >= ${MAX_LINKS_PER_CATEGORY}`)] : []),
+      ...imageGuard(db, fields.icon),
       db
         .update(link)
         .set({
@@ -519,6 +561,7 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
       ...(resets ? [db.delete(linkStatus).where(and(eq(linkStatus.linkId, id), eq(linkStatus.source, "yasad")))] : []),
       ...(refs ? [db.delete(linkGroup).where(eq(linkGroup.linkId, id)), ...linkGroupRows(db, id, refs)] : []),
       ...(moves ? [placeLinks(db, before.categoryId)] : []),
+      ...purgeIfCited(db, uncites),
     ],
     before,
     afterOf: () => readLink(db, id),
@@ -529,6 +572,7 @@ export async function updateLink({ db }: Author, id: string, body: unknown): Pro
       if (moves && !(await readCategoryRow(db, categoryId))) return invalid({ categoryId: "unknown_category" });
       if (refs && (await lacksGroup(db, refs))) return invalid({ groups: "unknown_group" });
       if (moves && (await linksIn(db, categoryId).get())!.n >= MAX_LINKS_PER_CATEGORY) return CATALOG_FULL;
+      if (await lacksImage(db, fields.icon)) return UNKNOWN_IMAGE;
       return null;
     },
     warnings: [
@@ -581,7 +625,13 @@ export async function deleteLink({ db }: Author, id: string, body: unknown): Pro
   const stale = staleFailure(before, revision);
   if (stale) return stale;
   return {
-    statements: [bumpRevision(db), revisionGuard(db, link, id, revision), db.delete(link).where(eq(link.id, id)), placeLinks(db, before.categoryId)],
+    statements: [
+      bumpRevision(db),
+      revisionGuard(db, link, id, revision),
+      db.delete(link).where(eq(link.id, id)),
+      placeLinks(db, before.categoryId),
+      ...purgeIfCited(db, [before.icon]),
+    ],
     before,
     afterOf: () => readLink(db, id),
     audit: await auditChange(db, "delete", "link", id, snapshot.link(id), true),

@@ -70,6 +70,20 @@ describe("LinksPage", () => {
     expect(rowTitles()).toEqual(["Wiki", "Mail", "Old intranet", "Git"]);
   });
 
+  it("draws a stored image in its row, and counts an image no longer stored as an unknown icon", async () => {
+    const [kept, gone] = ["0123456789abcdef0123456789abcdef", "fedcba9876543210fedcba9876543210"];
+    const logo = link({ id: "logo", title: "Logo", icon: `image:${kept}`, iconKnown: true });
+    const lost = link({ id: "lost", title: "Lost", icon: `image:${gone}`, iconKnown: false });
+    const { user } = renderAdmin("/admin/links?state=unknownIcon", linksRoutes({}, { categories: [category({ id: "tools", title: "Tools", links: [logo, lost] })] }));
+    await screen.findByRole("table", { name: "Links of Tools" });
+    expect(screen.getAllByRole("link", { name: /^(Logo|Lost)$/ }).map((a) => a.textContent)).toEqual(["Lost"]);
+    expect(screen.getByRole("link", { name: "Lost" }).closest("tr")!.querySelector("img")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show all" }));
+    const row = screen.getByRole("link", { name: "Logo" }).closest("tr")!;
+    expect(row.querySelector("img")).toHaveAttribute("src", `/api/images/${kept}`);
+    expect(row).not.toHaveTextContent("Unknown icon");
+  });
+
   it("ignores an unknown ?state=", async () => {
     renderAdmin("/admin/links?state=whatever", linksRoutes());
     await screen.findByRole("table", { name: "Links of Tools" });

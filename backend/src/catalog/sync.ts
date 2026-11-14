@@ -3,7 +3,8 @@ import { and, asc, eq, exists, inArray, ne, or, type SQL, sql } from "drizzle-or
 import { type AuditEntry, type Auditor, auditStatements } from "../audit";
 import type { DB } from "../db";
 import { resolveIcon } from "../icons/resolve";
-import { category, categoryGroup, group, link, linkGroup, linkStatus, setting } from "../schema";
+import { purgeOrphans } from "../images/store";
+import { category, categoryGroup, group, image, link, linkGroup, linkStatus, setting } from "../schema";
 import { type CheckWarning, checkWarnings } from "./check-warnings";
 import { type Catalog, type CatalogCategory, type CatalogError, type CatalogLink, parseCatalog, parseKeywords } from "./format";
 import { caseVariants, groupRef, insertGroupIfMissing, parseGroupRef } from "./groups";
@@ -183,12 +184,16 @@ export async function diffCatalog(db: DB, current: Catalog, next: Catalog): Prom
   const existing = new Set((await db.select({ source: group.source, name: group.name }).from(group)).map(groupRef));
   diff.groupsCreated = [...refs].filter((ref) => !existing.has(groupRef(parseGroupRef(ref)))).sort();
 
+  // Every stored id at once, without a list of parameters (D1 refuses more than 100): there are 1000 at most.
+  const cites = nxt.categories.some((cat) => cat.links.some((lnk) => resolveIcon(lnk.icon)?.set === "image"));
+  const images = cites ? new Set((await db.select({ id: image.id }).from(image)).map((row) => row.id)) : new Set<string>();
   for (const cat of nxt.categories) {
     if (cat.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "category", id: cat.id });
     for (const lnk of cat.links) {
       if (lnk.groups.length === 0) diff.warnings.push({ code: "no_group", kind: "link", id: lnk.id });
-      // Kept as written: the file may target another icon version.
-      if (lnk.icon && !resolveIcon(lnk.icon)) diff.warnings.push({ code: "unknown_icon", kind: "link", id: lnk.id });
+      // Kept as written: the file may target another icon version, or an image of another instance.
+      const icon = resolveIcon(lnk.icon);
+      if (lnk.icon && (!icon || (icon.set === "image" && !images.has(icon.name)))) diff.warnings.push({ code: "unknown_icon", kind: "link", id: lnk.id });
       // Static, as on an edit: the import is never refused for them.
       for (const code of checkWarnings(lnk.url, lnk.check ?? false)) diff.warnings.push({ code, kind: "link", id: lnk.id });
     }
@@ -320,6 +325,8 @@ export async function applyCatalog(db: DB, next: Catalog, diff: CatalogDiff, rev
   }
   const nextRevision = String(Number(revision) + 1);
   statements.push(
+    // After the links: an image the file still cites is kept, one it no longer cites may go.
+    purgeOrphans(db, now.getTime()),
     ...audit,
     db
       .insert(setting)
