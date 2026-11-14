@@ -85,6 +85,11 @@ async function importCatalog(request: APIRequestContext, yaml: string): Promise<
   expect(applied.ok(), await applied.text()).toBe(true);
 }
 
+/** The "Who sees" section of a link or a category page. */
+function whoSees(page: Page, item: "link" | "category") {
+  return page.getByRole("region", { name: `Who sees this ${item}` });
+}
+
 /** Check the page with axe and for sideways scrolling. */
 async function expectClean(page: Page, label: string): Promise<void> {
   await expectAccessible(page, label);
@@ -256,6 +261,8 @@ test("the links pages are accessible in each of their states, in every theme, mo
 
         await open(page, "/admin/links/grafana", theme, mode, width);
         await expect(page.getByRole("heading", { level: 1, name: "Grafana" })).toBeVisible();
+        await expect(whoSees(page, "link").getByText("Seen by 0 people")).toBeVisible();
+        await expect(page.getByLabel("Person", { exact: true })).toBeVisible();
         await expectClean(page, `${label}, link page`);
         await page.getByLabel("Title", { exact: true }).fill("");
         await page.getByRole("button", { name: "Save" }).click();
@@ -264,10 +271,15 @@ test("the links pages are accessible in each of their states, in every theme, mo
         await page.getByRole("button", { name: "Delete Grafana" }).click();
         await expect(page.getByRole("group", { name: "Delete the link Grafana?" })).toBeFocused();
         await expectClean(page, `${label}, delete confirmation`);
+        await open(page, `/admin/links/jira?as=${GRACE.id}`, theme, mode, width);
+        await expect(whoSees(page, "link").getByText(`${GRACE.name} does not see this link.`)).toBeVisible();
+        await expect(whoSees(page, "link").getByRole("link", { name: "Open the category Developer tools" })).toBeVisible();
+        await expectClean(page, `${label}, link page with an explanation`);
 
         await open(page, "/admin/links/categories/dev-tools", theme, mode, width);
         await expect(page.getByRole("heading", { level: 1, name: "Developer tools" })).toBeVisible();
         await expect(page.getByRole("checkbox", { name: "Developers typed, never received" })).toBeChecked();
+        await expect(whoSees(page, "category").getByText(/^Seen by \d+ (person|people)$/)).toBeVisible();
         await expectClean(page, `${label}, category page`);
 
         // The example has no public link: a visitor gets the sign-in screen, and the preview says so.
@@ -283,6 +295,8 @@ test("the links pages are accessible in each of their states, in every theme, mo
         await expectClean(page, `${label}, read-only`);
         await open(page, "/admin/links/mail", theme, mode, width);
         await expect(page.getByLabel("Title", { exact: true })).toBeDisabled();
+        await expect(whoSees(page, "link").getByText(/^Seen by \d+ (person|people)$/)).toBeVisible();
+        await expect(page.getByLabel("Person", { exact: true })).toBeEnabled();
         await expectClean(page, `${label}, read-only link page`);
         await page.unroute("**/api/admin/catalog/state");
         expect(csp).toEqual([]);
@@ -536,7 +550,20 @@ test.describe("keyboard and focus", () => {
     await expect(row).toContainText("They hold none of the category's groups.");
     await jira.focus();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(new RegExp(`/admin/links/jira\\?as=${GRACE.id}$`));
+    await expect(page).toHaveURL(new RegExp(`/admin/links/jira\\?as=${GRACE.id}&from=${GRACE.id}$`));
+    await expect(page.getByRole("heading", { level: 1, name: "Jira" })).toBeFocused();
+    // The person comes preselected, and the reasons are read on the link page too.
+    await expect(page.getByLabel("Person", { exact: true })).toHaveValue(GRACE.id);
+    const who = whoSees(page, "link");
+    await expect(who.getByText(`${GRACE.name} does not see this link.`)).toBeVisible();
+    await expect(who.getByText("They hold none of the link's groups.")).toBeVisible();
+    await expect(who.getByRole("link", { name: "Open the category Developer tools" })).toHaveAttribute("href", "/admin/links/categories/dev-tools");
+    await page.getByRole("link", { name: `Back to ${GRACE.name}'s home page` }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/users/${GRACE.id}/home$`));
+    await expect(jira).toBeFocused();
+
+    // The browser's Back finds the row too.
+    await page.keyboard.press("Enter");
     await expect(page.getByRole("heading", { level: 1, name: "Jira" })).toBeFocused();
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/admin/users/${GRACE.id}/home$`));

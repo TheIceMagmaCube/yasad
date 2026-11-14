@@ -234,6 +234,8 @@ export type LinkExplanation = {
   reasons: AccessReason[];
   pinned?: true;
 };
+/** How many active accounts see an item, and whether a visitor who is not signed in does. */
+export type Audience = { people: number; public: boolean };
 /** The about page: build version and source links for everyone; `instance` is sent to admins only. */
 export type About = {
   version: string;
@@ -353,6 +355,13 @@ export const api = {
   /** Return, for every link of the catalog, whether the person sees it and why not. */
   accessLinks: async (userId: string) =>
     (await call<{ links: LinkExplanation[] }>(`/api/admin/access/users/${encodeURIComponent(userId)}/links`)).links,
+  /** Return who sees the link and, with `as`, whether that person does and why not. */
+  linkAccess: (id: string, as?: string) =>
+    call<{ audience: Audience; explanation?: LinkExplanation }>(
+      `/api/admin/access/links/${encodeURIComponent(id)}${as === undefined ? "" : `?as=${encodeURIComponent(as)}`}`,
+    ),
+  /** Return who sees at least one link of the category. */
+  categoryAccess: async (id: string) => (await call<{ audience: Audience }>(`/api/admin/access/categories/${encodeURIComponent(id)}`)).audience,
   history: (query: HistoryQuery = {}) => call<HistoryPage>(`/api/admin/history${historyQueryString(query)}`),
   historyActors: async () => (await call<{ actors: HistoryActor[] }>("/api/admin/history/actors")).actors,
 };
