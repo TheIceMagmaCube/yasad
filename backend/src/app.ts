@@ -56,6 +56,8 @@ export type AppDeps = {
   getClientIp: (c: Context<AppEnv>) => string;
   /** The target this entry runs on: "docker" for server.ts (dev included), "workers" for worker.ts. */
   runtime: Runtime;
+  /** The guarded client for requests to addresses an admin gives, such as an image fetched by URL. */
+  outbound: Outbound;
 };
 
 /** What a scheduled run needs from its entry: the database and configuration, the outbound client and the budget. */
@@ -86,7 +88,7 @@ export async function runScheduled(env: unknown, now: number, deps: ScheduledDep
 }
 
 // Runtime-agnostic application.
-export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps) {
+export function createApp({ getDb, getRawConfig, getClientIp, runtime, outbound }: AppDeps) {
   const app = new Hono<AppEnv>().basePath("/api");
 
   app.use("*", withSecurityHeaders<AppEnv>((c) => c.get("config")?.publicUrl.startsWith("https://") ?? false));
@@ -103,6 +105,7 @@ export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps
     c.set("db", getDb(c.env));
     c.set("clientIp", getClientIp(c));
     c.set("runtime", runtime);
+    c.set("outbound", outbound);
     await next();
   });
 

@@ -20,7 +20,13 @@ export async function testApp(env: TestEnv = {}): Promise<TestApp> {
   await migrate(db, { migrationsFolder: "drizzle" });
   const raw = { ...BASE_ENV, ...env };
   const deps = { getDb: () => db as unknown as DB, getRawConfig: () => raw };
-  const app = createApp({ ...deps, getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown", runtime: "docker" });
+  const app = createApp({
+    ...deps,
+    getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown",
+    runtime: "docker",
+    // The portable client, as on Workers, over the global `fetch` the tests stub with the fake network.
+    outbound: fetchOutbound(),
+  });
   return client(
     async (req) => app.fetch(req),
     async (sql) => {

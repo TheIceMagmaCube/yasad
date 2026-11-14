@@ -13,7 +13,12 @@ const deps = {
   getDb: (env: unknown) => drizzle((env as WorkerEnv).DB, { schema }) as unknown as DB,
   getRawConfig: (env: unknown) => env as RawConfig,
 };
-const app = createApp({ ...deps, getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown", runtime: "workers" });
+const app = createApp({
+  ...deps,
+  getClientIp: (c) => c.req.header("cf-connecting-ip") ?? "unknown",
+  runtime: "workers",
+  outbound: fetchOutbound(),
+});
 
 export default {
   fetch: app.fetch,
