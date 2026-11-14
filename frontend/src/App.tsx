@@ -6,7 +6,7 @@ import { LoadingShell } from "./components/LoadingShell";
 import { type Notice, ShellNoticeProvider } from "./components/ShellNotice";
 import { type ProviderError } from "./components/ProviderSignIn";
 import { LocaleProvider } from "./i18n/LocaleProvider";
-import { cachedInstance, cacheInstance, type Instance, InstanceContext, useInstance } from "./instance";
+import { cachedInstance, cacheInstance, type Instance, InstanceContext, ReloadInstanceContext, useInstance } from "./instance";
 import { invalidateHome, onViewerChanged, primeHome } from "./lib/home-store";
 import { AnnouncerProvider } from "./lib/announcer";
 import { useFocusOnNavigation, useFocusOnViewChange } from "./lib/focus";
@@ -70,14 +70,14 @@ async function loadView(): Promise<View> {
   return (await loadPublicHome()) ? { name: "public" } : { name: "signIn" };
 }
 
-/** Return the instance settings, keeping the cached ones when the API does not answer. */
-async function loadInstance(fallback: Instance): Promise<Instance> {
+/** Return the instance settings, cached for the next first paint, or null when the API does not answer. */
+async function loadInstance(): Promise<Instance | null> {
   try {
     const instance = await api.instance();
     cacheInstance(instance);
     return instance;
   } catch {
-    return fallback;
+    return null;
   }
 }
 
@@ -115,15 +115,16 @@ export function App() {
   }, [view, navigations]);
 
   // Every session change goes through here (expired session, sign-in, sign-out, password changed, setup done):
-  // the cached home data of the previous viewer is dropped before anything else is shown. Leaving the
-  // unreachable screen reloads the instance settings too. With `sessionEnded`, a signed-out view says the session
-  // ended. Resolve to the new view.
+  // the cached home data of the previous viewer is dropped before anything else is shown. The instance settings
+  // are read again too, so the sign-in screen shows a title, logo or theme an admin changed meanwhile; when they
+  // cannot be read, the ones shown stay. With `sessionEnded`, a signed-out view says the session ended. Resolve to
+  // the new view.
   const refresh = useCallback(async ({ sessionEnded = false }: { sessionEnded?: boolean } = {}): Promise<View> => {
     invalidateHome();
     pending.current += 1;
     try {
       const leavingError = viewRef.current.name === "error";
-      const [next, nextInstance] = await Promise.all([loadView(), leavingError ? loadInstance(cachedInstance()) : null]);
+      const [next, nextInstance] = await Promise.all([loadView(), loadInstance()]);
       if (nextInstance) setInstance(nextInstance);
       if (next.name === "home") {
         setExpiredAt(null);
@@ -172,14 +173,19 @@ export function App() {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([loadInstance(cachedInstance()), loadView()]).then(([nextInstance, nextView]) => {
+    void Promise.all([loadInstance(), loadView()]).then(([nextInstance, nextView]) => {
       if (!active) return;
-      setInstance(nextInstance);
+      if (nextInstance) setInstance(nextInstance);
       setView(nextView);
     });
     return () => {
       active = false;
     };
+  }, []);
+
+  const reloadInstance = useCallback(async () => {
+    const next = await loadInstance();
+    if (next) setInstance(next);
   }, []);
 
   /** Say on the next page that the password was saved, then open the app. */
@@ -199,22 +205,24 @@ export function App() {
   };
   return (
     <InstanceContext value={instance}>
-      <LocaleProvider defaultLanguage={instance.defaultLanguage}>
-        <ThemeProvider instanceTheme={instance.theme}>
-          <AnnouncerProvider>
-            <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: dismissNotice }}>
-              <Screen
-                view={view}
-                refresh={refresh}
-                expired={expired}
-                providerError={providerError}
-                autoSignIn={autoSignIn}
-                onPasswordSaved={passwordSaved}
-              />
-            </ShellNoticeProvider>
-          </AnnouncerProvider>
-        </ThemeProvider>
-      </LocaleProvider>
+      <ReloadInstanceContext value={reloadInstance}>
+        <LocaleProvider defaultLanguage={instance.defaultLanguage}>
+          <ThemeProvider instanceTheme={instance.theme}>
+            <AnnouncerProvider>
+              <ShellNoticeProvider value={{ notice: shownNotice, onDismiss: dismissNotice }}>
+                <Screen
+                  view={view}
+                  refresh={refresh}
+                  expired={expired}
+                  providerError={providerError}
+                  autoSignIn={autoSignIn}
+                  onPasswordSaved={passwordSaved}
+                />
+              </ShellNoticeProvider>
+            </AnnouncerProvider>
+          </ThemeProvider>
+        </LocaleProvider>
+      </ReloadInstanceContext>
     </InstanceContext>
   );
 }

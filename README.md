@@ -123,9 +123,11 @@ Favourites belong to the account and to the link id:
 * Deleting an account deletes its favourites. An OIDC account deleted in YASAD is created again at the next sign-in as a new account, without favourites.
 * Deleting a link deletes the favourites pinned on it. Changing a link's `id` in the catalog file counts as deleting the link and creating a new one at import: its favourites are lost. Moving a link to another category keeps them.
 
-### Themes
+### Title, logo and themes
 
-YASAD ships two themes, each in light and dark: `default` (cream and ink, yellow accents, pixel touches) and `dusk` (warm creams and terracotta). Each person picks light, dark or the system setting under **Appearance**. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.
+YASAD ships two themes, each in light and dark: `default` (cream and ink, yellow accents, pixel touches) and `dusk` (warm creams and terracotta). Each person picks light, dark or the system setting under **Appearance** in their account. An instance set to a theme YASAD no longer ships, such as `night`, shows `default`.
+
+Admins set the instance title, its logo and its default theme under **Administration**, **Appearance**. A change applies to every page loaded after it, the sign-in page included, without a restart; an emptied value goes back to YASAD's. The logo is a PNG, JPEG, WebP or SVG image of 256 KiB and 2,048 px per side at most; it also becomes the browser tab icon. YASAD keeps uploaded images in its database, without their metadata (location, camera, author), and removes from an SVG anything that could run a script or load another resource. Backing up the database is enough to keep them.
 
 ### Going further
 

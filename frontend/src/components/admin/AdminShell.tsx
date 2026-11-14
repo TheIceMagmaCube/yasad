@@ -20,6 +20,7 @@ export const ADMIN_SECTIONS = [
   { id: "dashboard", href: "/admin", bar: "before:bg-category-1-fill" },
   { id: "users", href: "/admin/users", bar: "before:bg-category-3-fill" },
   { id: "links", href: "/admin/links", bar: "before:bg-category-2-fill" },
+  { id: "appearance", href: "/admin/appearance", bar: "before:bg-category-5-fill" },
   { id: "history", href: "/admin/history", bar: "before:bg-category-4-fill" },
 ] as const;
 

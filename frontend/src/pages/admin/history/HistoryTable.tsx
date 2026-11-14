@@ -176,7 +176,7 @@ function ObjectRef({ object, m, withType = false }: { object: HistoryObject; m: 
           {deleted && <span className="text-muted-foreground">({m.history.deleted[object.type]})</span>}
         </span>
       )}
-      {withType && object.type !== "catalog" && <span className="text-caption -mt-2 pb-2 text-muted-foreground">{m.history.types[object.type]}</span>}
+      {withType && object.type !== "catalog" && object.type !== "instance" && <span className="text-caption -mt-2 pb-2 text-muted-foreground">{m.history.types[object.type]}</span>}
     </span>
   );
 }

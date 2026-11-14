@@ -11,6 +11,12 @@ describe("displayableLogo", () => {
     expect(displayableLogo("data:image/png;base64,AAAA")).toBe("data:image/png;base64,AAAA");
   });
 
+  it("serves a stored image reference from the images route, and only a well-formed one", () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    expect(displayableLogo(`image:${id}`)).toBe(`/api/images/${id}`);
+    for (const value of [`image:${id.toUpperCase()}`, `image:${id}0`, "image:", `image:../${id}`]) expect(displayableLogo(value)).toBeNull();
+  });
+
   it("drops what the CSP would block", () => {
     for (const value of [undefined, "", "https://cdn.example/logo.png", "//cdn.example/logo.png", "/\\cdn.example", "data:text/html,x", "logo.svg"]) {
       expect(displayableLogo(value)).toBeNull();

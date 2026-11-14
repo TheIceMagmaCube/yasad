@@ -1,5 +1,6 @@
 import type { User } from "../../api";
 import { Forbidden, NotFound } from "../ErrorViews";
+import { AppearancePage } from "./appearance/AppearancePage";
 import { HistoryPage } from "./history/HistoryPage";
 import { Dashboard } from "./Dashboard";
 import { LinksFilePage, LinksPage, type LinksRoute } from "./links/LinksPage";
@@ -11,6 +12,7 @@ export type AdminRoute =
   | { section: "users"; open: PeopleRoute }
   | { section: "links"; open: LinksRoute }
   | { section: "links-file" }
+  | { section: "appearance" }
   | { section: "history" };
 
 /** Address of the YAML import and export, which /admin/catalog used to be. */
@@ -34,6 +36,7 @@ export function adminRoute(path: string): AdminRoute | null {
   }
   if (parts[0] === "links") return linksRoute(parts.slice(1));
   if (parts[0] === "history") return parts.length === 1 ? { section: "history" } : null;
+  if (parts[0] === "appearance") return parts.length === 1 ? { section: "appearance" } : null;
   const [section, id, ...rest] = parts;
   if (section === undefined) return { section: "dashboard" };
   if (section === "users" && id !== undefined && id !== "new" && rest.length === 1 && rest[0] === "home") {
@@ -73,6 +76,7 @@ export function AdminRoutes({ path, user }: { path: string; user: User }) {
   if (route.section === "dashboard") return <Dashboard />;
   if (route.section === "links") return <LinksPage open={route.open} />;
   if (route.section === "links-file") return <LinksFilePage />;
+  if (route.section === "appearance") return <AppearancePage />;
   if (route.section === "history") return <HistoryPage />;
   return <PeoplePage me={user} open={route.open} />;
 }
