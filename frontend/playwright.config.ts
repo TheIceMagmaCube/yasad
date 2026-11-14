@@ -36,6 +36,7 @@ export default defineConfig({
     { name: "about", testMatch: "about.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
     { name: "admin", testMatch: "admin.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
     { name: "appearance", testMatch: "appearance.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
+    { name: "link-icons", testMatch: "link-icons.spec.ts", dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
     // After shell, which imports the home fixture; the spec imports it again so it does not rely on that order alone.
     { name: "pins", testMatch: "pins.spec.ts", dependencies: ["shell"], use: { ...devices["Desktop Chrome"] } },
     // A second instance, signing in only through the fake provider: no setup code, password sign-in off.

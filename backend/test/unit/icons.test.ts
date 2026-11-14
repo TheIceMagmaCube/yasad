@@ -124,4 +124,10 @@ describe("resolveIcon", () => {
       expect(resolveIcon(value)).toBeNull();
     }
   });
+
+  it("returns an image reference without reading the database, and null for a malformed one", () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    expect(resolveIcon(`image:${id}`)).toEqual({ set: "image", name: id });
+    for (const value of [`image:${id.toUpperCase()}`, `image:${id}0`, "image:", `image:../${id.slice(3)}`]) expect(resolveIcon(value)).toBeNull();
+  });
 });

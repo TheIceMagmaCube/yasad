@@ -11,8 +11,10 @@ export type ApiErrorBody = {
   current?: unknown;
   /** The most pins a person may have, with `pins_full`; the largest size or side of an image, with `invalid_image`. */
   max?: number;
-  /** Why an image was refused, with `invalid_image`. */
+  /** Why an image was refused, with `invalid_image`, or not fetched, with `image_fetch_refused` and `image_fetch_failed`. */
   reason?: string;
+  /** The HTTP status the address answered, with `image_fetch_failed` and the reason `http_error`. */
+  status?: number;
 };
 
 export class ApiError extends Error {
@@ -208,8 +210,10 @@ export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
 export type AdminInput = { name: string; email: string; password: string; passwordConfirm: string };
 
-/** Icon of a link: a Simple Icons slug or a canonical Lucide name, both known to the generated icon files. */
-export type HomeIcon = { set: "si" | "lucide"; name: string };
+/** A built-in icon: a Simple Icons slug or a canonical Lucide name, both known to the generated icon files. */
+export type BuiltInIcon = { set: "si" | "lucide"; name: string };
+/** Icon of a link: a built-in icon, or an uploaded image drawn from `/api/images/<name>`, which may be gone. */
+export type HomeIcon = BuiltInIcon | { set: "image"; name: string };
 /**
  * Last check result of a link, as the server read it. After `staleAt` (null when never checked) the result is
  * too old to trust and reads unknown, even while the page stays open.
@@ -308,6 +312,8 @@ export const api = {
   updateInstance: (changes: InstanceChanges) => call<AdminInstance>("/api/admin/instance", send("PATCH", changes)),
   /** Upload an image sent as base64; the server reads its type from its bytes. */
   uploadImage: async (data: string) => (await call<{ image: UploadedImage }>("/api/admin/images", post({ data }))).image,
+  /** Have the server fetch an image once from a public address and store it as an upload; the browser never loads it. */
+  fetchImage: async (url: string) => (await call<{ image: UploadedImage }>("/api/admin/images/fetch", post({ url }))).image,
   setupState: () => call<SetupState>("/api/setup"),
   verifyCode: (code: string) => call<void>("/api/setup/verify-code", post({ code })),
   completeSetup: (code: string, admin: AdminInput) => call<{ user: User }>("/api/setup", post({ code, ...admin })),

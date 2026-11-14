@@ -51,7 +51,7 @@ function iconOf(link: AdminLink): HomeIcon | null {
   if (!link.icon || !link.iconKnown) return null;
   const colon = link.icon.indexOf(":");
   const set = link.icon.slice(0, colon);
-  return set === "si" || set === "lucide" ? { set, name: link.icon.slice(colon + 1) } : null;
+  return set === "si" || set === "lucide" || set === "image" ? { set, name: link.icon.slice(colon + 1) } : null;
 }
 
 /** Return the host of an address, or the address itself when it does not parse. */

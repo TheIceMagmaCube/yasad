@@ -112,6 +112,8 @@ Admins edit categories and links in the **Links** section of the administration 
 
 A link icon is `si:<slug>` ([Simple Icons](https://simpleicons.org)) or `lucide:<name>` ([Lucide](https://lucide.dev)). An icon the installed versions do not know is kept in the file, with a warning at import, and the link shows its first letter instead.
 
+A link can also show an image: on the link's page or in the wizard, upload a PNG, JPEG, WebP or SVG file, or give its address for the server to fetch once (a public address only; the browser never loads it). The image is kept like the logo (see Appearance) and the file cites it as `image:<id>`. That reference works only in the instance that stores the image: imported elsewhere, it gets the unknown icon warning and the first letter. An image nothing cites any more is removed by a later save, once a day has passed since its upload. Under `CATALOG_FILE`, link pages are read only, so nothing is uploaded or fetched for a link; the file can still cite an image the instance already stores, such as one from an exported catalog or the logo.
+
 Keywords help the search in the header find a link. They are sent to everyone who can see the link, so they must not hold anything secret.
 
 ### Favourites

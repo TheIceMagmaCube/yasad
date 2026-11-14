@@ -23,7 +23,7 @@ describe("LinkPage", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Wiki" })).toBeInTheDocument();
     await waitFor(() => expect(document.title).toBe("Wiki - Links - Administration - YASAD"));
     expect(screen.getByLabelText("Address")).toHaveValue(WIKI.url);
-    expect(screen.getByLabelText("Icon")).toHaveValue("lucide:book");
+    expect(screen.getByLabelText("Icon name")).toHaveValue("lucide:book");
     expect(screen.getByLabelText("Keywords")).toHaveValue("docs");
     expect(screen.getByLabelText("Category")).toHaveValue("tools");
     expect(screen.getByRole("checkbox", { name: "Active" })).toBeChecked();
@@ -102,11 +102,11 @@ describe("LinkPage", () => {
   it("puts a field refused by the server on its field", async () => {
     const { user } = renderAdmin("/admin/links/wiki", linksRoutes({ "PATCH /api/admin/links/wiki": apiError(422, "invalid_input", { icon: "invalid_icon" }) }));
     await screen.findByRole("heading", { level: 1, name: "Wiki" });
-    await user.clear(screen.getByLabelText("Icon"));
-    await user.type(screen.getByLabelText("Icon"), "fa:book");
+    await user.clear(screen.getByLabelText("Icon name"));
+    await user.type(screen.getByLabelText("Icon name"), "fa:book");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await expectFocused(() => screen.getByRole("group", { name: "Check the highlighted fields." }));
-    expect(screen.getByLabelText("Icon")).toHaveAccessibleDescription(/Use si:<name> or lucide:<name>\./);
+    expect(screen.getByLabelText("Icon name")).toHaveAccessibleDescription(/Use si:<name> or lucide:<name>\./);
   });
 
   it("deletes the link, back on the list with a focused message in its place and the home dropped", async () => {
@@ -291,5 +291,172 @@ describe("CategoryPage", () => {
     await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Deleted: Tools."));
     expect(screen.queryByRole("table", { name: "Links of Tools" })).toBeNull();
     expect(isCached()).toBe(false);
+  });
+});
+
+describe("LinkPage: icon", () => {
+  const ID = "0123456789abcdef0123456789abcdef";
+  const IMAGE = { id: ID, type: "image/png", width: 128, height: 128, size: 2048, sanitized: false };
+  const png = (bytes: number) => new File([new Uint8Array(bytes)], "logo.png", { type: "image/png" });
+  const preview = () => document.querySelector<HTMLElement>('[data-slot="icon-preview"]')!;
+
+  it("offers three native radio options, the built-in one first for a built-in icon", async () => {
+    renderAdmin("/admin/links/wiki", linksRoutes());
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    const group = screen.getByRole("group", { name: "Icon" });
+    expect(within(group).getAllByRole("radio").map((r) => r.closest("label")!.textContent)).toEqual(["Built-in icon", "Upload an image", "From an address"]);
+    expect(within(group).getByRole("radio", { name: "Built-in icon" })).toBeChecked();
+    expect(preview()).toHaveTextContent("Built-in icon lucide:book");
+  });
+
+  it("uploads a file at once without moving the focus, previews it with words, then saves its reference", async () => {
+    const saved = { ...WIKI, icon: `image:${ID}`, iconKnown: true, revision: 2 };
+    const { user, fetchMock } = renderAdmin(
+      "/admin/links/wiki",
+      linksRoutes({
+        "POST /api/admin/images": { status: 201, body: { image: { ...IMAGE, sanitized: true } } },
+        "PATCH /api/admin/links/wiki": { status: 200, body: { link: saved, warnings: [] } },
+      }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    await user.click(screen.getByRole("radio", { name: "Upload an image" }));
+    const input = screen.getByLabelText("Choose an image");
+    expect(input).toHaveAccessibleDescription(/PNG, JPEG, WebP or SVG\. 256 KiB and 2,048 px per side at most\./);
+    await user.upload(input, png(100));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Image ready: save to apply it."));
+    expect(preview().querySelector("img")).toHaveAttribute("src", `/api/images/${ID}`);
+    expect(preview()).toHaveTextContent("Uploaded image, 128 × 128 px");
+    expect(screen.getByText("Elements that are not allowed were removed.")).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    expect(screen.queryByText(`image:${ID}`)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Saved: Wiki."));
+    expect(sentBody(fetchMock, lastCall(fetchMock, "PATCH /api/admin/links/wiki"))).toEqual({ revision: 1, icon: `image:${ID}` });
+  });
+
+  it("refuses a file too large before sending it, under the field that keeps the focus", async () => {
+    const { user, fetchMock } = renderAdmin("/admin/links/wiki", linksRoutes());
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    await user.click(screen.getByRole("radio", { name: "Upload an image" }));
+    const input = screen.getByLabelText("Choose an image");
+    await user.upload(input, png(300 * 1024));
+    expect(input).toHaveAccessibleDescription(/300 KiB, 256 KiB at most\./);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(lastCall(fetchMock, "POST /api/admin/images")).toBe(-1);
+  });
+
+  it("fetches an image from an address, says from which host, and shows a refusal under the address", async () => {
+    const { user, fetchMock } = renderAdmin(
+      "/admin/links/wiki",
+      linksRoutes({
+        "POST /api/admin/images/fetch": [
+          { status: 422, body: { error: { code: "image_fetch_refused", message: "", reason: "blocked_address" } } },
+          { status: 201, body: { image: IMAGE } },
+        ],
+      }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    await user.click(screen.getByRole("radio", { name: "From an address" }));
+    const address = screen.getByLabelText("Image address");
+    await user.clear(address);
+    await user.type(address, "https://intranet.lan/logo.png");
+    await user.click(screen.getByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(address).toHaveAccessibleDescription(/The server does not fetch private or local addresses: upload the file instead\./));
+    expect(address).toHaveAttribute("aria-invalid", "true");
+
+    await user.clear(address);
+    // Enter fetches rather than saving the link.
+    await user.type(address, "https://cdn.example.org/logo.png{Enter}");
+    await waitFor(() => expect(preview()).toHaveTextContent("Image fetched from cdn.example.org"));
+    expect(sentBody(fetchMock, lastCall(fetchMock, "POST /api/admin/images/fetch"))).toEqual({ url: "https://cdn.example.org/logo.png" });
+    expect(lastCall(fetchMock, "PATCH /api/admin/links/wiki")).toBe(-1);
+    expect(address).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("opens a link with an image on the upload option, and shows the stored image as a thumbnail after a conflict", async () => {
+    const logo = { ...WIKI, icon: `image:${ID}`, iconKnown: true };
+    const changed = { ...logo, icon: `image:${"f".repeat(32)}`, revision: 4 };
+    const { user } = renderAdmin(
+      "/admin/links/wiki",
+      linksRoutes(
+        {
+          "PATCH /api/admin/links/wiki": { status: 409, body: { error: { code: "item_changed", message: "", current: changed } } },
+        },
+        { categories: [{ ...TOOLS, links: [logo] }] },
+      ),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    expect(screen.getByRole("radio", { name: "Upload an image" })).toBeChecked();
+    expect(preview()).toHaveTextContent("Uploaded image");
+    expect(preview().querySelector("img")).toHaveAttribute("src", `/api/images/${ID}`);
+
+    await user.click(screen.getByRole("radio", { name: "Built-in icon" }));
+    await user.type(screen.getByLabelText("Icon name"), "lucide:mail");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await expectFocused(() => screen.getByRole("group", { name: "Changed by someone else meanwhile. Current values are under each field." }));
+    const current = screen.getByText("Current: Uploaded image");
+    expect(current.querySelector("img")).toHaveAttribute("src", `/api/images/${"f".repeat(32)}`);
+    expect(screen.queryByText(/image:f/)).toBeNull();
+  });
+
+  it("says in words that an image the server no longer stores is gone, as the tile shows the initial", async () => {
+    const lost = { ...WIKI, icon: `image:${ID}`, iconKnown: false };
+    renderAdmin("/admin/links/wiki", linksRoutes({}, { categories: [{ ...TOOLS, links: [lost] }] }));
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    expect(screen.getByRole("radio", { name: "Upload an image" })).toBeChecked();
+    expect(preview()).toHaveTextContent("Image no longer stored: the first letter shows.");
+    expect(preview()).not.toHaveTextContent("Uploaded image");
+  });
+
+  it("locks the options while an image is on its way, so its arrival cannot undo a change of option", async () => {
+    const { user, fetchMock } = renderAdmin("/admin/links/wiki", linksRoutes({ "POST /api/admin/images/fetch": { status: 201, body: { image: IMAGE } } }));
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    const answer = fetchMock.getMockImplementation()!;
+    const held: (() => void)[] = [];
+    fetchMock.mockImplementation((path, init) =>
+      path === "/api/admin/images/fetch" ? new Promise<Response>((resolve) => held.push(() => resolve(answer(path, init)))) : answer(path, init),
+    );
+    await user.click(screen.getByRole("radio", { name: "From an address" }));
+    await user.clear(screen.getByLabelText("Image address"));
+    await user.type(screen.getByLabelText("Image address"), "https://cdn.example.org/logo.png");
+    await user.click(screen.getByRole("button", { name: "Fetch" }));
+    await waitFor(() => expect(held).toHaveLength(1));
+    const radios = within(screen.getByRole("group", { name: "Icon" })).getAllByRole("radio");
+    for (const radio of radios) expect(radio).toBeDisabled();
+    await user.click(screen.getByRole("radio", { name: "Built-in icon" }));
+    expect(screen.getByRole("radio", { name: "From an address" })).toBeChecked();
+
+    held[0]!();
+    await waitFor(() => expect(preview()).toHaveTextContent("Image fetched from cdn.example.org"));
+    for (const radio of radios) expect(radio).toBeEnabled();
+    await user.click(screen.getByRole("radio", { name: "Built-in icon" }));
+    expect(screen.getByLabelText("Icon name")).toHaveValue("lucide:book");
+  });
+
+  it("puts unknown_image on the icon field", async () => {
+    const { user } = renderAdmin(
+      "/admin/links/wiki",
+      linksRoutes({
+        "POST /api/admin/images": { status: 201, body: { image: IMAGE } },
+        "PATCH /api/admin/links/wiki": apiError(422, "unknown_image"),
+      }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Wiki" });
+    await user.click(screen.getByRole("radio", { name: "Upload an image" }));
+    await user.upload(screen.getByLabelText("Choose an image"), png(100));
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("Image ready: save to apply it."));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await expectFocused(() => screen.getByRole("group", { name: "Check the highlighted fields." }));
+    expect(screen.getByLabelText("Choose an image")).toHaveAccessibleDescription(/This image is no longer stored: choose it again\./);
+  });
+
+  it("is read only under CATALOG_FILE: the options disabled, nothing to upload or fetch", async () => {
+    const logo = { ...WIKI, icon: `image:${ID}`, iconKnown: true };
+    renderAdmin("/admin/links/wiki", linksRoutes({}, { categories: [{ ...TOOLS, links: [logo] }], state: { ...STATE, managedByFile: true } }));
+    await screen.findByText("Managed by CATALOG_FILE: read only.");
+    for (const radio of within(screen.getByRole("group", { name: "Icon" })).getAllByRole("radio")) expect(radio).toBeDisabled();
+    expect(screen.queryByLabelText("Choose an image")).toBeNull();
+    expect(preview()).toHaveTextContent("Uploaded image");
   });
 });

@@ -3,7 +3,7 @@ import { Hono } from "hono";
 
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
-import { IMAGE_ID } from "../images/store";
+import { imageIdOf } from "../images/store";
 import { setting } from "../schema";
 import { knownTheme } from "../themes";
 
@@ -11,16 +11,6 @@ const DEFAULT_TITLE = "YASAD";
 
 /** The instance settings the admin sets, by field, as keys of the `setting` table. */
 export const INSTANCE_KEYS = { title: "instance.title", logo: "instance.logo", theme: "instance.theme" } as const;
-
-/** Prefix of a stored image cited by a setting or a link. */
-export const IMAGE_REF = "image:";
-
-/** Return the image id an `image:<id>` reference cites, or null for any other value. */
-export function imageIdOf(value: string | undefined): string | null {
-  if (!value?.startsWith(IMAGE_REF)) return null;
-  const id = value.slice(IMAGE_REF.length);
-  return IMAGE_ID.test(id) ? id : null;
-}
 
 /**
  * Return the logo's address when the CSP lets the page show it, otherwise null: a stored image, or a value set

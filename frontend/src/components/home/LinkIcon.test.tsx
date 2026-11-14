@@ -1,4 +1,4 @@
-import { cleanup, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ICONS_BASE } from "@/icons-base";
@@ -21,6 +21,27 @@ function tile(icon: Parameters<typeof LinkIcon>[0]["icon"], title = "Grafana") {
 }
 
 describe("LinkIcon", () => {
+  it("draws an uploaded image from /api/images on a plate, decorative, without fetching an icon file", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const id = "0123456789abcdef0123456789abcdef";
+    const el = tile({ set: "image", name: id });
+    const img = el.querySelector("img")!;
+    expect(img).toHaveAttribute("src", `/api/images/${id}`);
+    expect(img).toHaveAttribute("alt", "");
+    expect(el.querySelector('[data-slot="link-icon-plate"]')).toContainElement(img);
+    expect(el).toHaveAttribute("aria-hidden", "true");
+    expect(el.querySelector("[data-initial]")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the initial when the image does not load", () => {
+    const el = tile({ set: "image", name: "0123456789abcdef0123456789abcdef" });
+    fireEvent.error(el.querySelector("img")!);
+    expect(el.querySelector("img")).toBeNull();
+    expect(el.querySelector("[data-initial]")).toHaveAttribute("data-initial", "G");
+  });
+
   it("draws a Lucide icon from its file, in the current colour", async () => {
     const fetchMock = vi.fn(async () => json({ nodes: [["rect", { width: "20", height: "16", x: "2", y: "4", rx: "2" }], ["path", { d: "m22 7-10 5L2 7" }]] }));
     vi.stubGlobal("fetch", fetchMock);

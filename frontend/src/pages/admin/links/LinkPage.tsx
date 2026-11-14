@@ -17,9 +17,11 @@ import { useStrings } from "../../../i18n/LocaleProvider";
 import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefLabel } from "../../../lib/group-ref";
 import { useAdminCollection } from "../../../lib/admin-collection";
+import { categoryTone } from "../../../lib/category-tone";
 import { RecentChanges } from "../history/RecentChanges";
 import { previewHref } from "../people/hrefs";
 import { GroupsChooser, refsWith, sameRefs } from "./GroupsChooser";
+import { choiceOf, CurrentIcon, IconChooser, iconValueOf } from "./IconChooser";
 import { categoryHref, Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
 import { LinkStatus } from "./LinkStatus";
 import { LinkWhoSees } from "./WhoSees";
@@ -67,7 +69,7 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
   const [title, setTitle] = useState(link.title);
   const [url, setUrl] = useState(link.url);
   const [description, setDescription] = useState(link.description);
-  const [icon, setIcon] = useState(link.icon ?? "");
+  const [icon, setIcon] = useState(() => choiceOf(link.icon, link.iconKnown));
   const [keywords, setKeywords] = useState(link.keywords.join(", "));
   const [refs, setRefs] = useState(link.groups);
   const [other, setOther] = useState("");
@@ -99,7 +101,7 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!errors.check({ title: title.trim() === "" && m.fieldErrors.required, url: url.trim() === "" && m.fieldErrors.required })) return;
-    const values = { title, url, description, icon: icon.trim() || null, keywords: keywordsOf(keywords), groups: refsWith(refs, other), categoryId, active, check };
+    const values = { title, url, description, icon: iconValueOf(icon), keywords: keywordsOf(keywords), groups: refsWith(refs, other), categoryId, active, check };
     // Only what changed is sent: a field someone else changed meanwhile, and this form did not touch, stays theirs.
     const changes: Partial<LinkInput> = {};
     if (values.title.trim() !== base.title) changes.title = values.title;
@@ -129,7 +131,7 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
     } catch (err) {
       adopt(err);
       if (currentOf(err)) errors.fail(s.conflict);
-      else errors.failWith(err, { fallback: linksErrorText });
+      else errors.failWith(err, { fallback: linksErrorText, codes: { unknown_image: { message: m.images.errors.unknown_image, field: "icon" } } });
     } finally {
       setPending(false);
     }
@@ -163,18 +165,15 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
               <Current value={conflict?.url} mine={url} />
               <Field {...errors.field("description")} label={s.fields.description} disabled={readOnly} autoComplete="off" value={description} onChange={(e) => setDescription(e.target.value)} />
               <Current value={conflict?.description} mine={description} />
-              <Field
-                {...errors.field("icon")}
-                label={s.fields.icon}
-                hint={s.fields.iconHint}
-                disabled={readOnly}
-                autoComplete="off"
-                spellCheck={false}
-                inputClassName="font-mono"
+              <IconChooser
+                field={errors.field("icon")}
                 value={icon}
-                onChange={(e) => setIcon(e.target.value)}
+                onChange={setIcon}
+                title={title}
+                tone={categoryTone(categories.findIndex((c) => c.id === categoryId)).tile}
+                disabled={readOnly}
               />
-              <Current value={conflict ? (conflict.icon ?? "") : undefined} mine={icon} />
+              {conflict && conflict.icon !== iconValueOf(icon) && <CurrentIcon icon={conflict.icon} />}
               <Field {...errors.field("keywords")} label={s.fields.keywords} hint={s.fields.keywordsHint} disabled={readOnly} autoComplete="off" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
               <Current value={conflict?.keywords.join(", ")} mine={keywordsOf(keywords).join(", ")} />
             </FormStack>
