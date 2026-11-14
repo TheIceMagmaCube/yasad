@@ -16,10 +16,23 @@ export const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-/** Return the security headers sent with every response; HSTS only when served over https. */
-export function securityHeaders(https: boolean): Record<string, string> {
+/** Where stored images are served; their responses get {@link IMAGE_CONTENT_SECURITY_POLICY}. */
+export const IMAGES_PATH = "/api/images/";
+
+/**
+ * CSP of a stored image, stricter than the app's: an SVG opened in a tab is a document with no script and no
+ * external resource. Inline style only renders the SVG's own `<style>`, already filtered by images/svg.ts.
+ */
+export const IMAGE_CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; sandbox";
+
+/**
+ * Return the security headers sent with every response; HSTS only when served over https.
+ *
+ * The CSP is chosen by `path`, so every pass of the middleware (the app's, then server.ts's) keeps the image one.
+ */
+export function securityHeaders(https: boolean, path = ""): Record<string, string> {
   return {
-    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "Content-Security-Policy": path.startsWith(IMAGES_PATH) ? IMAGE_CONTENT_SECURITY_POLICY : CONTENT_SECURITY_POLICY,
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -50,7 +63,7 @@ export function headersFile(): string {
 export function withSecurityHeaders<E extends AppEnv | object>(isHttps: (c: Context<E>) => boolean): MiddlewareHandler<E> {
   return async (c, next) => {
     await next();
-    for (const [name, value] of Object.entries(securityHeaders(isHttps(c)))) c.res.headers.set(name, value);
+    for (const [name, value] of Object.entries(securityHeaders(isHttps(c), c.req.path))) c.res.headers.set(name, value);
   };
 }
 

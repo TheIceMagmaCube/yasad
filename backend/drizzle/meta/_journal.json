@@ -85,6 +85,13 @@
       "when": 1792565138331,
       "tag": "0011_link_status",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794654814697,
+      "tag": "0012_image",
+      "breakpoints": true
     }
   ]
 }
