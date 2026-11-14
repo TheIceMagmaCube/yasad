@@ -138,8 +138,8 @@ export function LinkWhoSees({ link, category, groups, people, fixes, categoryHre
   const [as, setAs] = useQueryState("as");
   const [chosen, setChosen] = useState(as);
   const [result, setResult] = useState<Result | null>(null);
-  // Opened with ?as=, the explanation is on its way.
-  const [pending, setPending] = useState(as !== "");
+  // Opened with ?as=, the explanation arrives unannounced: a pending button would read out "Explaining…" alone.
+  const [pending, setPending] = useState(false);
   const audience = useAudience(async () => (await api.linkAccess(link.id)).audience, link.revision);
   const latest = useRef(0);
   // The latest request, its answer shown or not, and whether that answer is still to be read out: a save reads the
@@ -147,13 +147,17 @@ export function LinkWhoSees({ link, category, groups, people, fixes, categoryHre
   const asked = useRef<{ userId: string; say: boolean } | null>(as ? { userId: as, say: false } : null);
   const list = people.data;
   const nameOf = (id: string) => list?.find((u) => u.id === id)?.name ?? id;
+  // The rule ignores whether an account is enabled, so the audience count, made of active accounts, can leave out a
+  // person the explanation says sees the link.
+  const isDisabled = (id: string) => list?.find((u) => u.id === id)?.disabled === true;
   const value = list?.some((u) => u.id === chosen) ? chosen : "";
 
   /**
-   * Explain the link for `userId`; `say` reads the result out, for an explanation the button asked for. Whoever
-   * shows the button pending sets it; this clears it once the latest request ends.
+   * Explain the link for `userId`; `say` reads the result out, for an explanation the button asked for, and
+   * `sayError` reads a failure out, for a result that replaces one already shown. Whoever shows the button pending
+   * sets it; this clears it once the latest request ends.
    */
-  async function explain(userId: string, say: boolean) {
+  async function explain(userId: string, say: boolean, sayError = say) {
     const n = ++latest.current;
     asked.current = { userId, say };
     try {
@@ -164,12 +168,13 @@ export function LinkWhoSees({ link, category, groups, people, fixes, categoryHre
       setResult({ status: "ready", userId, explanation });
       if (say) {
         const verdict = explanation.visible ? w.sees(nameOf(userId)) : w.doesNotSee(nameOf(userId));
-        announce([verdict, ...reasonLines(explanation, m).flatMap((l) => (l.hint ? [l.text, l.hint] : [l.text]))].join(" "));
+        const disabled = isDisabled(userId) ? [w.disabledNote] : [];
+        announce([verdict, ...disabled, ...reasonLines(explanation, m).flatMap((l) => (l.hint ? [l.text, l.hint] : [l.text]))].join(" "));
       }
     } catch {
       if (n !== latest.current) return;
       setResult({ status: "error" });
-      if (say) announce(w.explainError);
+      if (sayError) announce(w.explainError);
     } finally {
       if (n === latest.current) {
         setPending(false);
@@ -196,7 +201,7 @@ export function LinkWhoSees({ link, category, groups, people, fixes, categoryHre
   useEffect(() => {
     if (seen.current === link.revision) return;
     seen.current = link.revision;
-    if (asked.current) void explainNow.current(asked.current.userId, asked.current.say);
+    if (asked.current) void explainNow.current(asked.current.userId, asked.current.say, true);
   }, [link.revision]);
 
   const onExplain = () => {
@@ -236,7 +241,7 @@ export function LinkWhoSees({ link, category, groups, people, fixes, categoryHre
                 <option value="">{w.choose}</option>
                 {list.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {`${u.name} (${u.email})`}
+                    {u.disabled ? w.disabledOption(`${u.name} (${u.email})`) : `${u.name} (${u.email})`}
                   </option>
                 ))}
               </NativeSelect>
@@ -249,6 +254,7 @@ export function LinkWhoSees({ link, category, groups, people, fixes, categoryHre
         <div id={resultId} className="flex flex-col gap-2">
           {result?.status === "choose" && <p>{w.chooseFirst}</p>}
           {result?.status === "error" && <p className="text-destructive">{w.explainError}</p>}
+          {result?.status === "ready" && isDisabled(result.userId) && <p>{w.disabledNote}</p>}
           {result?.status === "ready" &&
             (result.explanation.visible ? (
               <p className="font-semibold wrap-anywhere">{w.sees(nameOf(result.userId))}</p>

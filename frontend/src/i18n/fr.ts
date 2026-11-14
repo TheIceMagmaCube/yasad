@@ -454,6 +454,8 @@ export const fr = {
       peopleError: "Les personnes n'ont pas pu être chargées.",
       sees: (name) => `${name} voit ce lien.`,
       doesNotSee: (name) => `${name} ne voit pas ce lien.`,
+      disabledOption: (label: string) => `${label}, désactivé`,
+      disabledNote: "Ce compte est désactivé : la personne ne peut pas se connecter. L'explication montre ce qu'elle verrait une fois réactivée.",
       fixes: {
         active: "Aller à la case Actif",
         linkGroups: "Aller aux groupes du lien",

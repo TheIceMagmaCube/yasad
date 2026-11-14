@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LinkExplanation } from "../../../api";
 import { expectFocused, getAnnouncer } from "../../../test-utils";
 import { pageHeading, renderAdmin } from "../people/testing";
-import { audienceAnswer, category, DEV, EMPTY, link, linksRoutes, OLD, STATE, TOOLS, WIKI } from "./testing";
+import { usersAnswer } from "../people/testing";
+import { audienceAnswer, BOB, category, DEV, EMPTY, KEN, link, linksRoutes, OLD, STATE, TOOLS, WIKI } from "./testing";
 
 afterEach(() => {
   cleanup();
@@ -225,6 +226,51 @@ describe("Who sees a link", () => {
     expect(requested(fetchMock, "/api/admin/access/links/old?as=ken")).toBe(2);
     expect(within(section()).getByText("Ken sees this link.")).toBeInTheDocument();
     expect(requested(fetchMock, "/api/admin/access/links/old?as=bob")).toBe(1);
+  });
+
+  it("says a failed reading again after a save, as it replaces an explanation already shown", async () => {
+    const { user } = renderAdmin(
+      "/admin/links/old?as=ken",
+      linksRoutes({
+        "GET /api/admin/access/links/old?as=ken": [{ status: 200, body: { audience: { people: 2, public: false }, explanation: OLD_FOR_KEN } }, { status: 500, body: {} }],
+        "PATCH /api/admin/links/old": { status: 200, body: { link: { ...OLD, active: true, revision: 2 }, warnings: [] } },
+      }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Old intranet" });
+    expect(await within(section()).findByText("Ken sees this link.")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Active" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await within(section()).findByText("The explanation could not be read.")).toBeInTheDocument();
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent("The explanation could not be read."));
+  });
+
+  it("opened from a preview, reads nothing out while a slow explanation is on its way", async () => {
+    const { fetchMock } = renderAdmin("/admin/links/old?as=bob&from=bob", linksRoutes(explained("bob", OLD_FOR_BOB)));
+    const release = hold(fetchMock, "/api/admin/access/links/old?as=bob");
+    await screen.findByRole("heading", { level: 1, name: "Old intranet" });
+    await screen.findByLabelText("Person");
+    // Longer than the delay after which a pending button reads out its pending label.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 600)));
+    expect(getAnnouncer()).toBeEmptyDOMElement();
+    await release();
+    expect(await within(section()).findByText("Bob does not see this link.")).toBeInTheDocument();
+    expect(getAnnouncer()).toBeEmptyDOMElement();
+  });
+
+  it("marks a disabled account in the choice and in its explanation, as the count leaves it out", async () => {
+    const { user } = renderAdmin(
+      "/admin/links/old",
+      linksRoutes({ "GET /api/admin/users": usersAnswer(BOB, { ...KEN, disabled: true }), ...explained("ken", OLD_FOR_KEN) }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Old intranet" });
+    const select = await within(section()).findByLabelText("Person");
+    expect(within(select).getByRole("option", { name: "Ken (ken@example.invalid), disabled" })).toBeInTheDocument();
+    expect(within(select).getByRole("option", { name: "Bob (bob@example.invalid)" })).toBeInTheDocument();
+    await user.selectOptions(select, "ken");
+    await user.click(within(section()).getByRole("button", { name: "Explain" }));
+    const note = "This account is disabled: the person cannot sign in. The explanation shows what they would see once it is enabled again.";
+    expect(await within(section()).findByText(note)).toBeInTheDocument();
+    await waitFor(() => expect(getAnnouncer()).toHaveTextContent(`Ken sees this link. ${note}`));
   });
 
   it("says the counts may be out of date when they cannot be read again after a save", async () => {

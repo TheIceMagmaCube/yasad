@@ -446,6 +446,8 @@ export const en = {
       peopleError: "The people could not be loaded.",
       sees: (name: string) => `${name} sees this link.`,
       doesNotSee: (name: string) => `${name} does not see this link.`,
+      disabledOption: (label: string) => `${label}, disabled`,
+      disabledNote: "This account is disabled: the person cannot sign in. The explanation shows what they would see once it is enabled again.",
       fixes: {
         active: "Go to the Active box",
         linkGroups: "Go to the groups of the link",
