@@ -7,6 +7,14 @@ import { adminErrorText } from "../shared";
 export const LIST = "/admin/links";
 export const linkHref = (id: string) => `${LIST}/${encodeURIComponent(id)}`;
 export const categoryHref = (id: string) => `${LIST}/categories/${encodeURIComponent(id)}`;
+/**
+ * Address of a link's page opened from a row of a person's preview: `as` chooses the person explained, `from` says
+ * where the back link returns. The page rewrites `as` when another person is explained, never `from`.
+ */
+export const linkFromPreviewHref = (id: string, personId: string) => {
+  const person = encodeURIComponent(personId);
+  return `${linkHref(id)}?as=${person}&from=${person}`;
+};
 
 /**
  * Ids whose page address would open another page instead: /admin/links/new, /admin/links/file and

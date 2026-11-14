@@ -221,7 +221,7 @@ describe("PersonPreview links", () => {
     expect(within(row("Git")).getAllByText("They hold oidc:Dev, the link asks for local:Dev.").length).toBeGreaterThan(0);
     expect(within(row("Payroll")).getAllByText("They hold none of the category's groups.").length).toBeGreaterThan(0);
     expect(within(row("Payroll")).getAllByText("They hold local:Finance, the category asks for local:finance: only the case differs.").length).toBeGreaterThan(0);
-    expect(within(table).getByRole("link", { name: "Git" })).toHaveAttribute("href", "/admin/links/git?as=bob");
+    expect(within(table).getByRole("link", { name: "Git" })).toHaveAttribute("href", "/admin/links/git?as=bob&from=bob");
   });
 
   it("keeps the state filter in the address, the visible links in words without a mark nor a pin sentence", async () => {
@@ -243,11 +243,30 @@ describe("PersonPreview links", () => {
     const { user } = renderAdmin("/admin/users/bob/home?state=visible", { ...routes(), ...linksRoutes({ "GET /api/admin/users": usersAnswer(BOB, KEN, NEW) }) });
     const table = await linksTable();
     await user.click(within(table).getByRole("link", { name: "Wiki" }));
-    expect(location.pathname + location.search).toBe("/admin/links/wiki?as=bob");
+    expect(location.pathname + location.search).toBe("/admin/links/wiki?as=bob&from=bob");
     await waitFor(() => expect(pageHeading()).toHaveTextContent("Wiki"));
     act(() => navigate(listHref("/admin/users/bob/home")));
     expect(location.search).toBe("?state=visible");
     await expectFocused(() => within(screen.getByRole("table", { name: "Links of the catalog for Bob" })).getByRole("link", { name: "Wiki" }));
+  });
+
+  it("from a hidden row, explains the link on its page, whose back link returns to the preview as left, on the row", async () => {
+    const { user } = renderAdmin("/admin/users/bob/home?state=hidden", {
+      ...routes(),
+      ...linksRoutes({
+        "GET /api/admin/users": usersAnswer(BOB, KEN, NEW),
+        "GET /api/admin/access/links/old?as=bob": { status: 200, body: { audience: { people: 0, public: false }, explanation: BOB_LINKS[1] } },
+      }),
+    });
+    await user.click(within(await linksTable()).getByRole("link", { name: "Old intranet" }));
+    const who = await screen.findByRole("region", { name: "Who sees this link" });
+    expect(await within(who).findByText("Bob does not see this link.")).toBeInTheDocument();
+    expect(within(who).getByText("The link is inactive: nobody sees it.")).toBeInTheDocument();
+    expect(within(who).getByText("Pinned by the person: it comes back with access.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Back to Bob's home page" }));
+    expect(location.pathname + location.search).toBe("/admin/users/bob/home?state=hidden");
+    await expectFocused(() => within(screen.getByRole("table", { name: "Links of the catalog for Bob" })).getByRole("link", { name: "Old intranet" }));
   });
 
   it("says when no link is hidden", async () => {

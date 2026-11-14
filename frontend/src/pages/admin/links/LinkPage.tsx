@@ -16,10 +16,13 @@ import { CheckboxField } from "../../../components/ui/checkbox";
 import { useStrings } from "../../../i18n/LocaleProvider";
 import { useFormErrors } from "../../../lib/form-errors";
 import { groupRefLabel } from "../../../lib/group-ref";
+import { useAdminCollection } from "../../../lib/admin-collection";
 import { RecentChanges } from "../history/RecentChanges";
+import { previewHref } from "../people/hrefs";
 import { GroupsChooser, refsWith, sameRefs } from "./GroupsChooser";
-import { Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
+import { categoryHref, Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
 import { LinkStatus } from "./LinkStatus";
+import { LinkWhoSees } from "./WhoSees";
 
 type LinkField = "title" | "url" | "description" | "icon" | "keywords" | "groups" | "categoryId" | "active" | "check";
 const LINK_FIELDS = ["title", "url", "description", "icon", "keywords", "groups", "categoryId", "active", "check"] as const;
@@ -74,6 +77,14 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
   const [pending, setPending] = useState(false);
   const [warnings, setWarnings] = useState<EditWarning[]>(initialWarnings);
   const [confirm, setConfirm] = useState(false);
+  const people = useAdminCollection(api.users);
+  // Opened from a row of a person's preview: the back link returns there, as the preview was left. Not `?as=`, which
+  // the page writes itself on every explanation.
+  const [from] = useState(() => new URLSearchParams(location.search).get("from"));
+  const fromName = from ? people.data?.find((u) => u.id === from)?.name : undefined;
+  const back = from
+    ? { href: listHref(previewHref(from)), label: fromName ? m.access.backToHome(fromName) : m.access.backToPreview }
+    : { href: listHref(LIST), label: m.admin.backTo(s.title) };
 
   /** Note a refusal that says the link changed meanwhile: the form now compares with, and overwrites, the stored one. */
   const adopt = (err: unknown) => {
@@ -138,7 +149,7 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
   const categoryTitle = (id: string) => categories.find((c) => c.id === id)?.title ?? id;
 
   return (
-    <AdminShell section="links" title={link.title} back={{ href: listHref(LIST), label: m.admin.backTo(s.title) }} subtitle={<p className="wrap-anywhere">{link.url}</p>}>
+    <AdminShell section="links" title={link.title} back={back} subtitle={<p className="wrap-anywhere">{link.url}</p>}>
       <div className={`flex flex-col gap-10 ${ITEM_WIDTH}`}>
         {readOnly && <Alert variant="info">{s.managedByFile}</Alert>}
         <Warnings warnings={warnings} />
@@ -211,6 +222,15 @@ export function LinkPage({ link, categories, groups, readOnly, checks, now, onSa
         {/* The stored link, so a tick not saved yet shows no block, and a save that drops the result shows it gone. An
             inactive link is never checked, so it shows no status, as in the list. */}
         {base.active && <LinkStatus link={base} checks={checks} now={now} />}
+        <LinkWhoSees
+          link={base}
+          category={categories.find((c) => c.id === base.categoryId)}
+          groups={groups}
+          people={people}
+          // Under CATALOG_FILE the fields are disabled and take no focus: the fix goes in the file.
+          fixes={readOnly ? {} : { active: `#${errors.fieldId("active")}`, linkGroups: `#${errors.fieldId("groups")}` }}
+          categoryHref={categoryHref(base.categoryId)}
+        />
         <RecentChanges type="link" id={link.id} scoped version={link} />
         {!readOnly && (
           <PaneDanger>

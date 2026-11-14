@@ -17,6 +17,7 @@ import { groupRefLabel } from "../../../lib/group-ref";
 import { RecentChanges } from "../history/RecentChanges";
 import { GroupsChooser, refsWith, sameRefs } from "./GroupsChooser";
 import { Current, currentOf, isManagedByFile, LIST, linksErrorText, Warnings } from "./item-edit";
+import { CategoryWhoSees } from "./WhoSees";
 
 type CategoryPageProps = {
   category: AdminCategory;
@@ -123,6 +124,7 @@ export function CategoryPage({ category, groups, readOnly, onSaved, onDeleted, o
             </FormActions>
           )}
         </form>
+        <CategoryWhoSees category={base} groups={groups} />
         <RecentChanges type="category" id={category.id} scoped version={category} />
         {!readOnly && (
           <PaneDanger>
