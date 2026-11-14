@@ -13,6 +13,8 @@ export const SETUP_LIMIT: Limit = { max: 5, windowMs: FIFTEEN_MINUTES };
 export const SIGN_IN_ACCOUNT_LIMIT: Limit = { max: 5, windowMs: FIFTEEN_MINUTES };
 export const SIGN_IN_IP_LIMIT: Limit = { max: 30, windowMs: FIFTEEN_MINUTES };
 export const PASSWORD_CHANGE_LIMIT: Limit = { max: 5, windowMs: FIFTEEN_MINUTES };
+/** Images fetched by URL, per admin; every fetch is counted, since each one makes the server call out. */
+export const IMAGE_FETCH_LIMIT: Limit = { max: 30, windowMs: FIFTEEN_MINUTES };
 /**
  * Provider sign-ins started, then callbacks received, per IP; every one is counted.
  *

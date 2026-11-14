@@ -13,10 +13,10 @@ export type DnsEntry =
   | { fail: "platform" }
   | { hang: true };
 
-/** A site's answer: a status with an empty body, a status with headers or a huge body, or a failure. */
+/** A site's answer: a status with an empty body, a status with headers and a huge or given body, or a failure. */
 export type SiteAnswer =
   | number
-  | { status: number; headers?: Record<string, string>; body?: "huge" }
+  | { status: number; headers?: Record<string, string>; body?: "huge" | Uint8Array | string }
   | "hang"
   | "refused"
   | "tls"
@@ -85,7 +85,8 @@ function siteAnswer(answer: SiteAnswer): Response | "hang" | Error {
   if (answer === "tls") return new TypeError("certificate has expired");
   if (answer === "platform") return new Error("Too many subrequests.");
   if (typeof answer === "number") return new Response(null, { status: answer });
-  return new Response(answer.body === "huge" ? hugeBody() : null, { status: answer.status, headers: answer.headers });
+  const body = answer.body === "huge" ? hugeBody() : typeof answer.body === "string" ? answer.body : answer.body === undefined ? null : Uint8Array.from(answer.body);
+  return new Response(body, { status: answer.status, headers: answer.headers });
 }
 
 export function fakeNet(): FakeNet {
