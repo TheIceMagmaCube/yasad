@@ -257,7 +257,8 @@ describe("server startup", () => {
     // Well before the first minute has passed: the first run starts with the server.
     let rows: Record<string, unknown>[] = [];
     for (let i = 0; i < 100 && !(rows.length === 2 && rows.every((row) => row.state)); i++) {
-      const read = new DatabaseSync(dbFile);
+      // The server writes the results meanwhile: wait for its lock rather than fail on it.
+      const read = new DatabaseSync(dbFile, { timeout: 5000 });
       try {
         rows = read.prepare("select link_id, state, reason from link_status order by link_id").all();
       } finally {

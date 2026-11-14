@@ -64,7 +64,8 @@ describe("image responses on the Docker server", () => {
     }
 
     const id = "0123456789abcdef0123456789abcdef";
-    const db = new DatabaseSync(dbFile);
+    // The running server may hold the write lock: wait for it rather than fail on it.
+    const db = new DatabaseSync(dbFile, { timeout: 5000 });
     try {
       db.prepare("insert into image (id, sha256, type, width, height, size, bytes) values (?, ?, 'image/svg+xml', 1, 1, ?, ?)").run(
         id,
