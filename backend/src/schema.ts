@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { customType, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -262,4 +262,40 @@ export const auditLog = sqliteTable(
     index("audit_log_related_id_idx").on(t.relatedId, t.id),
     index("audit_log_at_idx").on(t.at),
   ],
+);
+
+/**
+ * A BLOB read as a `Uint8Array` on both drivers, without `Buffer` (Drizzle's `blob` needs it): libSQL returns an
+ * `ArrayBuffer`, D1 an array of numbers.
+ */
+const bytes = customType<{ data: Uint8Array<ArrayBuffer>; driverData: ArrayBuffer | ArrayBufferView | number[] }>({
+  dataType: () => "blob",
+  toDriver: (value) => value,
+  fromDriver: (value) => {
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value)) return Uint8Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+    return Uint8Array.from(value);
+  },
+});
+
+/**
+ * Images uploaded by an admin, cited as `image:<id>` by `link.icon` and the `instance.logo` setting. Nothing
+ * references a row by foreign key: an image cited by nothing for a day is purged by the next upload.
+ */
+export const image = sqliteTable(
+  "image",
+  {
+    /** 128 random bits in hex: the public address cannot be guessed, unlike a hash of a known image. */
+    id: text("id").primaryKey(),
+    /** Hash of the stored bytes, for deduplication; never sent to the browser. */
+    sha256: text("sha256").notNull().unique(),
+    type: text("type", { enum: ["image/png", "image/jpeg", "image/webp", "image/svg+xml"] }).notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    size: integer("size").notNull(),
+    /** Stored as served: metadata removed, an SVG rebuilt from the allow-list. */
+    bytes: bytes("bytes").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("image_created_at_idx").on(t.createdAt)],
 );

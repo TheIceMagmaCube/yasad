@@ -16,14 +16,17 @@ import { adminAccess } from "./routes/admin-access";
 import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { adminGroups } from "./routes/admin-groups";
 import { adminHistory } from "./routes/admin-history";
+import { adminImages } from "./routes/admin-images";
 import { adminCategories, adminLinks } from "./routes/admin-links";
 import { adminUsers } from "./routes/admin-users";
 import { authRoutes } from "./routes/auth";
 import { home } from "./routes/home";
+import { images } from "./routes/images";
 import { instance } from "./routes/instance";
 import { pins } from "./routes/pins";
 import { setup } from "./routes/setup";
-import { sameOriginOnly, withSecurityHeaders } from "./security";
+import { MAX_IMAGE_BODY } from "./images/limits";
+import { IMAGES_PATH, sameOriginOnly, withSecurityHeaders } from "./security";
 import { version } from "./version";
 
 export type { AppEnv } from "./context";
@@ -36,6 +39,10 @@ const OPEN_WITH_TEMPORARY_PASSWORD = new Set([
   "GET /api/health",
   "POST /api/account/password",
 ]);
+
+/** Open with a temporary password too: the logo must show on the screen where the new password is chosen. */
+const openWithTemporaryPassword = (method: string, path: string) =>
+  OPEN_WITH_TEMPORARY_PASSWORD.has(`${method} ${path}`) || (method === "GET" && path.startsWith(IMAGES_PATH));
 
 /** Runtime services each entry (server.ts, worker.ts) provides. */
 export type AppDeps = {
@@ -97,13 +104,15 @@ export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps
   app.use("*", sameOriginOnly);
   const tooLarge = (c: Context) => apiError(c, 413, "payload_too_large", "The request body is too large.");
   const catalogLimit = bodyLimit({ maxSize: MAX_CATALOG_BODY, onError: tooLarge });
+  const imageLimit = bodyLimit({ maxSize: MAX_IMAGE_BODY, onError: tooLarge });
   const defaultLimit = bodyLimit({ maxSize: MAX_BODY, onError: tooLarge });
-  // Catalog files can be larger than any other request body.
-  app.use("*", (c, next) => (c.req.path === "/api/admin/catalog" ? catalogLimit : defaultLimit)(c, next));
+  // Catalog files and images in base64 can be larger than any other request body.
+  const limitOf = (path: string) => (path === "/api/admin/catalog" ? catalogLimit : path === "/api/admin/images" ? imageLimit : defaultLimit);
+  app.use("*", (c, next) => limitOf(c.req.path)(c, next));
 
   // While a temporary password is set, only these routes answer; the rest of the API is refused.
   app.use("*", async (c, next) => {
-    if (OPEN_WITH_TEMPORARY_PASSWORD.has(`${c.req.method} ${c.req.path}`) || !c.req.header("cookie")) return next();
+    if (openWithTemporaryPassword(c.req.method, c.req.path) || !c.req.header("cookie")) return next();
     const current = await sessionFor(c);
     if (current?.user.mustChangePassword) {
       return apiError(c, 403, "password_change_required", "Choose a new password before going on.");
@@ -128,6 +137,7 @@ export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps
 
   app.route("/home", home);
   app.route("/instance", instance);
+  app.route("/images", images);
   app.route("/about", about);
   app.route("/setup", setup);
   app.route("/account", accountRoutes);
@@ -138,6 +148,7 @@ export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps
   app.route("/admin/users", adminUsers);
   app.route("/admin/groups", adminGroups);
   app.route("/admin/history", adminHistory);
+  app.route("/admin/images", adminImages);
   app.route("/admin/access", adminAccess);
   app.route("/auth", authRoutes);
 
