@@ -4,8 +4,8 @@ import type { DB } from "./db";
 import { auditLog, setting } from "./schema";
 
 export type AuditAction = "create" | "update" | "delete" | "move" | "password_reset" | "member_add" | "member_remove" | "import";
-export type AuditObjectType = "user" | "group" | "category" | "link" | "catalog";
-export const AUDIT_OBJECT_TYPES: readonly AuditObjectType[] = ["user", "group", "category", "link", "catalog"];
+export type AuditObjectType = "user" | "group" | "category" | "link" | "catalog" | "instance";
+export const AUDIT_OBJECT_TYPES: readonly AuditObjectType[] = ["user", "group", "category", "link", "catalog", "instance"];
 
 /** Who writes, and how long entries are kept; `actorId` is null for what YASAD does by itself. */
 export type Auditor = { db: DB; actorId: string | null; retentionDays: number };
@@ -44,6 +44,11 @@ export const snapshot = {
   /** A category as it is deleted: its links go with it, named but not copied whole, to keep the entry small. */
   deletedCategory: (id: string) =>
     sql`(select json_object('title', c.title, 'position', c.position, 'groups', ${groupsOf("category_group", "category_id", "c.id")}, 'links', json((select json_group_array(json_object('id', id, 'title', title)) from (select id, title from link where category_id = c.id order by position, id)))) from category c where c.id = ${id})`,
+  /** The instance's title, logo and theme as stored, null for a default; the logo as its `image:<id>` reference. */
+  instance: () =>
+    sql.raw(
+      `(select json_object(${["title", "logo", "theme"].map((k) => `'${k}', (select value from setting where key = 'instance.${k}')`).join(", ")}))`,
+    ),
   link: (id: string) =>
     sql`(select json_object('categoryId', l.category_id, 'title', l.title, 'url', l.url, 'description', l.description, 'icon', l.icon, 'keywords', json(l.keywords), 'active', ${bool("l.active")}, 'check', ${bool("l.check_enabled")}, 'position', l.position, 'groups', ${groupsOf("link_group", "link_id", "l.id")}) from link l where l.id = ${id})`,
 };

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DB } from "../../src/db";
 import { prepareImage } from "../../src/images/prepare";
-import { imageExists, storeImage } from "../../src/images/store";
+import { imageExists, storedImage, storeImage } from "../../src/images/store";
 import * as schema from "../../src/schema";
 import { png } from "../harness/images";
 
@@ -28,5 +28,18 @@ describe("imageExists", () => {
     if (stored === "images_full") throw new Error("images_full");
     await db.batch([imageExists(db, stored.id), write]);
     expect(await db.select().from(schema.setting).all()).toHaveLength(1);
+  });
+});
+
+describe("storedImage", () => {
+  it("gives the type, dimensions and size of a stored image, never its bytes, and null for an unknown id", async () => {
+    const db = await database();
+    const prepared = prepareImage(png());
+    if (!prepared.ok) throw new Error(prepared.reason);
+    const stored = await storeImage(db, prepared.image, Date.now());
+    if (stored === "images_full") throw new Error("images_full");
+    expect(await storedImage(db, stored.id)).toEqual(stored);
+    expect(await storedImage(db, "f".repeat(32))).toBeNull();
+    expect(await storedImage(db, "not-an-id")).toBeNull();
   });
 });

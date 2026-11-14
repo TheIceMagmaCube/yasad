@@ -168,6 +168,38 @@ describe("App", () => {
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/auth/sign-out")).toBe(true);
   });
 
+  it("shows on the sign-in screen the title, logo and theme changed meanwhile, after a sign-out and without reloading", async () => {
+    const logo = "/api/images/0123456789abcdef0123456789abcdef";
+    mockApi({
+      "GET /api/instance": [
+        { status: 200, body: { title: "Home lab", logo: null, theme: "default", defaultLanguage: "en", passwordSignIn: true } },
+        { status: 200, body: { title: "Lab two", logo, theme: "dusk", defaultLanguage: "en", passwordSignIn: true } },
+      ],
+      "GET /api/setup": { status: 200, body: { open: false } },
+      "GET /api/auth/get-session": [
+        { status: 200, body: { user: ADA, session: {} } },
+        { status: 200, body: null },
+      ],
+      "GET /api/home": [
+        { status: 200, body: { signedIn: true, categories: [], empty: "catalog_empty", pins: [] } },
+        { status: 200, body: { signedIn: false, categories: [], empty: null, pins: [] } },
+      ],
+      "POST /api/auth/sign-out": { status: 200, body: {} },
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(document.title).toBe("My links - Home lab"));
+    expect(document.documentElement).toHaveAttribute("data-theme", "default");
+    await user.click(screen.getByRole("button", { name: "Account menu for Ada Lovelace" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Sign out" }));
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    await waitFor(() => expect(document.title).toBe("Sign in - Lab two"));
+    expect(screen.getAllByText("Lab two").length).toBeGreaterThan(0);
+    expect(document.querySelector(`img[src="${logo}"]`)).not.toBeNull();
+    expect(document.documentElement).toHaveAttribute("data-theme", "dusk");
+    expect(localStorage.getItem("yasad.instanceTheme")).toBe("dusk");
+  });
+
   it("asks a user with a temporary password to change it, then shows home", async () => {
     const fetchMock = mockApi({
       "GET /api/setup": { status: 403, body: { error: { code: "password_change_required", message: "" } } },

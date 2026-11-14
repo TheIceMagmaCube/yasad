@@ -1,4 +1,5 @@
 import type { Instance } from "./instance";
+import type { Theme } from "./preferences";
 
 export type ApiErrorBody = {
   code: string;
@@ -8,8 +9,10 @@ export type ApiErrorBody = {
   fields?: Record<string, string>;
   /** The item as stored now, with `item_changed`. */
   current?: unknown;
-  /** The most pins a person may have, with `pins_full`. */
+  /** The most pins a person may have, with `pins_full`; the largest size or side of an image, with `invalid_image`. */
   max?: number;
+  /** Why an image was refused, with `invalid_image`. */
+  reason?: string;
 };
 
 export class ApiError extends Error {
@@ -146,8 +149,8 @@ export type AccountGroup = { name: string; source: "system" | "local" | "oidc" }
 /** Body of GET /api/account: how the person signs in, the groups they hold, when the provider groups were written. */
 export type AccountInfo = { origin: "local" | "oidc"; groups: AccountGroup[]; providerGroupsAt: string | null };
 
-/** Kinds of objects the change log names; `catalog` stands for a whole import. */
-export type HistoryObjectType = "user" | "group" | "category" | "link" | "catalog";
+/** Kinds of objects the change log names; `catalog` stands for a whole import, `instance` for its appearance. */
+export type HistoryObjectType = "user" | "group" | "category" | "link" | "catalog" | "instance";
 export type HistoryAction = "create" | "update" | "delete" | "move" | "password_reset" | "member_add" | "member_remove" | "import";
 /** An object an entry names, as it was then; `exists` says whether it is still there, to link to its page. */
 export type HistoryObject = { type: HistoryObjectType; id: string | null; label: string | null; exists: boolean };
@@ -188,6 +191,18 @@ export function historyQueryString(query: HistoryQuery): string {
   const text = params.toString();
   return text ? `?${text}` : "";
 }
+
+/** An image as stored: its id gives its address, `/api/images/<id>`. */
+export type StoredImage = { id: string; type: string; width: number; height: number; size: number };
+/** An image just uploaded; `sanitized` says that parts of an SVG were removed. */
+export type UploadedImage = StoredImage & { sanitized: boolean };
+/**
+ * The instance's title, logo and theme as stored, null for each default. `legacy` is a logo set outside the app,
+ * still shown, never written again.
+ */
+export type AdminInstance = { title: string | null; logo: StoredImage | { legacy: string } | null; theme: Theme | null };
+/** A change of the instance settings: each field given is stored, null going back to the default; `logo` is an image id. */
+export type InstanceChanges = { title?: string | null; logo?: string | null; theme?: Theme | null };
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -289,6 +304,10 @@ const send = (method: string, body: unknown = {}): RequestInit => ({ method, bod
 
 export const api = {
   instance: () => call<Instance>("/api/instance"),
+  adminInstance: () => call<AdminInstance>("/api/admin/instance"),
+  updateInstance: (changes: InstanceChanges) => call<AdminInstance>("/api/admin/instance", send("PATCH", changes)),
+  /** Upload an image sent as base64; the server reads its type from its bytes. */
+  uploadImage: async (data: string) => (await call<{ image: UploadedImage }>("/api/admin/images", post({ data }))).image,
   setupState: () => call<SetupState>("/api/setup"),
   verifyCode: (code: string) => call<void>("/api/setup/verify-code", post({ code })),
   completeSetup: (code: string, admin: AdminInput) => call<{ user: User }>("/api/setup", post({ code, ...admin })),

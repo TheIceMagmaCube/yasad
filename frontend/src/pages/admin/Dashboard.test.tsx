@@ -75,6 +75,7 @@ describe("Dashboard", () => {
       ["Dashboard", "/admin"],
       ["People", "/admin/users"],
       ["Links", "/admin/links"],
+      ["Appearance", "/admin/appearance"],
       ["History", "/admin/history"],
     ]);
     expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");

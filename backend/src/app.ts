@@ -17,6 +17,7 @@ import { adminCatalog, MAX_CATALOG_BODY } from "./routes/admin-catalog";
 import { adminGroups } from "./routes/admin-groups";
 import { adminHistory } from "./routes/admin-history";
 import { adminImages } from "./routes/admin-images";
+import { adminInstance } from "./routes/admin-instance";
 import { adminCategories, adminLinks } from "./routes/admin-links";
 import { adminUsers } from "./routes/admin-users";
 import { authRoutes } from "./routes/auth";
@@ -36,11 +37,15 @@ const OPEN_WITH_TEMPORARY_PASSWORD = new Set([
   "GET /api/auth/get-session",
   "POST /api/auth/sign-out",
   "GET /api/instance",
+  "GET /api/instance/icon",
   "GET /api/health",
   "POST /api/account/password",
 ]);
 
-/** Open with a temporary password too: the logo must show on the screen where the new password is chosen. */
+/**
+ * Open with a temporary password too: the logo and the tab icon must show on the screen where the new password is
+ * chosen.
+ */
 const openWithTemporaryPassword = (method: string, path: string) =>
   OPEN_WITH_TEMPORARY_PASSWORD.has(`${method} ${path}`) || (method === "GET" && path.startsWith(IMAGES_PATH));
 
@@ -149,6 +154,7 @@ export function createApp({ getDb, getRawConfig, getClientIp, runtime }: AppDeps
   app.route("/admin/groups", adminGroups);
   app.route("/admin/history", adminHistory);
   app.route("/admin/images", adminImages);
+  app.route("/admin/instance", adminInstance);
   app.route("/admin/access", adminAccess);
   app.route("/auth", authRoutes);
 

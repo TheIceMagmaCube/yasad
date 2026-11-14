@@ -20,6 +20,7 @@ const objectExists = (type: SQL | string, id: SQL | string): SQL => sql`case ${t
   when 'group' then exists (select 1 from "group" where id = ${id})
   when 'category' then exists (select 1 from category where id = ${id})
   when 'link' then exists (select 1 from link where id = ${id})
+  when 'instance' then 1
   else 0 end`;
 
 const parseJson = (value: string | null): unknown => (value === null ? null : JSON.parse(value));

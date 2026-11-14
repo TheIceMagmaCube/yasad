@@ -15,6 +15,8 @@ export type StoredImage = { id: string; type: ImageType; width: number; height: 
 /** Image ids as cited in the catalog and the settings: 32 lowercase hex characters. */
 export const IMAGE_ID = /^[0-9a-f]{32}$/;
 
+const metadata = { id: image.id, type: image.type, width: image.width, height: image.height, size: image.size };
+
 const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 
 /** True when no link and no setting cites the image of the outer query. */
@@ -75,11 +77,7 @@ export async function storeImage(db: DB, prepared: PreparedImage, now: number): 
     if (row?.v) return "images_full";
     throw error;
   }
-  const stored = await db
-    .select({ id: image.id, type: image.type, width: image.width, height: image.height, size: image.size })
-    .from(image)
-    .where(eq(image.sha256, sha256))
-    .get();
+  const stored = await db.select(metadata).from(image).where(eq(image.sha256, sha256)).get();
   return stored!;
 }
 
@@ -90,6 +88,12 @@ export async function storeImage(db: DB, prepared: PreparedImage, now: number): 
  */
 export function imageExists(db: DB, id: string) {
   return failWhen(db, sql`not exists (select 1 from image where id = ${id})`);
+}
+
+/** Return the type, dimensions and size of an image, or null for an unknown id. */
+export async function storedImage(db: DB, id: string): Promise<StoredImage | null> {
+  if (!IMAGE_ID.test(id)) return null;
+  return (await db.select(metadata).from(image).where(eq(image.id, id)).get()) ?? null;
 }
 
 /** Return the type and bytes of an image, or null for an unknown id. */

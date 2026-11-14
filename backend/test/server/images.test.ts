@@ -1,9 +1,11 @@
-// Node-only: the real Docker entry, whose second withSecurityHeaders pass must keep the image CSP.
+// Node-only: the real Docker entry, whose second withSecurityHeaders pass must keep the image CSP, and whose static
+// files hold the YASAD logo the tab icon falls back to.
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -33,12 +35,20 @@ function freePort(): Promise<number> {
 }
 
 describe("image responses on the Docker server", () => {
-  it("keep the image CSP through server.ts, while other responses keep the app's", async () => {
+  it("keep the image CSP through server.ts, while other responses keep the app's, and the tab icon falls back to a served file", async () => {
     dir = await mkdtemp(join(tmpdir(), "yasad-images-"));
     const dbFile = join(dir, "yasad.db");
     const port = await freePort();
     child = spawn(process.execPath, ["--import", "tsx", "src/server.ts"], {
-      env: { ...process.env, ...ENV, PORT: String(port), DATABASE_URL: `file:${dbFile}`, CATALOG_FILE: "", SETUP_CODE: "" },
+      env: {
+        ...process.env,
+        ...ENV,
+        PORT: String(port),
+        DATABASE_URL: `file:${dbFile}`,
+        CATALOG_FILE: "",
+        SETUP_CODE: "",
+        STATIC_DIR: fileURLToPath(new URL("../../../frontend/public", import.meta.url)),
+      },
     });
     let output = "";
     child.stdout?.on("data", (d) => (output += d));
@@ -73,5 +83,13 @@ describe("image responses on the Docker server", () => {
     const missing = await fetch(`${url}/api/images/${"0".repeat(32)}`);
     expect(missing.headers.get("content-security-policy")).toBe(IMAGE_CONTENT_SECURITY_POLICY);
     expect((await fetch(`${url}/api/instance`)).headers.get("content-security-policy")).toBe(CONTENT_SECURITY_POLICY);
+
+    const icon = await fetch(`${url}/api/instance/icon`, { redirect: "manual" });
+    expect(icon.status).toBe(302);
+    expect(icon.headers.get("location")).toBe("/favicon.svg");
+    const favicon = await fetch(`${url}/favicon.svg`);
+    expect(favicon.status).toBe(200);
+    expect(favicon.headers.get("content-type")).toContain("image/svg+xml");
+    expect(await favicon.text()).toContain("<svg");
   }, 20_000);
 });

@@ -1,11 +1,19 @@
 import type { HistoryEntry, HistoryObject, HistoryObjectType, HistoryQuery } from "../../../api";
 import type { Messages } from "../../../i18n/en";
 import { groupRefLabel } from "../../../lib/group-ref";
+import type { Theme } from "../../../preferences";
+import { APPEARANCE } from "../appearance/AppearancePage";
 import { categoryHref, linkHref } from "../links/item-edit";
 
 export const HISTORY = "/admin/history";
 
-export const HISTORY_TYPES: readonly HistoryObjectType[] = ["user", "group", "category", "link", "catalog"];
+/** Prefix of a stored image cited by a setting or a link. */
+const IMAGE_REF = "image:";
+const IMAGE_VALUE = /^image:[0-9a-f]{32}$/;
+/** Fields whose value may cite a stored image: the instance logo, and a link icon. */
+const IMAGE_FIELDS = new Set(["logo", "icon"]);
+
+export const HISTORY_TYPES: readonly HistoryObjectType[] = ["user", "group", "category", "link", "catalog", "instance"];
 
 /** Filters of the history page as the address holds them: dates are local days (`2026-10-19`), both included. */
 export type HistoryFilters = { actor: string; type: string; object: string; from: string; to: string };
@@ -55,6 +63,7 @@ export function filtersQuery(filters: HistoryFilters): HistoryQuery {
 
 /** Return the address of the page of an object that still exists, or null. */
 export function objectHref(object: HistoryObject): string | null {
+  if (object.type === "instance") return APPEARANCE;
   if (!object.exists || object.id === null) return null;
   const id = encodeURIComponent(object.id);
   switch (object.type) {
@@ -83,6 +92,7 @@ const FIELD_ORDER: Record<HistoryObjectType, string[]> = {
   category: ["title", "position", "groups", "links"],
   link: ["title", "url", "description", "categoryId", "icon", "keywords", "active", "check", "position", "groups"],
   catalog: [],
+  instance: ["title", "logo", "theme"],
 };
 
 export type FieldRow = { field: string; before?: unknown; after?: unknown };
@@ -151,6 +161,12 @@ export function valueText(type: HistoryObjectType, field: string, value: unknown
   if (field === "role") return m.roles[value as "admin" | "user"] ?? String(value);
   if (type === "user" && field === "origin") return m.users.originValue[value as "local" | "oidc"] ?? String(value);
   if (type === "group" && field === "source") return m.groups.source[value as "local" | "oidc" | "system"] ?? String(value);
+  if (type === "instance" && field === "theme") return m.appearance.theme.names[value as Theme] ?? String(value);
+  // The start of the id tells one image from another, so replacing a logo does not read the same before and after.
+  // Only fields that cite images: a title or a name may well start with "image:".
+  if (IMAGE_FIELDS.has(field) && typeof value === "string" && IMAGE_VALUE.test(value)) {
+    return h.values.image(value.slice(IMAGE_REF.length, IMAGE_REF.length + 8));
+  }
   if (Array.isArray(value)) {
     const items = field === "groups" ? value.map((ref) => groupRefLabel(String(ref))) : value.map(itemName);
     return listText(items, m);
