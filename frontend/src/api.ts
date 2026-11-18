@@ -62,7 +62,50 @@ export type AdminUser = {
   lastSignInAt: string | null;
 };
 export type UserChanges = { name?: string; email?: string; role?: Role; roleOverride?: Role | null; disabled?: boolean };
-export type AdminGroup = { id: string; name: string; source: GroupSource; memberIds: string[]; categories: number; links: number };
+export type AdminGroup = {
+  id: string;
+  name: string;
+  source: GroupSource;
+  memberIds: string[];
+  categories: number;
+  links: number;
+  /**
+   * Prototype only, not served by the backend yet: when a provider group last came in a sign-in token; null for one
+   * only typed by an admin or a catalog import and never received.
+   */
+  seenAt?: string | null;
+};
+
+/** A link as the catalog edit screen holds it: inactive links and links without a group included. */
+export type AdminLink = {
+  id: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  url: string;
+  /** `si:<slug>` or `lucide:<name>`, as stored. */
+  icon: string | null;
+  /** Whether `icon` names an icon YASAD serves. */
+  iconKnown: boolean;
+  keywords: string[];
+  active: boolean;
+  /** Group references: `@everyone`, `@authenticated`, `local:<name>`, `oidc:<name>`. */
+  groups: string[];
+  revision: number;
+};
+export type AdminCategory = { id: string; title: string; groups: string[]; revision: number; links: AdminLink[] };
+export type EditWarning = "no_group" | "unknown_icon" | "groups_differ_by_case" | "new_oidc_group";
+export type LinkInput = {
+  title: string;
+  url: string;
+  description?: string;
+  icon?: string | null;
+  keywords?: string[];
+  groups: string[];
+  active?: boolean;
+  categoryId: string;
+};
+export type CategoryInput = { title: string; groups: string[] };
 
 export type SetupState = { open: boolean; setupCodeStillSet?: boolean };
 export type User = { id: string; name: string; email: string; role: string; mustChangePassword?: boolean };
@@ -158,4 +201,17 @@ export const api = {
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("PUT")),
   removeMember: (groupId: string, userId: string) =>
     call<void>(`/api/admin/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, send("DELETE")),
+  categories: async () => (await call<{ categories: AdminCategory[] }>("/api/admin/categories")).categories,
+  createCategory: (input: CategoryInput) => call<{ category: AdminCategory; warnings: EditWarning[] }>("/api/admin/categories", post(input)),
+  updateCategory: (id: string, revision: number, changes: Partial<CategoryInput>) =>
+    call<{ category: AdminCategory; warnings: EditWarning[] }>(`/api/admin/categories/${encodeURIComponent(id)}`, send("PATCH", { revision, ...changes })),
+  moveCategory: (id: string, direction: "up" | "down") =>
+    call<{ order: string[] }>(`/api/admin/categories/${encodeURIComponent(id)}/move`, post({ direction })),
+  deleteCategory: (id: string, revision: number, linkCount: number) =>
+    call<void>(`/api/admin/categories/${encodeURIComponent(id)}`, send("DELETE", { revision, linkCount })),
+  createLink: (input: LinkInput) => call<{ link: AdminLink; warnings: EditWarning[] }>("/api/admin/links", post(input)),
+  updateLink: (id: string, revision: number, changes: Partial<LinkInput>) =>
+    call<{ link: AdminLink; warnings: EditWarning[] }>(`/api/admin/links/${encodeURIComponent(id)}`, send("PATCH", { revision, ...changes })),
+  moveLink: (id: string, direction: "up" | "down") => call<{ order: string[] }>(`/api/admin/links/${encodeURIComponent(id)}/move`, post({ direction })),
+  deleteLink: (id: string, revision: number) => call<void>(`/api/admin/links/${encodeURIComponent(id)}`, send("DELETE", { revision })),
 };

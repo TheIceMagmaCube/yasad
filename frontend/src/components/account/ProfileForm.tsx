@@ -23,13 +23,15 @@ type ProfileFormProps = {
   onSaved: () => Promise<unknown>;
   /** Close without saving: Cancel, Escape, or a submission that changes nothing. */
   onCancel: () => void;
+  /** Show only this field; the other one keeps its saved value. */
+  only?: "name" | "email";
 };
 
 /**
  * Edit the name and e-mail of a local account. A new e-mail asks for the current password, in a field that shows
  * only then.
  */
-export function ProfileForm({ id, user, onSaved, onCancel }: ProfileFormProps) {
+export function ProfileForm({ id, user, onSaved, onCancel, only }: ProfileFormProps) {
   const m = useStrings();
   const a = m.account;
   const [name, setName] = useState(user.name);
@@ -78,8 +80,10 @@ export function ProfileForm({ id, user, onSaved, onCancel }: ProfileFormProps) {
     <InlineForm id={id} onSubmit={submit} onCancel={onCancel}>
       <FormStack>
         <ErrorSummary errors={errors} labels={{ name: a.name, email: a.email, currentPassword: a.currentPassword }} />
-        <Field label={a.name} autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} {...errors.field("name")} />
-        <Field label={a.email} type="email" autoComplete="email" required value={email} onChange={(e) => changeEmail(e.target.value)} {...errors.field("email")} />
+        {only !== "email" && <Field label={a.name} autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} {...errors.field("name")} />}
+        {only !== "name" && (
+          <Field label={a.email} type="email" autoComplete="email" required value={email} onChange={(e) => changeEmail(e.target.value)} {...errors.field("email")} />
+        )}
         {emailChanges && (
           <PasswordField
             label={a.currentPassword}
